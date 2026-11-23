@@ -461,13 +461,15 @@ const Particles = {
 
   update(dt0, act) {
     const prevT = this.T;
-    if (act) {
+    // до старта (под заставкой) мир просто живёт: без карточек, остывания и ввода
+    const live = act && G.started;
+    if (live) {
       // карточка эпохи — один раз, в начале
       if (this.cardFor !== this.ep) { this.cardFor = this.ep; this.showCard(); return; }
     }
     // пока игрок целится, время замедлено
     const dt = this.aim ? dt0 * this.up('slow') : dt0;
-    if (act) {
+    if (live) {
       this.t += dt; this.epT += dt;
       const E = EPOCHS[this.ep], nx = EPOCHS[this.ep + 1];
       const floor = this.epDone ? (nx ? Math.min(nx.startT, this.T) * .999 : 0) : E.floor;
@@ -480,8 +482,8 @@ const Particles = {
     if (this.higT >= 0) { this.higT += dt; this.hig = smooth(0, 9, this.higT); }
     this.bg = mixc([44, 34, 14], [16, 12, 30], this.hig);
     const red = this.T / prevT; // расширение: импульсы краснеют вместе с температурой
+    if (live) this.input();
     if (act) {
-      this.input();
       // детектор держит позицию, пока игрок натягивает рогатку
       if (this.press) { P.vx *= .8; P.vy *= .8; } else steer(P, 11, 6, dt0);
       P.x += P.vx * dt0; P.y += P.vy * dt0;
