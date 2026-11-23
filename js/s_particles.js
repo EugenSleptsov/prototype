@@ -102,7 +102,7 @@ const Particles = {
     this.learn = {}; this.en = 0; this.enFx = 0; this.shotCd = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.bannerFor = -1; this.banner = 99; this.epT = 0;
-    this.pairs = 0; this.decSeen = new Set(); this.hot = []; this.hotCd = 3; this.stock = 0; this.stockQ = []; this.soupCd = 0; this.handoff = null; this.stockOut = false;
+    this.pairs = 0; this.decSeen = new Set(); this.hot = []; this.hotCd = 3; this.stock = 0; this.stockQ = []; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
     Codex.run = new Set(); Codex.dirty = true;
     P.x = P.y = P.vx = P.vy = 0; P.dashCd = 0;
     for (let i = 0, n = this.nQ(); i < n; i++) this.spawnQuantum(true);
@@ -453,7 +453,7 @@ const Particles = {
       this.T = Math.max(floor, this.T * Math.exp(-dt * rate / E.tau));
       if (this.epDone && nx && (this.epGap -= dt) <= 0 && this.T <= nx.startT) this.startEpoch(this.ep + 1);
       this.tickHot(dt);
-      if (this.ep === 3) this.soup(dt);
+      if (this.ep === 3 && !this.advanced) this.soup(dt);
     }
     if (this.higT >= 0) { this.higT += dt; this.hig = smooth(0, 9, this.higT); }
     this.tickRipples(dt, live);
@@ -499,7 +499,7 @@ const Particles = {
       const ox = o.x - P.x, oy = o.y - P.y, d = Math.hypot(ox, oy);
       if (o.rep > 0 && d > viewRadius() + .5) { o.dead = true; this.ejected++; continue; }
       if (d > WR && !o.cap) { o.x = P.x - ox * .95; o.y = P.y - oy * .95; o.born = 0; if (o.trail) o.trail = []; }
-      if (ep4 && SM[o.sp].kind === 'quark' && d < this.hr() * (o.anti ? .55 : .75)) this.store(o);
+      if (ep4 && !this.advanced && SM[o.sp].kind === 'quark' && d < this.hr() * (o.anti ? .55 : .75)) this.store(o);
       if (o.sp === 'ph' && G.started && this.enOn() && this.en < E_CAP && d < this.hr() && !o.cap && !(o.flung > 0) && o.born > .5 && o.cd <= 0) this.absorb(o);
     }
     if (act) {
@@ -514,26 +514,36 @@ const Particles = {
           if ((q.x - o.x) ** 2 + (q.y - o.y) ** 2 < THROW_R * THROW_R) { this.collide(o, q); this.learn.hit = true; break; }
         }
       }
-      if (this.ep === 3) this.annihilateAll();
-      this.populate(dt);
+      if (this.ep === 3 && !this.advanced) this.annihilateAll();
+      if (!this.advanced) this.populate(dt);
       this.checkGoals();
       if (!this.advanced && this.ep === 3 && this.T < .4) {
-        this.advanced = true; this.release();
-        this.showResult(true);
+        // аннигиляция догорает: антивещество вспыхивает, неспасённое гаснет; в детекторе — только твои кварки
+        this.advanced = true; this.release(); this.holding = false; this.finale = 1.6;
+        for (const o of this.p) {
+          if (o.anti && SM[o.sp].kind === 'quark') fxFlash(o.x, o.y, .5, [255, 255, 255], .4);
+          o.fade = rnd(.6, 1.2);
+        }
+        this.float(P.x, P.y - this.hr() - .4, `◉ ${this.stock}`, [140, 235, 170], 18);
       }
+      if (this.finale > 0 && (this.finale -= dt0) <= 0) this.showResult(true);
     }
     this.p = this.p.filter(o => !o.dead);
     if (this.p.length > 260) this.p.splice(0, this.p.length - 260);
   },
-  // Сбережённые кварки — ровно те, что кружат в детекторе, — переходят на уровень адронов с теми же
-  // местами и скоростями. Новых не появляется.
+  // Сбережённые кварки — ровно те, что кружат в детекторе, — переходят на уровень адронов: детектор
+  // раскрывается, и они вырываются наружу с того места, где кружили. Новых не появляется.
   stockPos(i) {
     const a = G.T * 1.2 + i / this.stock * TAU, rr = this.hr() * (.35 + .1 * (i % 2));
-    return { x: P.x + Math.cos(a) * rr, y: P.y + Math.sin(a) * rr, vx: P.vx - Math.sin(a) * rr * 1.2, vy: P.vy + Math.cos(a) * rr * 1.2 };
+    return { x: P.x + Math.cos(a) * rr, y: P.y + Math.sin(a) * rr, a, rr };
   },
   endLevel() {
-    this.handoff = this.stockQ.map((s, i) => ({ ...this.stockPos(i), fl: s.fl, col: s.col }));
+    this.handoff = this.stockQ.map((s, i) => {
+      const p = this.stockPos(i), out = rnd(2.6, 3.6), tan = p.rr * 1.2;
+      return { x: p.x, y: p.y, vx: Math.cos(p.a) * out - Math.sin(p.a) * tan, vy: Math.sin(p.a) * out + Math.cos(p.a) * tan, fl: s.fl, col: s.col };
+    });
     this.stockOut = true;
+    fxFlash(P.x, P.y, this.hr(), [255, 255, 255], .5); fxRing(P.x, P.y, this.hr() * .5, [140, 235, 170], this.hr() * 3, .9);
     advance();
   },
   // Эпоха 4: кварки почти остановились (упрощение), антикварки ищут вещество — свободное или в детекторе
@@ -671,7 +681,7 @@ const Particles = {
   store(o) {
     o.dead = true;
     if (!o.anti) {
-      this.stock++; this.stockQ.push({ fl: o.sp, col: this.stockQ.length % 3 });
+      this.stock++; this.stockQ.push({ fl: o.sp, col: o.col });
       this.float(P.x, P.y, '+1 ◉', [140, 235, 170], 14);
     } else if (this.stock > 0) {
       this.stock--; this.stockQ.pop();
@@ -896,7 +906,7 @@ const Particles = {
     }
     if (this.ep === 3 && this.stock > 0 && !this.stockOut) {
       // запас вещества кружит внутри детектора
-      for (let i = 0; i < this.stock; i++) { const p = this.stockPos(i), [bx, by] = W2S(p.x, p.y); ball(bx, by, 3.5, QCOL[this.stockQ[i].col]); }
+      for (let i = 0; i < this.stock; i++) { const p = this.stockPos(i), [bx, by] = W2S(p.x, p.y); ball(bx, by, 4.5, QCOL[this.stockQ[i].col]); }
     }
     const ready = this.canShot();
     let unk = 0;
@@ -994,7 +1004,7 @@ const Particles = {
   },
   // Подсказка в одну строку — пока действие не освоено
   drawHint(sx, sy, r) {
-    if (!G.started || G.paused) return;
+    if (!G.started || G.paused || this.advanced) return;
     let t = null;
     if (this.ep === 3) t = this.learn.shield ? null : 'зажми — щит';
     else if (!this.learn.snap) t = 'клик — снимок';
@@ -1029,7 +1039,7 @@ const Particles = {
     const E = EPOCHS[this.ep];
     hudBanner(this.banner, `ЭПОХА ${this.ep + 1} · ${E.when}`, E.name, E.line, alpha);
   },
-  overlay(alpha) { this.drawClock(alpha); this.drawBanner(alpha); ctx.globalAlpha = 1; },
+  overlay(alpha) { if (this.stockOut) return; this.drawClock(alpha); this.drawBanner(alpha); ctx.globalAlpha = 1; },
   viewR() { return 3.5 + this.hr() * 1.9; },
   hud() {
     return { title: EPOCHS[this.ep].name, sub: `T ≈ ${fmtGeV(this.T)}${this.ff > 1 ? ' · ×4' : ''}`, lines: [], goal: '', laws: [] };

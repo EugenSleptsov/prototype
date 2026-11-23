@@ -23,13 +23,14 @@ const Quarks = {
     this.kn = 0; this.clock = 0; this.doneAt = null; this.endCd = -1; this.banner = -1.5; this.made = { p: 0, n: 0 }; this.mine = 0;
     this.hr = prev && prev.hr ? prev.hr() : 1.4;
     const src = prev && prev.handoff || [];
-    // сбережённые кварки вылетают из детектора там же, где кружили, и растут до размера кварка
-    const sz0 = clamp(3.5 / (QR * cam.z), .08, 1);
-    for (const h of src) { const q = this.mk(h.x, h.y, h.col, false, h.fl); q.vx = h.vx; q.vy = h.vy; q.age = 1; q.sz = sz0; }
+    // сбережённые кварки вырываются из детектора там же, где кружили, оставляя треки, и растут до размера кварка
+    const sz0 = clamp(4.5 / (QR * cam.z), .08, 1);
+    for (const h of src) { const q = this.mk(h.x, h.y, h.col, false, h.fl); q.vx = h.vx; q.vy = h.vy; q.age = 1; q.sz = sz0; q.tr = [[h.x, h.y]]; q.mine = 1; }
+    this.nSaved = src.length;
     if (!src.length) { P.x = P.y = P.vx = P.vy = 0; }
     this.C = { x: P.x, y: P.y };
-    // если материала совсем мало (запуск с этого уровня), недостающие прилетают из-за края
-    for (let i = this.q.length; i < 9; i++) {
+    // материал — только сбережённое; при запуске прямо с этого уровня кварки прилетают из-за края
+    for (let i = this.q.length; i < (src.length ? 0 : 12); i++) {
       const a = Math.random() * TAU, d = Q_WR * .9, q = this.mk(P.x + Math.cos(a) * d, P.y + Math.sin(a) * d, i % 3, false, i % 3 === 1 ? 'd' : 'u');
       q.vx = -Math.cos(a) * 2.5; q.vy = -Math.sin(a) * 2.5; q.age = 0;
     }
@@ -289,7 +290,8 @@ const Quarks = {
     // тепловое дрожание: плазма кипит, но кварки расходятся из детектора постепенно
     const jit = .22 * this.temp;
     for (const q of this.q) {
-      q.age += dt; q.nb -= dt; q.hand -= dt; q.sz = Math.min(1, q.sz + dt * 1.2);
+      q.age += dt; q.nb -= dt; q.hand -= dt; q.sz = Math.min(1, q.sz + dt * .8);
+      if (q.tr) { if (q.age < 3.5) { q.tr.push([q.x, q.y]); if (q.tr.length > 40) q.tr.shift(); } else q.tr = null; }
       if (q.cap) continue;
       const j = jit * Math.sqrt(dt) * 2;
       q.vx += randn() * j; q.vy += randn() * j;
@@ -375,11 +377,19 @@ const Quarks = {
         }
       } else if (pts.length === 2) this.tube(pts[0][0], pts[0][1], pts[1][0], pts[1][1], c, w, al * flick);
     }
+    // треки вылета из детектора: как в пузырьковой камере уровня частиц, гаснут за пару секунд
+    for (const q of this.q) {
+      if (!q.tr || q.tr.length < 2) continue;
+      ctx.strokeStyle = rgb(QCOL[q.col], .55 * clamp(1 - (q.age - 1) / 2.5, 0, 1)); ctx.lineWidth = 2; ctx.beginPath();
+      q.tr.forEach(([x, y], i) => { const [sx, sy] = W2S(x, y); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); });
+      ctx.stroke();
+    }
     // кварки
     for (const q of this.q) {
       const [sx, sy] = W2S(q.x, q.y), r = QR * z * q.sz;
       if (!onScreen(sx, sy, r * 4)) continue;
-      const a = al * Math.min(1, q.age * 2);
+      // сбережённые кварки видны всё время смены уровня — это те же самые кварки, они не пропадают
+      const a = (q.mine ? 1 : al) * Math.min(1, q.age * 2);
       const c = q.anti ? QANTI[q.col] : QCOL[q.col];
       glow(sx, sy, r * 3, c, .4 * a);
       if (q.anti) { ring(sx, sy, r * .75, c, a, Math.max(1.5, r * .3)); }
@@ -437,7 +447,7 @@ const Quarks = {
     const n = this.made.p + this.made.n, all = n + this.spare();
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > Q_PAR ? [190, 190, 205] : [255, 255, 255], Math.round(this.kn),
       [['остыла', this.conf > .5], [`барионы ${n}/${all}`, this.doneAt !== null]]);
-    hudBanner(this.banner, 'УРОВЕНЬ 2 · 10⁻⁶ с', 'Адроны', 'собери из кварков протоны и нейтроны', al);
+    hudBanner(this.banner, 'УРОВЕНЬ 2 · 10⁻⁶ с', 'Адроны', this.nSaved ? `${this.nSaved} сбережённых кварков → протоны и нейтроны` : 'собери из кварков протоны и нейтроны', al);
     ctx.globalAlpha = 1;
   },
   viewR() { return 3.6 + this.hr * 1.4; },
