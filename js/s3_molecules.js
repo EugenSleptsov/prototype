@@ -33,7 +33,7 @@ const GOALS = [
 
 const Mols = {
   key: 'molecules', name: 'Химия', bg: [6, 24, 44],
-  controls: 'Мышь — двигаться · Q / E или колесо — вращать · Пробел — рывок · X — отщепить атом',
+  controls: 'Мышь — двигаться · Q / E или Shift + колесо — вращать · колесо — зум · Пробел — рывок · X — отщепить атом',
 
   enter(prev) {
     this.m = []; this.t = 0; this.goalI = 0; this.first = true; this.hints = []; this.lowEMsgT = 0; this.satMsg = false;

@@ -17,6 +17,9 @@ const UPG = [
 ];
 const HIT_R = .42, H_WIN = 20; // радиус встречи; полуширина окна резонанса H (ГэВ)
 const THROW_V = 5, THROW_R = .6; // скорость детектора для броска; радиус попадания броском
+// Энергия детектора: появляется, когда открыт фотон; пополняется пойманными фотонами,
+// тратится на снимки и на разгон квантов полем
+const E_CAP = 10, E_START = 4, E_SHOT = 1, E_FIELD = 2, PH_C = [255, 238, 150];
 // Норматив времени эпохи (с): каждая секунда быстрее даёт +2 к итогу. В эпохе 4 вместо скорости — сохранённое вещество.
 const PAR = [90, 60, 60];
 const LB_KEY = 'proto.lb.v1', LB_TOP = 5;
@@ -96,7 +99,7 @@ const Particles = {
     this.advanced = false;
     this.kn = 0; this.picks = 0; this.epClock = 0; this.epKn0 = 0; this.doneAt = null; this.lvlTotal = 0; this.cheated = false; this.res = null;
     this.lvl = { r: 0, sh: 0, pow: 0, fr: 0 }; this.focus = null; this.holding = false; this.hold = 0; this.shield = 1;
-    this.learn = {}; this.shotCd = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
+    this.learn = {}; this.en = 0; this.enFx = 0; this.shotCd = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.bannerFor = -1; this.banner = 99; this.epT = 0;
     this.pairs = 0; this.decSeen = new Set(); this.hot = []; this.hotCd = 3; this.stock = 0; this.stockQ = []; this.soupCd = 0; this.handoff = null; this.stockOut = false;
@@ -130,7 +133,7 @@ const Particles = {
   },
   spawnQuantum(any) {
     const [x, y] = this.randPos(!any);
-    const o = this.mk(Math.random() < .62 ? 'g' : 'ph', false, x, y, Math.random() * TAU, this.thermalP(this.T));
+    const o = this.mk(Math.random() < .5 ? 'g' : 'ph', false, x, y, Math.random() * TAU, this.thermalP(this.T));
     if (any) o.born = 1;
   },
   // пара частица + античастица разлетается из одной точки
@@ -143,6 +146,15 @@ const Particles = {
   speed(o) { if (o.v != null) return o.v; const m = this.meff(o); return m <= 0 ? C_LIGHT : C_LIGHT * o.p / Math.sqrt(o.p * o.p + m * m); },
   isQ(o) { return o.sp === 'ph' || o.sp === 'g'; },
   inHand(o) { return Math.hypot(o.x - P.x, o.y - P.y) < this.hr(); },
+  enOn() { return Codex.has('ph'); },
+  canShot() { return this.shotCd <= 0 && (!this.enOn() || this.en >= E_SHOT); },
+  noEnergy() { this.enFx = .6; },
+  // Детектор поглощает знакомый фотон, пролетевший через его центр
+  absorb(o) {
+    o.dead = true; this.en = Math.min(E_CAP, this.en + 1); this.learn.absorb = true;
+    fxRing(o.x, o.y, .05, PH_C, .5, .35);
+    this.float(P.x + .5, P.y + this.hr() * .3, '+⚡', PH_C, 12);
+  },
   // Больцмановский вес: сколько частиц этого сорта держит Вселенная при температуре T
   weight(sp) { const m = SM[sp].m * this.hig; return m <= 0 ? 1 : Math.exp(-m / this.T); },
 
@@ -170,7 +182,11 @@ const Particles = {
       if (best) { best.cap = true; best.v = undefined; f.cap.push(best); }
     }
     const two = f.cap.length === 2;
-    if (f.cap.length) { f.q = Math.min(1, f.q + dt / CHARGE_T); f.E = this.chargeE(f.q); }
+    if (f.cap.length) {
+      let dq = Math.min(dt / CHARGE_T, 1 - f.q);
+      if (this.enOn()) { dq = Math.min(dq, this.en / E_FIELD); this.en -= dq * E_FIELD; if (dq <= 0 && f.q < 1) this.noEnergy(); }
+      f.q += dq; f.E = this.chargeE(f.q);
+    }
     if (two) { f.t2 = (f.t2 || 0) + dt; if (f.t2 > .4) this.learn.hold = true; }
     f.ang += dt * (2.2 + 7 * f.q);
     // захваченные кванты тянутся к детектору (и за ним), затем кружат друг напротив друга;
@@ -337,6 +353,9 @@ const Particles = {
   value(sp) { const m = SM[sp].m; return m > 0 ? 1 + Math.round(Math.log10(1 + m / .001) / 2) : 1; },
   snapshot() {
     if (!G.started || this.shotCd > 0) return;
+    const paid = this.enOn();
+    if (paid && this.en < E_SHOT) { this.noEnergy(); this.shotCd = .25; this.float(P.x, P.y - this.hr(), 'нет энергии ⚡', [255, 150, 130], 13); return; }
+    if (paid) this.en -= E_SHOT;
     this.shotCd = this.up('sh'); this.learn.snap = true;
     const R0 = this.hr(), got = new Map(); // вид → где его видно (частица или след)
     for (const o of this.p) if (!o.dead && this.inHand(o) && !got.has(o.sp)) got.set(o.sp, { x: o.x, y: o.y });
@@ -361,6 +380,11 @@ const Particles = {
     for (const [sp, at] of got) {
       if (!Codex.has(sp)) {
         Codex.see(sp); gain += 10; fresh++;
+        if (sp === 'ph') { // фотон открыт — у детектора появляется энергия
+          this.en = Math.max(this.en, E_START);
+          fxRing(P.x, P.y, this.hr(), PH_C, this.hr() * 1.6, .9);
+          this.float(P.x, P.y + this.hr() + .3, 'γ → ⚡ энергия', PH_C, 15, -.4);
+        }
         this.float(at.x, at.y, 'НОВОЕ ' + SM[sp].sym, [255, 215, 110], 15, -.15 * fresh);
         continue;
       }
@@ -439,7 +463,7 @@ const Particles = {
     if (act) {
       steer(P, 11, 6, dt0);
       P.x += P.vx * dt0; P.y += P.vy * dt0;
-      this.shotCd -= dt0;
+      this.shotCd -= dt0; this.enFx -= dt0;
       for (const f of this.floats) f.t += dt0;
       this.floats = this.floats.filter(f => f.t < 1.6);
       this.shotFx = (this.shotFx || 0) - dt0;
@@ -476,6 +500,7 @@ const Particles = {
       if (o.rep > 0 && d > viewRadius() + .5) { o.dead = true; this.ejected++; continue; }
       if (d > WR && !o.cap) { o.x = P.x - ox * .95; o.y = P.y - oy * .95; o.born = 0; if (o.trail) o.trail = []; }
       if (ep4 && SM[o.sp].kind === 'quark' && d < this.hr() * (o.anti ? .55 : .75)) this.store(o);
+      if (o.sp === 'ph' && G.started && this.enOn() && this.en < E_CAP && d < this.hr() && !o.cap && !(o.flung > 0) && o.born > .5 && o.cd <= 0) this.absorb(o);
     }
     if (act) {
       // сталкивает только поле: квант встречает своего напарника — или, брошенный рогаткой, любой встречный квант
@@ -674,7 +699,7 @@ const Particles = {
   enterKey() { this.ff = this.ff > 1 ? 1 : 4; msg(this.ff > 1 ? '×4' : '×1', 1); },
   cheat() {
     for (const k of Object.keys(SM)) Codex.see(k);
-    this.kn += 100; this.pairs++; this.cheated = true;
+    this.kn += 100; this.pairs++; this.cheated = true; this.en = E_CAP;
     for (const ch of CHAINS) for (const sp of ch) this.decSeen.add(sp);
     if (this.ep === 1) this.higT = 99;
     if (this.ep === 3) while (this.stock < STOCK_GOAL) { this.stock++; this.stockQ.push({ fl: this.stock % 3 === 2 ? 'd' : 'u', col: this.stockQ.length % 3 }); }
@@ -783,6 +808,7 @@ const Particles = {
           ring(sx, sy, 7.5, [235, 245, 255], .9, 1.3); label('?', sx, sy + .5, 10, [255, 255, 255], 1, 800); ctx.globalAlpha = 1;
         } else if (o.sp === 'ph') {
           const cc = mixc([255, 200, 120], [220, 235, 255], hot);
+          if (this.enOn() && this.en < 3 && !o.cap) ring(sx, sy, 10 + 2 * Math.sin(G.T * 8 + o.ph), PH_C, .7 * a, 1.6);
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [cc], .75 * a, 1.8);
           glow(sx, sy, 4 + 5 * hot, cc, .45 * a);
         } else {
@@ -855,7 +881,7 @@ const Particles = {
     ring(x, y, rr, col, aa, tr.rec ? 1.2 : want ? 2.8 : 2.2);
     const sym = SM[tr.parent].sym;
     label(tr.rec ? sym : known || want ? sym + '→' : '?→', x, y - rr - 9, want ? 13 : 11, col, aa, 700);
-    if (want && Math.hypot(tr.x - P.x, tr.y - P.y) < this.hr() && this.shotCd <= 0)
+    if (want && Math.hypot(tr.x - P.x, tr.y - P.y) < this.hr() && this.canShot())
       label('клик!', x, y + rr + 12, 13, GOLD, aa * (.7 + .3 * Math.sin(G.T * 10)), 800);
   },
   drawPlayer(alpha) {
@@ -872,7 +898,7 @@ const Particles = {
       // запас вещества кружит внутри детектора
       for (let i = 0; i < this.stock; i++) { const p = this.stockPos(i), [bx, by] = W2S(p.x, p.y); ball(bx, by, 3.5, QCOL[this.stockQ[i].col]); }
     }
-    const ready = this.shotCd <= 0;
+    const ready = this.canShot();
     let unk = 0;
     for (const o of this.p) if (!o.dead && this.inHand(o)) {
       if (!Codex.has(o.sp)) unk++;
@@ -890,8 +916,9 @@ const Particles = {
     const vc = unk && ready ? [255, 215, 110] : [255, 255, 255], q = r * 1.12 + (this.shotFx > 0 ? 6 * this.shotFx / .35 : 0);
     for (let k = 0; k < 4; k++) { const a = Math.PI / 4 + k * Math.PI / 2; arc(sx, sy, q, a - .3, a + .3, vc, ready ? .9 : .35, 2.2); }
     // перезарядка снимка
-    if (!ready) arc(sx, sy, r + 4, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(1 - this.shotCd / this.up('sh'), 0, 1), [200, 235, 255], .85, 2);
+    if (this.shotCd > 0) arc(sx, sy, r + 4, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(1 - this.shotCd / this.up('sh'), 0, 1), [200, 235, 255], .85, 2);
     ring(sx, sy, 3, [255, 255, 255], .8, 1.5);
+    this.drawEnergy(sx, sy, r);
     this.drawHint(sx, sy, r);
     this.drawArrows();
     for (const f of this.floats) {
@@ -952,18 +979,32 @@ const Particles = {
     arc(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), inH ? GOLD : FIELD_C, .95, 5);
     label(`√s ${fmtGeV(f.E)}`, sx, sy - Rg - 16, 12, inH ? GOLD : [142, 229, 255], .95, 700);
   },
+  // Энергия детектора — дуга из делений под кругом; пустая и нужна — мигает красным
+  drawEnergy(sx, sy, r) {
+    if (!this.enOn()) return;
+    const R = r + 9, a0 = Math.PI * .78, span = Math.PI * .56, warn = this.enFx > 0 && Math.sin(G.T * 30) > 0;
+    for (let k = 0; k < E_CAP; k++) {
+      const a = a0 - (k + .5) / E_CAP * span, fill = clamp(this.en - k, 0, 1);
+      const x = sx + Math.cos(a) * R, y = sy + Math.sin(a) * R;
+      ctx.globalAlpha = 1; ctx.fillStyle = warn ? 'rgba(255,110,100,.85)' : 'rgba(255,255,255,.3)';
+      ctx.beginPath(); ctx.arc(x, y, 3.5, 0, TAU); ctx.fill();
+      if (fill > 0) { ctx.fillStyle = rgb(PH_C, .35 + .65 * fill); ctx.beginPath(); ctx.arc(x, y, 3.5 * Math.sqrt(fill), 0, TAU); ctx.fill(); }
+    }
+    label('⚡', sx, sy + R + 10, 11, this.en < E_SHOT ? [255, 140, 120] : PH_C, .9, 700);
+  },
   // Подсказка в одну строку — пока действие не освоено
   drawHint(sx, sy, r) {
     if (!G.started || G.paused) return;
     let t = null;
     if (this.ep === 3) t = this.learn.shield ? null : 'зажми — щит';
     else if (!this.learn.snap) t = 'клик — снимок';
+    else if (this.enOn() && this.en < E_SHOT + .5) t = 'лови фотоны — энергия';
     else if (this.focus && this.focus.cap.length === 2 && !this.learn.smash) t = 'отпусти — столкнуть';
     else if (this.focus && this.focus.cap.length && this.learn.smash && !this.learn.throw && this.epT > 6) t = this.thrownReady() ? 'отпусти на ходу — бросок' : 'разгонись с квантами';
     else if (!this.learn.hold && this.ep === 0 && this.t > 2) t = 'зажми — притянуть кванты';
     if (!t) return;
     if (!this.learn.snap) { const ph = (G.T % 1.4) / 1.4; ring(sx, sy, r * (1 + .25 * ph), [255, 255, 255], .5 * (1 - ph), 2); }
-    label(t, sx, sy + r + 30, 14, [255, 255, 255], .75 + .2 * Math.sin(G.T * 4), 700);
+    label(t, sx, sy + r + 36, 14, [255, 255, 255], .75 + .2 * Math.sin(G.T * 4), 700);
   },
   // Стрелки у края экрана — к тому, что нужно снять, если оно за кадром
   drawArrows() {

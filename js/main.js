@@ -22,7 +22,13 @@ addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; m
 addEventListener('mousedown', e => { mouse.down = true; if (e.target === cv && G.started) mouse.clicked = true; });
 addEventListener('mouseup', () => { mouse.down = false; });
 addEventListener('touchmove', e => { const t = e.touches[0]; mouse.x = t.clientX; mouse.y = t.clientY; mouse.has = true; }, { passive: true });
-addEventListener('wheel', e => { G.stage.wheel && G.stage.wheel(e.deltaY); }, { passive: true });
+// Колесо — зум: вглубь до ×2,2, наружу до ×0,55 от обзора этапа. Shift + колесо — действие этапа (вращение молекулы).
+const ZOOM_MIN = .55, ZOOM_MAX = 2.2;
+addEventListener('wheel', e => {
+  if (e.target !== cv) return;
+  if (e.shiftKey && G.stage.wheel) { G.stage.wheel(e.deltaY || e.deltaX); return; }
+  G.zoom = clamp((G.zoom || 1) * Math.exp(-e.deltaY * .0015), ZOOM_MIN, ZOOM_MAX);
+}, { passive: true });
 addEventListener('keydown', e => {
   keys.add(e.code);
   if (!G.started) return;
@@ -56,7 +62,7 @@ function update(dt) {
   tickCard(dt);
   for (const f of G.fx) f.t += dt;
   G.fx = G.fx.filter(f => f.t < f.dur);
-  const tz = Math.max(100, Math.min(G.W, G.H)) / 2 / G.stage.viewR();
+  const tz = Math.max(100, Math.min(G.W, G.H)) / 2 / G.stage.viewR() * (G.zoom || 1);
   cam.z = Math.exp(lerp(Math.log(cam.z), Math.log(tz), 1 - Math.exp(-dt * 1.8)));
   cam.x += (P.x - cam.x) * Math.min(1, dt * 4); cam.y += (P.y - cam.y) * Math.min(1, dt * 4);
   if (msgT > 0 && (msgT -= dt) <= 0) document.getElementById('msg').style.opacity = 0;
