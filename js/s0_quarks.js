@@ -251,25 +251,11 @@ const Quarks = {
   },
   // Сколько ещё барионов можно собрать из свободного вещества (жадно, с учётом цветов и ароматов)
   spare() {
-    const cnt = {};
-    for (const o of this.q) {
-      if (o.dead || o.anti) continue;
-      if (o.g) { const k = this.groups.get(o.g).kind; if (k === 'p' || k === 'n') continue; }
-      const key = o.fl + o.col; cnt[key] = (cnt[key] || 0) + 1;
-    }
-    let n = 0;
-    for (;;) {
-      let best = null, bs = -1;
-      for (let m = 0; m < 8; m++) {
-        const fl = [0, 1, 2].map(c => (m >> c & 1) ? 'u' : 'd');
-        const u = fl.filter(x => x === 'u').length; if (u === 0 || u === 3) continue;
-        const keys = fl.map((f, c) => f + c);
-        if (!keys.every(k => cnt[k] > 0)) continue;
-        const s = Math.min(...keys.map(k => cnt[k])); if (s > bs) { bs = s; best = keys; }
-      }
-      if (!best) return n;
-      for (const k of best) cnt[k]--; n++;
-    }
+    return baryonTrios(this.q.filter(o => {
+      if (o.dead || o.anti) return false;
+      if (o.g) { const k = this.groups.get(o.g).kind; if (k === 'p' || k === 'n') return false; }
+      return true;
+    }));
   },
 
   update(dt, act) {

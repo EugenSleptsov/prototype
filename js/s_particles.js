@@ -60,7 +60,25 @@ const EPOCHS = [
   { name: 'Аннигиляция', floor: 0, tau: 20, startT: 3, when: '10⁻⁷ с', line: 'Вещество против антивещества' },
 ];
 const CHAINS = [['t', 'b', 'c'], ['ta', 'mu']]; // чьи распады нужно снять в эпохе 3
-const STOCK_GOAL = 12;
+const STOCK_GOAL = 12, TRIO_GOAL = 4; // цель эпохи 4 — четыре будущих бариона (по кварку каждого цвета)
+// Сколько барионов можно собрать из кварков [{fl, col}]: три разных цвета, не uuu/ddd (жадно)
+function baryonTrios(list) {
+  const cnt = {};
+  for (const o of list) { const k = o.fl + o.col; cnt[k] = (cnt[k] || 0) + 1; }
+  let n = 0;
+  for (;;) {
+    let best = null, bs = -1;
+    for (let m = 0; m < 8; m++) {
+      const fl = [0, 1, 2].map(c => (m >> c & 1) ? 'u' : 'd');
+      const u = fl.filter(x => x === 'u').length; if (u === 0 || u === 3) continue;
+      const keys = fl.map((f, c) => f + c);
+      if (!keys.every(k => cnt[k] > 0)) continue;
+      const s = Math.min(...keys.map(k => cnt[k])); if (s > bs) { bs = s; best = keys; }
+    }
+    if (!best) return n;
+    for (const k of best) cnt[k]--; n++;
+  }
+}
 
 // Волна вдоль направления движения: голова в (sx, sy), хвост сзади, к хвосту затухает.
 // cols — один цвет или два (у глюона цвет и антицвет чередуются по полупериодам).
@@ -602,14 +620,14 @@ const Particles = {
   // Итоги эпохи: время, очки, итог, место в таблице рекордов; затем одно улучшение
   showResult(final) {
     const i = this.ep, pts = Math.round(this.kn - this.epKn0), t = this.doneAt;
-    const bonus = i === 3 ? this.stock * 10 : t === null ? 0 : Math.max(0, Math.round((PAR[i] - t) * 2));
+    const trios = baryonTrios(this.stockQ), bonus = i === 3 ? trios * 30 : t === null ? 0 : Math.max(0, Math.round((PAR[i] - t) * 2));
     const total = pts + bonus;
     this.lvlTotal += total;
     const e = { n: LB.name(), s: total, p: pts, t: t === null ? null : Math.floor(t), d: Date.now() };
     const table = (key, entry) => lbTable(key, entry, this.cheated);
     let html = `<div class="ek">Эпоха ${i + 1}</div><div class="en">${EPOCHS[i].name}</div>` +
       `<div class="rs"><div><span>⏱</span>${fmtClock(t)}</div><div><span>✦</span>${pts}</div>` +
-      `<div><span>${i === 3 ? `◉ ${this.stock} × 10` : `быстрее ${fmtClock(PAR[i])}`}</span>+${bonus}</div><div class="tot"><span>итог</span>${total}</div></div>` +
+      `<div><span>${i === 3 ? `тройки ${trios} × 30` : `быстрее ${fmtClock(PAR[i])}`}</span>+${bonus}</div><div class="tot"><span>итог</span>${total}</div></div>` +
       table('e' + i, e);
     if (final) {
       const le = { n: e.n, s: this.lvlTotal, p: Math.round(this.kn), t: Math.floor(this.t), d: e.d };
@@ -684,7 +702,8 @@ const Particles = {
       this.stock++; this.stockQ.push({ fl: o.sp, col: o.col });
       this.float(P.x, P.y, '+1 ◉', [140, 235, 170], 14);
     } else if (this.stock > 0) {
-      this.stock--; this.stockQ.pop();
+      this.stock--;
+      const i = this.stockQ.map(s => s.fl).lastIndexOf(o.sp); this.stockQ.splice(i >= 0 ? i : this.stockQ.length - 1, 1);
       fxFlash(P.x, P.y, this.hr(), [255, 120, 120], .5);
       this.float(P.x, P.y, '−1 ◉', [255, 130, 130], 15);
     } else fxFlash(P.x, P.y, .6, [255, 255, 255], .3);
@@ -696,7 +715,7 @@ const Particles = {
       case 0: return [['квант', has('ph') || has('g')], ['пара', this.pairs > 0], [`частицы ${Math.min(n, 6)}/6`, n >= 6]];
       case 1: return [['поле', this.hig >= 1], ['H', has('H')], ['W / Z', has('W') || has('Z')]];
       case 2: return CHAINS.flat().map(sp => [SM[sp].sym + '→', this.decSeen.has(sp)]);
-      default: return [[`◉ ${Math.min(this.stock, STOCK_GOAL)}/${STOCK_GOAL}`, this.stock >= STOCK_GOAL]];
+      default: { const t = baryonTrios(this.stockQ); return [[`тройки ${Math.min(t, TRIO_GOAL)}/${TRIO_GOAL}`, t >= TRIO_GOAL]]; }
     }
   },
   checkGoals() {
@@ -715,7 +734,11 @@ const Particles = {
     if (this.ep === 3) while (this.stock < STOCK_GOAL) { this.stock++; this.stockQ.push({ fl: this.stock % 3 === 2 ? 'd' : 'u', col: this.stockQ.length % 3 }); }
   },
   // Что сейчас нужно снять: в эпохе 2 — H и W/Z, в эпохе 3 — распады цепочек
-  wanted(sp) {
+  // Эпоха 4: каких цветов в детекторе меньше всего — такие кварки и нужны
+  colCnt() { const c = [0, 0, 0]; for (const s of this.stockQ) c[s.col]++; return c; },
+  needCol(col) { const c = this.colCnt(); return c[col] === Math.min(...c); },
+  wanted(sp, o) {
+    if (this.ep === 3) return !!o && !this.advanced && SM[sp].kind === 'quark' && !o.anti && this.needCol(o.col);
     if (this.ep === 1) return sp === 'H' ? !Codex.has('H') : (sp === 'W' || sp === 'Z') && !Codex.has('W') && !Codex.has('Z');
     if (this.ep === 2) return CHAINS.some(ch => ch.includes(sp)) && !this.decSeen.has(sp);
     return false;
@@ -836,7 +859,7 @@ const Particles = {
     const s = SM[o.sp];
     ctx.globalAlpha = a;
     if (o.life < Infinity && this.hig > .5) arc(sx, sy, r + 4, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(1 - o.age / o.life, 0, 1), [255, 255, 255], .4, 1.6);
-    if (this.wanted(o.sp)) {
+    if (this.wanted(o.sp, o)) {
       const sp = G.T * 2;
       for (let k = 0; k < 4; k++) arc(sx, sy, r + 10, sp + k * Math.PI / 2, sp + k * Math.PI / 2 + .9, GOLD, .9, 2.2);
     }
@@ -907,6 +930,16 @@ const Particles = {
     if (this.ep === 3 && this.stock > 0 && !this.stockOut) {
       // запас вещества кружит внутри детектора
       for (let i = 0; i < this.stock; i++) { const p = this.stockPos(i), [bx, by] = W2S(p.x, p.y); ball(bx, by, 4.5, QCOL[this.stockQ[i].col]); }
+    }
+    if (this.ep === 3 && !this.stockOut) {
+      // счётчик цветов справа от детектора: каких меньше всего — пульсирующее золотое кольцо
+      const c = this.colCnt(), mn = Math.min(...c);
+      c.forEach((n, k) => {
+        const x = sx + r + 26, y = sy - 18 + k * 18;
+        if (n === mn && !this.advanced) ring(x, y, 8 + 1.5 * Math.sin(G.T * 8), GOLD, .9, 2);
+        ball(x, y, 5, QCOL[k]);
+        label(String(n), x + 16, y + .5, 13, n === mn ? GOLD : [235, 235, 245], .95, 700);
+      });
     }
     const ready = this.canShot();
     let unk = 0;
@@ -1019,7 +1052,7 @@ const Particles = {
   // Стрелки у края экрана — к тому, что нужно снять, если оно за кадром
   drawArrows() {
     const pts = [];
-    for (const o of this.p) if (!o.dead && this.wanted(o.sp)) pts.push([o.x, o.y, SM[o.sp].sym]);
+    for (const o of this.p) if (!o.dead && this.wanted(o.sp, o)) pts.push([o.x, o.y, this.ep === 3 ? QCOL[o.col] : SM[o.sp].sym]);
     for (const tr of this.tracks) if (tr.parent && !tr.rec && this.wanted(tr.parent)) pts.push([tr.x, tr.y, SM[tr.parent].sym + '→']);
     for (const h of this.hot) if (!h.done) pts.push([h.x, h.y, '']);
     // не больше трёх ближайших — чтобы край экрана не превратился в ёлку
