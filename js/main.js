@@ -107,11 +107,14 @@ let hudN = 0, lawsKey = '';
 function hud() {
   if ((hudN++) % 6) return;
   const h = G.stage.hud();
-  document.getElementById('title').textContent = h.title;
-  document.getElementById('sub').textContent = h.sub;
-  document.getElementById('lines').innerHTML = h.lines.map(([a, b]) => `<div class="k">${a}</div><div>${b}</div>`).join('');
-  document.getElementById('goal').innerHTML = h.goal;
-  document.getElementById('controls').textContent = G.stage.controls;
+  // пустые поля не показываем: этапы сами решают, сколько текста на экране
+  const put = (id, v, html) => { const el = document.getElementById(id); el.style.display = v ? '' : 'none'; if (html) el.innerHTML = v; else el.textContent = v; };
+  put('title', h.title); put('sub', h.sub);
+  put('lines', h.lines.map(([a, b]) => `<div class="k">${a}</div><div>${b}</div>`).join(''), true);
+  put('goal', h.goal, true);
+  put('controls', G.stage.controls || '');
+  document.getElementById('laws').style.display = h.laws.length ? '' : 'none';
+  document.getElementById('codex').style.top = h.laws.length ? '190px' : '12px';
   const key = G.stage.key;
   if (key !== lawsKey) { lawsKey = key; barsEl.innerHTML = h.laws.map(([n], i) => `<div>${n}</div><div class="bar"><i id="law${i}"></i></div>`).join(''); }
   Codex.render(true);
