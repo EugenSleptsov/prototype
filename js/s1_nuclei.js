@@ -29,6 +29,7 @@ const NUC_MSG = {
   '1,1': 'Дейтерий! Хрупкий: жёсткие γ-кванты легко его разбивают',
   '2,1': 'Гелий-3. Ещё нейтрон — и будет сверхпрочный гелий-4',
   '2,2': 'Гелий-4 — альфа-частица, очень прочное ядро. Но гелий инертен: для химии иди дальше',
+  '4,4': 'Бериллий-8 живёт миг! Успей добавить нейтрон — получится стабильный бериллий-9',
   '3,3': 'Литий-6', '3,4': 'Литий-7', '4,5': 'Бериллий-9', '5,6': 'Бор-11',
   '6,6': 'Углерод-12! Четыре валентности — лучшая химия во Вселенной',
   '7,7': 'Азот-14', '8,8': 'Кислород-16',
@@ -92,7 +93,7 @@ const Nuclei = {
   },
   judge(announce) {
     const nu = this.nuc, j = judgeNucleus(nu.Z, nu.N);
-    if (j.split) { nu.split = { kind: j.split, t: .35 }; nu.decay = null; }
+    if (j.split) { if (!nu.split || nu.split.kind !== j.split) nu.split = { kind: j.split, t: j.split === 'alpha' ? .7 : .35, why: j.why }; nu.decay = null; }
     else if (j.decay) { if (!nu.decay || nu.decay.kind !== j.decay) nu.decay = { kind: j.decay, t: j.t, t0: j.t }; nu.split = null; }
     else { nu.decay = null; nu.split = null; }
     if (announce) { const m = NUC_MSG[nu.Z + ',' + nu.N]; if (m) msg(m); else if (j.why) msg(j.why); }
@@ -130,8 +131,14 @@ const Nuclei = {
     if (kind === 'alpha') {
       const pts = [this.eject('p'), this.eject('n'), this.eject('p'), this.eject('n')].filter(Boolean);
       const c = centroid(pts), dx = c.x - P.x, dy = c.y - P.y, d = Math.hypot(dx, dy) || 1;
-      this.add('a', c.x + dx / d, c.y + dy / d, P.vx + dx / d * 6, P.vy + dy / d * 6);
-    } else { const o = this.eject(kind); if (o) this.add(kind, o.x, o.y, o.vx, o.vy); }
+      // две альфы равной массы разлетаются симметрично: импульс сохраняется, ядро игрока получает отдачу
+      const a = this.add('a', c.x + dx / d, c.y + dy / d, P.vx + dx / d * 8, P.vy + dy / d * 8);
+      a.noCap = 1.2;
+      P.vx -= dx / d * 8; P.vy -= dy / d * 8; P.dashT = .3;
+    } else {
+      const o = this.eject(kind);
+      if (o) { const e = this.add(kind, o.x, o.y, o.vx, o.vy); e.noCap = 1.2; }
+    }
     fxRing(P.x, P.y, this.R, [255, 160, 120], this.R * 3, .7);
   },
   beta(kind) {
@@ -151,7 +158,7 @@ const Nuclei = {
     if (g.E > thr) {
       const type = this.nuc.N > 0 && (Math.random() < .5 || this.nuc.Z === 0) ? 'n' : 'p';
       const o = this.eject(type, 9);
-      if (o) this.add(type, o.x, o.y, o.vx, o.vy);
+      if (o) this.add(type, o.x, o.y, o.vx, o.vy).noCap = 1;
       fxFlash(P.x, P.y, this.R * 2, [255, 255, 255], .4);
       msg(`γ-квант (${g.E.toFixed(1)} МэВ) разбил ядро — фотодиссоциация`);
       this.judge(false);
@@ -167,7 +174,7 @@ const Nuclei = {
     if (act) { this.gT += dt * 3.5 * this.Tn; while (this.gT > 1) { this.gT--; this.spawnGamma(); } }
 
     for (const e of this.e) {
-      e.age += dt; e.rot += dt;
+      e.age += dt; e.rot += dt; if (e.noCap > 0) e.noCap -= dt;
       if (e.type === 'g') {
         e.x += e.vx * dt; e.y += e.vy * dt;
         if (act && Math.hypot(e.x - P.x, e.y - P.y) < this.R) this.gammaHit(e);
@@ -188,11 +195,14 @@ const Nuclei = {
         if (e.life <= 0) { e.type = 'p'; e.q = 1; fxRing(e.x, e.y, .5, [140, 255, 160], 2, .5); this.add('e', e.x, e.y, randn() * 12, randn() * 12).age = 1; }
       }
       if (e.type === 'ep' && e.age > 1.2) { e.dead = true; fxFlash(e.x, e.y, 1.2, [255, 200, 255], .4); }
-      if (act && !this.leaving && (e.type === 'p' || e.type === 'n' || e.type === 'a') && d < Rc) this.capture(e);
+      if (act && !this.leaving && !(e.noCap > 0) && (e.type === 'p' || e.type === 'n' || e.type === 'a') && d < Rc) this.capture(e);
     }
 
     if (act) {
-      if (nu.split) { nu.split.t -= dt; if (nu.split.t <= 0) { const k = nu.split.kind; nu.split = null; this.doSplit(k); this.judge(true); } }
+      if (nu.split) {
+        nu.split.t -= dt;
+        if (nu.split.t <= 0) { const { kind, why } = nu.split; nu.split = null; this.doSplit(kind); this.judge(false); msg(why); }
+      }
       if (nu.decay) { nu.decay.t -= dt; if (nu.decay.t <= 0) { const k = nu.decay.kind; nu.decay = null; this.beta(k); this.judge(true); } }
     }
 
