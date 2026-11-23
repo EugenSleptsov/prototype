@@ -41,8 +41,14 @@
   #card .cn{font-size:17px;font-weight:600;margin:3px 0}
   #card .cf{font-size:13px;opacity:.85;line-height:1.4}
   .cs{display:inline-block;min-width:26px;text-align:center;border-radius:5px;padding:0 4px}
+  #upg{position:fixed;right:16px;bottom:52px;width:230px;font-size:12px;display:none}
+  #upg b{display:block;font-size:12px;color:#8fd0ff;margin-bottom:6px}
+  #upg button{display:block;width:100%;text-align:left;margin:0 0 5px;padding:5px 8px;border-radius:6px;border:1px solid #8fd0ff66;background:#0b1a2acc;color:#dde3f0;font:inherit;cursor:pointer}
+  #upg button:disabled{opacity:.45;cursor:default}
+  #upg button small{opacity:.7}
+  #upg .k{display:inline-block;background:#ffffff22;border-radius:3px;padding:0 5px;margin-right:4px}
   .cs.quark{background:#7a3d9a}.cs.lepton,.cs.nu{background:#2f7a4e}.cs.boson{background:#9a4a2e}
-  @media (max-width:700px){#laws{display:none}#codex{display:none!important}#hud{max-width:none;right:16px}}
+  @media (max-width:700px){#laws{display:none}#upg{bottom:auto;top:60%}#codex{display:none!important}#hud{max-width:none;right:16px}}
 </style>
 </head>
 <body>
@@ -58,6 +64,7 @@
 <div id="msg" class="shadow"></div>
 <div id="codex" class="shadow"></div>
 <div id="card" class="shadow"></div>
+<div id="upg" class="shadow"></div>
 
 <div id="intro" class="overlay"><div>
   <h1>Proto-type</h1>
@@ -76,15 +83,15 @@
   <p style="opacity:.75"><kbd>R</kbd> — начать заново</p>
 </div></div>
 
-<script src="js/util.js?v=9"></script>
-<script src="js/core.js?v=9"></script>
-<script src="js/universe.js?v=9"></script>
-<script src="js/codex.js?v=9"></script>
-<script src="js/s0_quarks.js?v=9"></script>
-<script src="js/s_particles.js?v=9"></script>
-<script src="js/s1_nuclei.js?v=9"></script>
-<script src="js/s2_atoms.js?v=9"></script>
-<script src="js/s3_molecules.js?v=9"></script>
-<script src="js/main.js?v=9"></script>
+<script src="js/util.js?v=12"></script>
+<script src="js/core.js?v=12"></script>
+<script src="js/universe.js?v=12"></script>
+<script src="js/codex.js?v=12"></script>
+<script src="js/s0_quarks.js?v=12"></script>
+<script src="js/s_particles.js?v=12"></script>
+<script src="js/s1_nuclei.js?v=12"></script>
+<script src="js/s2_atoms.js?v=12"></script>
+<script src="js/s3_molecules.js?v=12"></script>
+<script src="js/main.js?v=12"></script>
 </body>
 </html>

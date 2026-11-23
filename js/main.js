@@ -19,7 +19,7 @@ function endGame(text) {
 // ---------- ввод ----------
 addEventListener('resize', resize); resize();
 addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; });
-addEventListener('mousedown', () => { mouse.down = true; });
+addEventListener('mousedown', e => { mouse.down = true; if (e.target === cv && G.started) mouse.clicked = true; });
 addEventListener('mouseup', () => { mouse.down = false; });
 addEventListener('touchmove', e => { const t = e.touches[0]; mouse.x = t.clientX; mouse.y = t.clientY; mouse.has = true; }, { passive: true });
 addEventListener('wheel', e => { G.stage.wheel && G.stage.wheel(e.deltaY); }, { passive: true });
@@ -29,6 +29,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); G.stage.dash && G.stage.dash(); }
   if (e.code === 'Enter' || e.code === 'NumpadEnter') G.stage.enterKey && G.stage.enterKey();
   if (e.code === 'KeyX') G.stage.detach && G.stage.detach();
+  if (/^Digit[1-9]$/.test(e.code) && G.stage.buy) G.stage.buy(+e.code.slice(5) - 1);
   if (e.code === 'BracketRight') G.stage.cheat && G.stage.cheat();
   if (e.code === 'KeyR' && G.ended) location.reload();
 });
@@ -106,6 +107,8 @@ function hud() {
   const key = G.stage.key;
   if (key !== lawsKey) { lawsKey = key; barsEl.innerHTML = h.laws.map(([n], i) => `<div>${n}</div><div class="bar"><i id="law${i}"></i></div>`).join(''); }
   Codex.render(true);
+  const upg = document.getElementById('upg');
+  if (G.stage.renderUpg) G.stage.renderUpg(upg); else upg.style.display = 'none';
   h.laws.forEach(([, w], i) => { const el = document.getElementById('law' + i); if (el) el.style.width = (clamp(w, 0, 1) * 100).toFixed(0) + '%'; });
 }
 
