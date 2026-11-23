@@ -21,6 +21,31 @@ const BOS_C = { W: [255, 150, 70], Z: [255, 105, 115], H: [255, 215, 90], ph: [2
 const NU_C = [175, 255, 205];
 const FERMIONS = ['u', 'd', 'c', 's', 't', 'b', 'e', 'mu', 'ta', 'ne', 'nm', 'nt'];
 
+// Волна вдоль направления движения: голова в (sx, sy), хвост сзади, к хвосту затухает.
+// cols — один цвет или два (у глюона цвет и антицвет чередуются по полупериодам).
+function waveLine(sx, sy, dx, dy, L, per, amp, phase, cols, a, lw) {
+  const nx = -dy, ny = dx, steps = Math.max(8, Math.min(48, L / 2.5 | 0));
+  const pts = [];
+  for (let i = 0; i <= steps; i++) {
+    const s = i / steps * L, env = .3 + .7 * (1 - i / steps), arg = s / per * TAU + phase, w = Math.sin(arg) * amp * env;
+    pts.push([sx - dx * s + nx * w, sy - dy * s + ny * w, Math.floor(arg / Math.PI) & 1]);
+  }
+  ctx.lineWidth = lw;
+  for (let ci = 0; ci < cols.length; ci++) {
+    // затухание к хвосту — одним градиентом на весь штрих
+    const g = ctx.createLinearGradient(sx, sy, sx - dx * L, sy - dy * L);
+    g.addColorStop(0, rgb(cols[ci], a)); g.addColorStop(1, rgb(cols[ci], 0));
+    ctx.strokeStyle = g; ctx.beginPath();
+    let pen = false;
+    for (let i = 1; i < pts.length; i++) {
+      const on = cols.length === 1 || pts[i][2] === ci;
+      if (on) { if (!pen) ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]); }
+      pen = on;
+    }
+    ctx.stroke();
+  }
+}
+
 const Particles = {
   key: 'particles', name: 'Частицы', bg: [44, 34, 14],
   controls: 'Мышь — вести детектор · Клик — снимок · Пробел — сжатие · 1–3 — улучшить детектор · Enter — ускорить остывание',
@@ -43,6 +68,7 @@ const Particles = {
     const s = SM[sp], o = { sp, anti, x, y, dx: Math.cos(a), dy: Math.sin(a), p, col: col ?? (Math.random() * 3 | 0),
       age: 0, life: s.life ? -s.life * Math.log(Math.random() + 1e-9) : Infinity, seen: 0, born: 0, cd: 0, dead: false };
     if (sp === 'g') o.col2 = (o.col + 1 + (Math.random() * 2 | 0)) % 3;
+    if (sp === 'g' || sp === 'ph') { o.amp = rnd(.5, 1.5); o.ph = Math.random() * TAU; }
     this.p.push(o); return o;
   },
   up(k) { const u = UPG.find(x => x.key === k); return u.val[this.lvl[k]]; },
@@ -380,15 +406,18 @@ const Particles = {
       const [sx, sy] = W2S(o.x, o.y); if (!onScreen(sx, sy, 40)) continue;
       const a = alpha * o.born, c = this.color(o);
       if (this.isQ(o)) {
-        const L = .55 * z, hot = clamp(o.p / (this.T * 6), 0, 1);
+        // Квант — волна: чем выше энергия, тем короче период (λ ~ 1/E)
+        const hot = clamp(o.p / (this.T * 6), 0, 1), L = 1.1 * z;
+        const per = clamp(.42 * z * this.T * 1.5 / Math.max(o.p, 1e-9), 4, .5 * z);
+        const amp = o.amp * clamp(.09 * z, 2.5, 6);
+        const phase = o.ph - G.T * 9;
         if (o.sp === 'ph') {
           const cc = mixc([255, 200, 120], [220, 235, 255], hot);
-          line(sx - o.dx * L, sy - o.dy * L, sx, sy, cc, .5 * a, 2);
-          glow(sx, sy, 5 + 6 * hot, cc, .5 * a);
+          waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [cc], .7 * a, 1.6);
+          glow(sx, sy, 4 + 5 * hot, cc, .45 * a);
         } else {
-          line(sx - o.dx * L, sy - o.dy * L, sx - o.dx * L / 2, sy - o.dy * L / 2, QCOL[o.col2], .5 * a, 2);
-          line(sx - o.dx * L / 2, sy - o.dy * L / 2, sx, sy, c, .6 * a, 2);
-          glow(sx, sy, 4 + 5 * hot, c, .45 * a);
+          waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [c, QCOL[o.col2]], .75 * a, 1.6);
+          glow(sx, sy, 3 + 4 * hot, c, .4 * a);
         }
         continue;
       }
