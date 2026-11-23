@@ -91,6 +91,75 @@ function edgeArrows(pts, n) {
   }
 }
 
+// ---------- задание и испытания ★ ----------
+function wrapText(t, px, weight, maxW) {
+  ctx.font = `${weight} ${px}px system-ui,sans-serif`;
+  const out = []; let line = '';
+  for (const w of t.split(' ')) {
+    const s = line ? line + ' ' + w : w;
+    if (line && ctx.measureText(s).width > maxW) { out.push(line); line = w; } else line = s;
+  }
+  if (line) out.push(line);
+  return out;
+}
+// Испытания ★ — два случайных из набора эпохи, каждый забег разные.
+// ok() — выполнено; bad() — провалено; atEnd — засчитывается в конце, если не провалено.
+function pickStars(pool, n = 2) {
+  const a = pool.filter(s => !s.can || s.can());
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; }
+  return a.slice(0, n).map(s => ({ ...s, st: 0 }));
+}
+// end — эпоха закончилась (всё несделанное проваливается); onWin(s) — награда
+function tickStars(stars, end, onWin) {
+  for (const s of stars) {
+    if (s.st) continue;
+    if (s.bad && s.bad()) s.st = -1;
+    else if ((s.ok && s.ok()) || (end && s.atEnd)) { s.st = 1; onWin(s); }
+    else if (end) s.st = -1;
+  }
+}
+const starsWon = stars => stars.filter(s => s.st === 1).length;
+// Панель задания под часами: крупно — первый невыполненный шаг {t: что сделать, s: коротко, d: сделано},
+// ниже — испытания ★. Шаг выполнен — по центру вспыхивает «✓ коротко»; испытание — «★ …».
+// tk — состояние панели у этапа (сбрасывать на новой эпохе), after — текст, когда все шаги сделаны.
+function hudTask(alpha, tk, kicker, steps, stars, after) {
+  if (!G.started) return;
+  const ds = steps.map(s => !!s.d), ss = stars.map(s => s.st);
+  if (tk.ds) {
+    const j = ds.findIndex((d, k) => d && !tk.ds[k]);
+    if (j >= 0) tk.fl = { txt: '✓ ' + steps[j].s, c: [140, 235, 170], at: G.T };
+    const w = ss.findIndex((v, k) => v === 1 && tk.ss[k] !== 1);
+    if (w >= 0) tk.fl = { txt: '★ ' + stars[w].t, c: [255, 215, 110], at: G.T };
+  }
+  tk.ds = ds; tk.ss = ss;
+  const i = ds.indexOf(false), n = steps.length, cur = i < 0 ? null : steps[i];
+  const x = G.W / 2, maxW = Math.min(560, G.W - 40) - 28;
+  const lines = wrapText(cur ? cur.t : after || 'Задание выполнено', 19, 700, maxW);
+  const kick = cur ? `${kicker} · ЗАДАНИЕ ${i + 1}/${n}` : `${kicker} · ✓ ВЫПОЛНЕНО`;
+  ctx.font = '600 13px system-ui,sans-serif';
+  const st = stars.map(s => `${s.st === 1 ? '★' : s.st < 0 ? '✗' : '☆'} ${s.t}`);
+  const sw = st.map(t => ctx.measureText(t).width), gap = 22, rowW = sw.reduce((a, b) => a + b, 0) + gap * Math.max(0, st.length - 1);
+  const stack = rowW > maxW, rows = st.length ? (stack ? st.length : 1) : 0;
+  ctx.font = '700 19px system-ui,sans-serif';
+  const w = Math.max(260, ...lines.map(l => ctx.measureText(l).width), stack ? Math.max(...sw) : rowW) + 28;
+  const y0 = 48, h = 12 + 16 + lines.length * 24 + rows * 20 + 10;
+  ctx.globalAlpha = alpha; ctx.fillStyle = 'rgba(10,9,18,.62)';
+  ctx.beginPath(); ctx.roundRect(x - w / 2, y0, w, h, 12); ctx.fill();
+  label(kick, x, y0 + 18, 11, cur ? [255, 210, 122] : [140, 235, 170], .9 * alpha, 700);
+  lines.forEach((l, k) => label(l, x, y0 + 40 + k * 24, 19, [255, 255, 255], alpha, 700));
+  let sy = y0 + 40 + lines.length * 24 + 2, sx = x - rowW / 2;
+  st.forEach((t, k) => {
+    const c = stars[k].st === 1 ? [255, 215, 110] : stars[k].st < 0 ? [150, 150, 165] : [215, 220, 235];
+    if (stack) label(t, x, sy + k * 20, 13, c, .95 * alpha, 600);
+    else { label(t, sx + sw[k] / 2, sy, 13, c, .95 * alpha, 600); sx += sw[k] + gap; }
+  });
+  if (tk.fl) {
+    const k = (G.T - tk.fl.at) / 1.8;
+    if (k < 1) label(tk.fl.txt, x, G.H * .4 - 20 * k, 26, tk.fl.c, alpha * (1 - smooth(.6, 1, k)) * smooth(0, .08, k), 800);
+  }
+  ctx.globalAlpha = 1;
+}
+
 let msgT = 0, lastMsg = '';
 function msg(t, dur = 3.8) {
   const el = document.getElementById('msg');

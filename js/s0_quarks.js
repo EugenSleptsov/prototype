@@ -21,6 +21,7 @@ const Quarks = {
     this.temp = Q_T0; this.conf = 0; this.advanced = false; this.res = null; this.cheated = false;
     this.focus = null; this.holding = false; this.hold = 0; this.learn = {}; this.floats = [];
     this.kn = 0; this.clock = 0; this.doneAt = null; this.endCd = -1; this.banner = -1.5; this.made = { p: 0, n: 0 }; this.mine = 0;
+    this.st = { passive: 0, delta: 0 }; this.tk = {};
     this.hr = prev && prev.hr ? prev.hr() : 1.4;
     const src = prev && prev.handoff || [];
     // сбережённые кварки вырываются из детектора там же, где кружили, оставляя треки, и растут до размера кварка
@@ -29,6 +30,7 @@ const Quarks = {
     this.nSaved = src.length;
     if (!src.length) { P.x = P.y = P.vx = P.vy = 0; }
     this.C = { x: P.x, y: P.y };
+    this.stars = null; // испытания ★ выбираются, когда известен материал
     // материал — только сбережённое; при запуске прямо с этого уровня кварки прилетают из-за края
     for (let i = this.q.length; i < (src.length ? 0 : 12); i++) {
       const a = Math.random() * TAU, d = Q_WR * .9, q = this.mk(P.x + Math.cos(a) * d, P.y + Math.sin(a) * d, i % 3, false, i % 3 === 1 ? 'd' : 'u');
@@ -67,14 +69,14 @@ const Quarks = {
     else if (m.length === 3) {
       const u = m.filter(x => x.fl === 'u').length;
       grp.kind = u === 2 ? 'p' : u === 1 ? 'n' : 'delta';
-      if (grp.kind === 'delta') grp.t = 1.4;
+      if (grp.kind === 'delta') { grp.t = 1.4; this.st.delta++; }
       if (m[0].anti) grp.kind = 'anti';
     } else grp.kind = 'forming';
   },
   // Барион собран: своими руками (полем) — дороже, сам слипся — дешевле
   onBaryon(grp) {
     const c = centroid(grp.m), hand = grp.m.some(x => x.cap || x.hand > 0);
-    const pts = hand ? 10 : 4;
+    const pts = hand ? 10 : 4; if (!hand) this.st.passive++;
     this.kn += pts; this.made[grp.kind]++;
     if (!this.mine && hand) this.mine = grp.id;
     for (const x of grp.m) { x.cap = false; x.hand = 0; }
@@ -302,17 +304,43 @@ const Quarks = {
     // всё, что можно было собрать, собрано
     if (this.doneAt === null && this.conf > .5 && !this.spare() && !this.q.some(o => o.cap)) {
       this.doneAt = this.clock; this.endCd = 1.4; this.release(); this.holding = false;
+      this.tickStars(true);
     }
+    if (this.doneAt === null) this.tickStars(false);
     if (this.endCd > 0 && (this.endCd -= dt) <= 0) this.showResult();
+  },
+
+  // ---------- задание и испытания ★ ----------
+  starPool() {
+    const st = this.st;
+    return [
+      { t: 'быстрее 0:30', bad: () => this.clock > 30, atEnd: true },
+      { t: 'все барионы — полем', bad: () => st.passive > 0, atEnd: true },
+      { t: 'ни одного Δ', bad: () => st.delta > 0, atEnd: true },
+      { t: '2 p⁺ и 2 n⁰', ok: () => this.made.p >= 2 && this.made.n >= 2, can: () => this.q.length >= 12 },
+    ];
+  },
+  tickStars(end) {
+    if (!this.stars) this.stars = pickStars(this.starPool());
+    tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - this.hr - .4, '★ +10 ✦', [255, 215, 110], 17); });
+  },
+  steps() {
+    const n = this.made.p + this.made.n, all = n + this.spare();
+    return [
+      { t: 'Плазма остывает — подожди, пока кварки начнут слипаться…', s: 'конфайнмент', d: this.conf > .5 },
+      { t: `Собери барионы (${n}/${all}): зажми возле трёх кварков разных цветов — R, G и B`, s: 'все барионы собраны', d: this.doneAt !== null },
+    ];
   },
 
   // ---------- итоги ----------
   showResult() {
+    const won = starsWon(this.stars || []);
     const t = this.doneAt, pts = Math.round(this.kn), bonus = t === null ? 0 : Math.max(0, Math.round((Q_PAR - t) * 2)), total = pts + bonus;
     const e = { n: LB.name(), s: total, p: pts, t: t === null ? null : Math.floor(t), d: Date.now() };
     const html = `<div class="ek">Уровень 2 · ${this.made.p} p⁺ · ${this.made.n} n⁰</div><div class="en">Адроны</div>` +
       `<div class="rs"><div><span>⏱</span>${fmtClock(t)}</div>` +
       `<div><span>✦</span>${pts}</div><div><span>быстрее ${fmtClock(Q_PAR)}</span>+${bonus}</div><div class="tot"><span>итог</span>${total}</div></div>` +
+      `<div class="st">${(this.stars || []).map(s => `<b class="${s.st === 1 ? 'y' : 'n'}">${s.st === 1 ? '★' : '✗'} ${s.t}</b>`).join('')}<small>★ ${won}/${(this.stars || []).length} · испытания в каждом забеге новые</small></div>` +
       lbTable('quarks', e, this.cheated) + `<button class="go">Дальше — ядра</button>`;
     this.res = { final: true };
     G.paused = true;
@@ -431,8 +459,8 @@ const Quarks = {
     if (!G.started) return;
     const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
     const n = this.made.p + this.made.n, all = n + this.spare();
-    hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > Q_PAR ? [190, 190, 205] : [255, 255, 255], Math.round(this.kn),
-      [['остыла', this.conf > .5], [`барионы ${n}/${all}`, this.doneAt !== null]]);
+    hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > Q_PAR ? [190, 190, 205] : [255, 255, 255], Math.round(this.kn), []);
+    if (this.stars) hudTask(al, this.tk, 'УРОВЕНЬ 2', this.steps(), this.stars, `Собрано: ${n} p⁺/n⁰`);
     hudBanner(this.banner, 'УРОВЕНЬ 2 · 10⁻⁶ с', 'Адроны', this.nSaved ? `${this.nSaved} сбережённых кварков → протоны и нейтроны` : 'собери из кварков протоны и нейтроны', al);
     ctx.globalAlpha = 1;
   },
