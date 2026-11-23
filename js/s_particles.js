@@ -27,14 +27,14 @@ function waveLine(sx, sy, dx, dy, L, per, amp, phase, cols, a, lw) {
   const nx = -dy, ny = dx, steps = Math.max(8, Math.min(48, L / 2.5 | 0));
   const pts = [];
   for (let i = 0; i <= steps; i++) {
-    const s = i / steps * L, env = .3 + .7 * (1 - i / steps), arg = s / per * TAU + phase, w = Math.sin(arg) * amp * env;
+    const s = i / steps * L, arg = s / per * TAU + phase, w = Math.sin(arg) * amp;
     pts.push([sx - dx * s + nx * w, sy - dy * s + ny * w, Math.floor(arg / Math.PI) & 1]);
   }
   ctx.lineWidth = lw;
   for (let ci = 0; ci < cols.length; ci++) {
-    // затухание к хвосту — одним градиентом на весь штрих
+    // амплитуда постоянна; прозрачность мягко уходит только у самого хвоста
     const g = ctx.createLinearGradient(sx, sy, sx - dx * L, sy - dy * L);
-    g.addColorStop(0, rgb(cols[ci], a)); g.addColorStop(1, rgb(cols[ci], 0));
+    g.addColorStop(0, rgb(cols[ci], a)); g.addColorStop(.55, rgb(cols[ci], a)); g.addColorStop(1, rgb(cols[ci], 0));
     ctx.strokeStyle = g; ctx.beginPath();
     let pen = false;
     for (let i = 1; i < pts.length; i++) {
@@ -424,7 +424,9 @@ const Particles = {
         const hot = clamp(o.p / (this.T * 6), 0, 1), L = 1.1 * z;
         const per = clamp(.42 * z * this.T * 1.5 / Math.max(o.p, 1e-9), 4, .5 * z);
         const amp = o.amp * clamp(.09 * z, 2.5, 6);
-        const phase = o.ph - G.T * 9;
+        // Волна неподвижна в пространстве: фаза привязана к мировой координате вдоль луча,
+        // а частица — лишь «окно», которое скользит по ней
+        const phase = o.ph - (o.x * o.dx + o.y * o.dy) * z / per * TAU;
         if (!known) {
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [c], .55 * a, 1.4);
         } else if (o.sp === 'ph') {
