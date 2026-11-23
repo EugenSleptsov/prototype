@@ -48,6 +48,49 @@ function drawFx() {
   }
 }
 
+// ---------- общий интерфейс уровней: часы, цели, заголовок, стрелки ----------
+// Часы и очки — сверху по центру, под ними цели «фишками» [текст, выполнено]
+function hudClock(alpha, left, leftCol, pts, chips) {
+  const x = G.W / 2, y = 24;
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(10,9,18,.55)'; ctx.beginPath(); ctx.roundRect(x - 100, y - 17, 200, 34, 10); ctx.fill();
+  label(left, x - 46, y, 20, leftCol, 1, 700);
+  label(`${pts} ✦`, x + 50, y, 20, [255, 215, 110], 1, 700);
+  ctx.font = '700 12px system-ui,sans-serif';
+  const ws = chips.map(([t, d]) => ctx.measureText((d ? '✓ ' : '') + t).width + 18), gap = 6;
+  let gx = x - (ws.reduce((s, w) => s + w, 0) + gap * (chips.length - 1)) / 2;
+  chips.forEach(([t, d], i) => {
+    ctx.fillStyle = d ? 'rgba(77,232,155,.25)' : 'rgba(255,255,255,.08)';
+    ctx.beginPath(); ctx.roundRect(gx, y + 24, ws[i], 22, 11); ctx.fill();
+    label((d ? '✓ ' : '') + t, gx + ws[i] / 2, y + 35.5, 12, d ? [160, 245, 200] : [235, 235, 245], d ? .95 : .85, 700);
+    gx += ws[i] + gap;
+  });
+  ctx.globalAlpha = 1;
+}
+// Заголовок: всплывает и гаснет, игру не останавливает (b — секунды с начала)
+function hudBanner(b, kicker, name, sub, alpha) {
+  if (!G.started || b > 4.2) return;
+  const a = smooth(0, .4, b) * (1 - smooth(3, 4.2, b)) * alpha, y = G.H * .3;
+  label(kicker, G.W / 2, y - 36, 12, [255, 210, 122], .85 * a, 700);
+  label(name, G.W / 2, y, 40, [255, 255, 255], a, 800);
+  label(sub, G.W / 2, y + 36, 15, [220, 225, 240], .8 * a, 500);
+}
+// Стрелки у края экрана к целям за кадром: pts = [[x, y, подпись или цвет]]; не больше n ближайших
+function edgeArrows(pts, n) {
+  const m = 34, cx = G.W / 2, cy = G.H / 2, off = pts.filter(([wx, wy]) => !onScreen(...W2S(wx, wy), -m));
+  off.sort((u, v) => Math.hypot(u[0] - P.x, u[1] - P.y) - Math.hypot(v[0] - P.x, v[1] - P.y));
+  for (const [wx, wy, t] of off.slice(0, n)) {
+    const [x, y] = W2S(wx, wy), c = Array.isArray(t) ? t : [255, 226, 106];
+    const dx = x - cx, dy = y - cy, k = Math.min((cx - m) / Math.abs(dx || 1e-9), (cy - m) / Math.abs(dy || 1e-9));
+    const ax = cx + dx * k, ay = cy + dy * k, an = Math.atan2(dy, dx);
+    ctx.globalAlpha = 1; ctx.fillStyle = rgb(c, .9); ctx.beginPath();
+    ctx.moveTo(ax + Math.cos(an) * 12, ay + Math.sin(an) * 12);
+    ctx.lineTo(ax + Math.cos(an + 2.4) * 10, ay + Math.sin(an + 2.4) * 10);
+    ctx.lineTo(ax + Math.cos(an - 2.4) * 10, ay + Math.sin(an - 2.4) * 10); ctx.fill();
+    if (typeof t === 'string' && t) label(t, ax - Math.cos(an) * 16, ay - Math.sin(an) * 16, 12, c, .95, 800);
+  }
+}
+
 let msgT = 0, lastMsg = '';
 function msg(t, dur = 3.8) {
   const el = document.getElementById('msg');

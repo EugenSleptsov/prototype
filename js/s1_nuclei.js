@@ -45,11 +45,11 @@ const Nuclei = {
     this.e = []; this.t = 0; this.Tn = 1; this.gT = 0; this.leaving = false; this.msgCd = 0;
     let kind = 'p';
     if (prev && prev.key === 'quarks') {
-      const m = prev.members(prev.pq), u = m.filter(x => x.fl === 'u').length;
-      kind = m.length === 3 && u === 1 ? 'n' : 'p';
-      // барионы, собравшиеся в плазме, становятся нуклонами этого этапа
+      // твой первый барион — ядро-зародыш; остальные барионы плазмы становятся нуклонами этого этапа
+      const mine = prev.groups.get(prev.mine);
+      kind = mine ? mine.kind : 'p';
       for (const grp of prev.groups.values()) {
-        if ((grp.kind === 'p' || grp.kind === 'n') && !grp.m.some(x => x.player) && !grp.m[0].anti) {
+        if ((grp.kind === 'p' || grp.kind === 'n') && grp.id !== prev.mine) {
           const c = centroid(grp.m); this.add(grp.kind, c.x, c.y, randn(), randn());
         }
       }

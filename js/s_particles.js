@@ -16,6 +16,7 @@ const UPG = [
   { key: 'fr', name: 'Захват', ic: '◌', val: [2.6, 3.2, 3.9], fmt: v => '×' + v, about: 'тянет издалека' },
 ];
 const HIT_R = .42, H_WIN = 20; // радиус встречи; полуширина окна резонанса H (ГэВ)
+const THROW_V = 5, THROW_R = .6; // скорость детектора для броска; радиус попадания броском
 // Норматив времени эпохи (с): каждая секунда быстрее даёт +2 к итогу. В эпохе 4 вместо скорости — сохранённое вещество.
 const PAR = [90, 60, 60];
 const LB_KEY = 'proto.lb.v1', LB_TOP = 5;
@@ -34,6 +35,15 @@ const LB = {
   },
 };
 const fmtClock = t => t == null ? '—' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+// Таблица рекордов для карточки итогов: место, топ и твоя строка
+function lbTable(key, entry, cheated) {
+  if (cheated) return '<div class="rk">отладка — без рекорда</div>';
+  const esc = x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const row = (x, k, me) => `<tr class="${me ? 'me' : ''}"><td>${k + 1}</td><td>${esc(x.n)}</td><td>${x.s}</td><td>${fmtClock(x.t)}</td></tr>`;
+  const { list, place } = LB.add(key, entry);
+  const top = list.slice(0, LB_TOP).map((x, k) => row(x, k, k === place)).join('') + (place >= LB_TOP ? row(entry, place, true) : '');
+  return `<div class="rk">${place === 0 ? '🏆 Рекорд!' : `#${place + 1} из ${list.length}`}</div><table class="lb">${top}</table>`;
+}
 const LEP_C = [[150, 205, 255], [120, 165, 255], [150, 120, 255]];
 const BOS_C = { W: [255, 150, 70], Z: [255, 105, 115], H: [255, 215, 90], ph: [255, 240, 190] };
 const NU_C = [175, 255, 205], GOLD = [255, 226, 106], FIELD_C = [82, 200, 255], SHIELD_C = [77, 232, 155];
@@ -89,7 +99,7 @@ const Particles = {
     this.learn = {}; this.shotCd = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.bannerFor = -1; this.banner = 99; this.epT = 0;
-    this.pairs = 0; this.decSeen = new Set(); this.hot = []; this.hotCd = 3; this.stock = 0; this.soupCd = 0;
+    this.pairs = 0; this.decSeen = new Set(); this.hot = []; this.hotCd = 3; this.stock = 0; this.stockQ = []; this.soupCd = 0; this.handoff = null; this.stockOut = false;
     Codex.run = new Set(); Codex.dirty = true;
     P.x = P.y = P.vx = P.vy = 0; P.dashCd = 0;
     for (let i = 0, n = this.nQ(); i < n; i++) this.spawnQuantum(true);
@@ -160,23 +170,39 @@ const Particles = {
       if (best) { best.cap = true; best.v = undefined; f.cap.push(best); }
     }
     const two = f.cap.length === 2;
-    if (two) { f.q = Math.min(1, f.q + dt / CHARGE_T); f.E = this.chargeE(f.q); f.t2 = (f.t2 || 0) + dt; if (f.t2 > .4) this.learn.hold = true; }
+    if (f.cap.length) { f.q = Math.min(1, f.q + dt / CHARGE_T); f.E = this.chargeE(f.q); }
+    if (two) { f.t2 = (f.t2 || 0) + dt; if (f.t2 > .4) this.learn.hold = true; }
     f.ang += dt * (2.2 + 7 * f.q);
-    // захваченные кванты тянутся к детектору (и за ним), затем кружат друг напротив друга
-    const ro = this.hr() * .42, pv = Math.hypot(P.vx, P.vy);
+    // захваченные кванты тянутся к детектору (и за ним), затем кружат друг напротив друга;
+    // на разгоне отстают назад, как камень в рогатке
+    const ro = this.hr() * .42, pv = Math.hypot(P.vx, P.vy), lag = Math.min(.6, pv * .05) / (pv || 1);
     f.cap.forEach((o, k) => {
-      const a = f.ang + k * Math.PI, tx = P.x + Math.cos(a) * ro, ty = P.y + Math.sin(a) * ro;
+      const a = f.ang + k * Math.PI, tx = P.x + Math.cos(a) * ro - P.vx * lag, ty = P.y + Math.sin(a) * ro - P.vy * lag;
       const dx = tx - o.x, dy = ty - o.y, d = Math.hypot(dx, dy), step = (C_LIGHT * 2.5 + pv) * dt;
       if (d > step) { o.x += dx / d * step; o.y += dy / d * step; o.dx = dx / d; o.dy = dy / d; }
       else { o.x = tx; o.y = ty; o.dx = -Math.sin(a); o.dy = Math.cos(a); }
-      if (two) o.p = f.E / 2;
+      o.p = f.E / 2;
     });
   },
+  thrownReady() { return Math.hypot(P.vx, P.vy) > THROW_V; },
   // Отпустил — захваченные летят навстречу друг другу и сталкиваются лоб в лоб (√s = E)
   release() {
     const f = this.focus; this.focus = null; if (!f) return;
     const c = f.cap.filter(o => !o.dead); c.forEach(o => { o.cap = false; });
-    if (c.length < 2 || this.ep === 3) return;
+    if (!c.length || this.ep === 3) return;
+    // Рогатка: отпустил на разгоне — кванты летят вперёд и бьют всё, что встретят
+    if (this.thrownReady()) {
+      const base = Math.atan2(P.vy, P.vx);
+      c.forEach((o, k) => {
+        const an = base + (c.length > 1 ? (k ? .1 : -.1) : 0);
+        o.dx = Math.cos(an); o.dy = Math.sin(an); o.p = f.E / 2; o.flung = 2.2; o.v = C_LIGHT * 2.4;
+        o.thrown = true; o.sib = c[1 - k] || null; o.mate = null;
+      });
+      fxRing(P.x, P.y, this.hr() * .4, GOLD, this.hr() * .9, .35);
+      this.learn.throw = true;
+      return;
+    }
+    if (c.length < 2) return;
     const [a, b] = c, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
     for (const o of c) {
       const dx = mx - o.x, dy = my - o.y, d = Math.hypot(dx, dy) || 1;
@@ -229,7 +255,7 @@ const Particles = {
   pickW(ch) { let s = 0; for (const c of ch) s += c[1]; let r = Math.random() * s; for (const c of ch) if ((r -= c[1]) <= 0) return c[0]; return ch[ch.length - 1][0]; },
   collide(a, b) {
     const rs = this.sqrtS(a, b), x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
-    a.cd = b.cd = .5; a.mate = b.mate = null;
+    a.cd = b.cd = .5; a.mate = b.mate = null; a.thrown = b.thrown = false;
     const ch = this.channels(a, b, rs);
     if (!ch.length) {
       // энергии мало: кванты разлетаются
@@ -425,7 +451,7 @@ const Particles = {
       if (o.dead) continue;
       if (!o.cap) o.p *= red;
       o.born = Math.min(1, o.born + dt * 2); o.cd -= dt;
-      if (o.flung > 0 && (o.flung -= dt) <= 0) { o.v = undefined; o.mate = null; }
+      if (o.flung > 0 && (o.flung -= dt) <= 0) { o.v = undefined; o.mate = null; o.thrown = false; o.sib = null; }
       if (o.rep > 0) o.rep -= dt;
       if (o.pull > 0 && (o.pull -= dt) <= 0) o.v = undefined;
       if (o.fade >= 0) { o.fade -= dt * 1.5; o.born = Math.min(o.born, Math.max(0, o.fade)); if (o.fade <= 0) o.dead = true; }
@@ -452,11 +478,16 @@ const Particles = {
       if (ep4 && SM[o.sp].kind === 'quark' && d < this.hr() * (o.anti ? .55 : .75)) this.store(o);
     }
     if (act) {
-      // сталкивает только поле: брошенный квант встречает своего напарника
+      // сталкивает только поле: квант встречает своего напарника — или, брошенный рогаткой, любой встречный квант
       for (const o of this.p) {
+        if (o.dead || !(o.flung > 0)) continue;
         const t = o.mate;
-        if (o.dead || !(o.flung > 0) || !t || t.dead) continue;
-        if ((t.x - o.x) ** 2 + (t.y - o.y) ** 2 < HIT_R * HIT_R) this.collide(o, t);
+        if (t && !t.dead && (t.x - o.x) ** 2 + (t.y - o.y) ** 2 < HIT_R * HIT_R) { this.collide(o, t); continue; }
+        if (!o.thrown) continue;
+        for (const q of this.p) {
+          if (q === o || q === o.sib || q.dead || q.cap || q.thrown || !this.isQ(q) || q.cd > 0 || q.born < .5) continue;
+          if ((q.x - o.x) ** 2 + (q.y - o.y) ** 2 < THROW_R * THROW_R) { this.collide(o, q); this.learn.hit = true; break; }
+        }
       }
       if (this.ep === 3) this.annihilateAll();
       this.populate(dt);
@@ -469,12 +500,15 @@ const Particles = {
     this.p = this.p.filter(o => !o.dead);
     if (this.p.length > 260) this.p.splice(0, this.p.length - 260);
   },
+  // Сбережённые кварки — ровно те, что кружат в детекторе, — переходят на уровень адронов с теми же
+  // местами и скоростями. Новых не появляется.
+  stockPos(i) {
+    const a = G.T * 1.2 + i / this.stock * TAU, rr = this.hr() * (.35 + .1 * (i % 2));
+    return { x: P.x + Math.cos(a) * rr, y: P.y + Math.sin(a) * rr, vx: P.vx - Math.sin(a) * rr * 1.2, vy: P.vy + Math.cos(a) * rr * 1.2 };
+  },
   endLevel() {
-    // сохранённое вещество выпускаем вокруг детектора — это стартовый материал кварковой плазмы
-    for (let i = 0; i < this.stock; i++) {
-      const a = i / Math.max(1, this.stock) * TAU, d = rnd(1, 2);
-      this.mk(i % 3 ? 'u' : 'd', false, P.x + Math.cos(a) * d, P.y + Math.sin(a) * d, a, .3).born = 1;
-    }
+    this.handoff = this.stockQ.map((s, i) => ({ ...this.stockPos(i), fl: s.fl, col: s.col }));
+    this.stockOut = true;
     advance();
   },
   // Эпоха 4: кварки почти остановились (упрощение), антикварки ищут вещество — свободное или в детекторе
@@ -537,15 +571,7 @@ const Particles = {
     const total = pts + bonus;
     this.lvlTotal += total;
     const e = { n: LB.name(), s: total, p: pts, t: t === null ? null : Math.floor(t), d: Date.now() };
-    const esc = x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-    const row = (x, k, me) => `<tr class="${me ? 'me' : ''}"><td>${k + 1}</td><td>${esc(x.n)}</td><td>${x.s}</td><td>${fmtClock(x.t)}</td></tr>`;
-    const table = (key, entry) => {
-      if (this.cheated) return '<div class="rk">отладка — без рекорда</div>';
-      const { list, place } = LB.add(key, entry);
-      const top = list.slice(0, LB_TOP).map((x, k) => row(x, k, k === place)).join('') + (place >= LB_TOP ? row(entry, place, true) : '');
-      const rk = place === 0 ? '🏆 Рекорд!' : `#${place + 1} из ${list.length}`;
-      return `<div class="rk">${rk}</div><table class="lb">${top}</table>`;
-    };
+    const table = (key, entry) => lbTable(key, entry, this.cheated);
     let html = `<div class="ek">Эпоха ${i + 1}</div><div class="en">${EPOCHS[i].name}</div>` +
       `<div class="rs"><div><span>⏱</span>${fmtClock(t)}</div><div><span>✦</span>${pts}</div>` +
       `<div><span>${i === 3 ? `◉ ${this.stock} × 10` : `быстрее ${fmtClock(PAR[i])}`}</span>+${bonus}</div><div class="tot"><span>итог</span>${total}</div></div>` +
@@ -620,10 +646,10 @@ const Particles = {
   store(o) {
     o.dead = true;
     if (!o.anti) {
-      this.stock++;
+      this.stock++; this.stockQ.push({ fl: o.sp, col: this.stockQ.length % 3 });
       this.float(P.x, P.y, '+1 ◉', [140, 235, 170], 14);
     } else if (this.stock > 0) {
-      this.stock--;
+      this.stock--; this.stockQ.pop();
       fxFlash(P.x, P.y, this.hr(), [255, 120, 120], .5);
       this.float(P.x, P.y, '−1 ◉', [255, 130, 130], 15);
     } else fxFlash(P.x, P.y, .6, [255, 255, 255], .3);
@@ -651,7 +677,7 @@ const Particles = {
     this.kn += 100; this.pairs++; this.cheated = true;
     for (const ch of CHAINS) for (const sp of ch) this.decSeen.add(sp);
     if (this.ep === 1) this.higT = 99;
-    if (this.ep === 3) this.stock = STOCK_GOAL;
+    if (this.ep === 3) while (this.stock < STOCK_GOAL) { this.stock++; this.stockQ.push({ fl: this.stock % 3 === 2 ? 'd' : 'u', col: this.stockQ.length % 3 }); }
   },
   // Что сейчас нужно снять: в эпохе 2 — H и W/Z, в эпохе 3 — распады цепочек
   wanted(sp) {
@@ -750,6 +776,7 @@ const Particles = {
         const amp = o.amp * clamp(.09 * z, 2.5, 6);
         // Волна неподвижна в пространстве: фаза привязана к мировой координате вдоль луча
         const phase = o.ph - (o.x * o.dx + o.y * o.dy) * z / per * TAU;
+        if (o.thrown) { ctx.lineCap = 'round'; line(sx, sy, sx - o.dx * 34, sy - o.dy * 34, GOLD, .5 * a, 4); }
         if (!known) {
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [c], .6 * a, 1.6);
           ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,32,.85)'; ctx.beginPath(); ctx.arc(sx, sy, 7.5, 0, TAU); ctx.fill();
@@ -841,12 +868,9 @@ const Particles = {
         glow(hx, hy, .5 * z, [255, 170, 90], .2 + .25 * k);
       }
     }
-    if (this.ep === 3 && this.stock > 0) {
+    if (this.ep === 3 && this.stock > 0 && !this.stockOut) {
       // запас вещества кружит внутри детектора
-      for (let i = 0; i < this.stock; i++) {
-        const a = G.T * 1.2 + i / this.stock * TAU, rr = r * (.35 + .1 * (i % 2));
-        ball(sx + Math.cos(a) * rr, sy + Math.sin(a) * rr, 3.5, QCOL[i % 3]);
-      }
+      for (let i = 0; i < this.stock; i++) { const p = this.stockPos(i), [bx, by] = W2S(p.x, p.y); ball(bx, by, 3.5, QCOL[this.stockQ[i].col]); }
     }
     const ready = this.shotCd <= 0;
     let unk = 0;
@@ -891,8 +915,23 @@ const Particles = {
     ring(sx, sy, R, FIELD_C, .35, 1.5, [6, 6]);
     ring(sx, sy, this.hr() * .42 * z + 3 * Math.sin(G.T * 10), GOLD, .8, 2);
     for (const o of f.cap) { const [ox, oy] = W2S(o.x, o.y); line(ox, oy, sx, sy, GOLD, .55, 1.8); }
-    if (f.cap.length < 2) return;
-    const Rg = r + 13, a0 = -Math.PI / 2, kinds = f.cap.map(o => o.sp).sort().join('');
+    if (!f.cap.length) return;
+    const Rg = r + 13, a0 = -Math.PI / 2;
+    // рогатка взведена: стрелка — куда полетят кванты, если отпустить сейчас
+    const pv = Math.hypot(P.vx, P.vy);
+    if (pv > THROW_V * .6) {
+      const on = pv > THROW_V, an = Math.atan2(P.vy, P.vx), c = Math.cos(an), s = Math.sin(an), r0 = Rg + 10, L = on ? 46 : 24;
+      ctx.setLineDash(on ? [] : [4, 4]);
+      line(sx + c * r0, sy + s * r0, sx + c * (r0 + L), sy + s * (r0 + L), GOLD, on ? .95 : .4, on ? 3 : 2);
+      ctx.setLineDash([]);
+      if (on) {
+        const hx = sx + c * (r0 + L + 4), hy = sy + s * (r0 + L + 4);
+        ctx.fillStyle = rgb(GOLD, .95); ctx.beginPath(); ctx.moveTo(hx + c * 8, hy + s * 8);
+        ctx.lineTo(hx + Math.cos(an + 2.4) * 9, hy + Math.sin(an + 2.4) * 9); ctx.lineTo(hx + Math.cos(an - 2.4) * 9, hy + Math.sin(an - 2.4) * 9); ctx.fill();
+      }
+    }
+    if (f.cap.length < 2) { arc(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), FIELD_C, .6, 4); return; }
+    const kinds = f.cap.map(o => o.sp).sort().join('');
     const inH = kinds === 'gg' && this.hig > .5 && Math.abs(f.E - SM.H.m) < H_WIN;
     ring(sx, sy, Rg, [255, 255, 255], .15, 5);
     if (this.hig > .5) {
@@ -920,6 +959,7 @@ const Particles = {
     if (this.ep === 3) t = this.learn.shield ? null : 'зажми — щит';
     else if (!this.learn.snap) t = 'клик — снимок';
     else if (this.focus && this.focus.cap.length === 2 && !this.learn.smash) t = 'отпусти — столкнуть';
+    else if (this.focus && this.focus.cap.length && this.learn.smash && !this.learn.throw && this.epT > 6) t = this.thrownReady() ? 'отпусти на ходу — бросок' : 'разгонись с квантами';
     else if (!this.learn.hold && this.ep === 0 && this.t > 2) t = 'зажми — притянуть кванты';
     if (!t) return;
     if (!this.learn.snap) { const ph = (G.T % 1.4) / 1.4; ring(sx, sy, r * (1 + .25 * ph), [255, 255, 255], .5 * (1 - ph), 2); }
@@ -931,53 +971,22 @@ const Particles = {
     for (const o of this.p) if (!o.dead && this.wanted(o.sp)) pts.push([o.x, o.y, SM[o.sp].sym]);
     for (const tr of this.tracks) if (tr.parent && !tr.rec && this.wanted(tr.parent)) pts.push([tr.x, tr.y, SM[tr.parent].sym + '→']);
     for (const h of this.hot) if (!h.done) pts.push([h.x, h.y, '']);
-    const m = 34, cx = G.W / 2, cy = G.H / 2, off = pts.filter(([wx, wy]) => !onScreen(...W2S(wx, wy), -m));
     // не больше трёх ближайших — чтобы край экрана не превратился в ёлку
-    off.sort((u, v) => Math.hypot(u[0] - P.x, u[1] - P.y) - Math.hypot(v[0] - P.x, v[1] - P.y));
-    for (const [wx, wy, t] of off.slice(0, 3)) {
-      const [x, y] = W2S(wx, wy);
-      const dx = x - cx, dy = y - cy, k = Math.min((cx - m) / Math.abs(dx || 1e-9), (cy - m) / Math.abs(dy || 1e-9));
-      const ax = cx + dx * k, ay = cy + dy * k, an = Math.atan2(dy, dx);
-      ctx.globalAlpha = 1; ctx.fillStyle = rgb(GOLD, .9); ctx.beginPath();
-      ctx.moveTo(ax + Math.cos(an) * 12, ay + Math.sin(an) * 12);
-      ctx.lineTo(ax + Math.cos(an + 2.4) * 10, ay + Math.sin(an + 2.4) * 10);
-      ctx.lineTo(ax + Math.cos(an - 2.4) * 10, ay + Math.sin(an - 2.4) * 10); ctx.fill();
-      if (t) label(t, ax - Math.cos(an) * 16, ay - Math.sin(an) * 16, 12, GOLD, .95, 800);
-    }
+    edgeArrows(pts, 3);
   },
   // Часы, очки и цели эпохи — сверху по центру
   drawClock(alpha) {
     if (!G.started) return;
-    const x = G.W / 2, y = 24, done = this.doneAt !== null, pts = Math.round(this.kn - this.epKn0);
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = 'rgba(10,9,18,.55)'; ctx.beginPath(); ctx.roundRect(x - 100, y - 17, 200, 34, 10); ctx.fill();
-    if (this.ep < 3) {
-      const over = this.epClock > PAR[this.ep];
-      label(`${done ? '✓ ' : ''}${fmtClock(this.epClock)}`, x - 46, y, 20, done ? [140, 235, 170] : over ? [190, 190, 205] : [255, 255, 255], 1, 700);
-    } else {
-      const left = this.T > .4 ? EPOCHS[3].tau / this.ff * Math.log(this.T / .4) : 0;
-      label(`⏳ ${fmtClock(left)}`, x - 46, y, 20, [255, 255, 255], 1, 700);
-    }
-    label(`${pts} ✦`, x + 50, y, 20, [255, 215, 110], 1, 700);
-    // цели — фишки
-    const gs = this.goals(); ctx.font = '700 12px system-ui,sans-serif';
-    const ws = gs.map(([t, d]) => ctx.measureText((d ? '✓ ' : '') + t).width + 18), gap = 6;
-    let gx = x - (ws.reduce((s, w) => s + w, 0) + gap * (gs.length - 1)) / 2;
-    gs.forEach(([t, d], i) => {
-      ctx.fillStyle = d ? 'rgba(77,232,155,.25)' : 'rgba(255,255,255,.08)';
-      ctx.beginPath(); ctx.roundRect(gx, y + 24, ws[i], 22, 11); ctx.fill();
-      label((d ? '✓ ' : '') + t, gx + ws[i] / 2, y + 35.5, 12, d ? [160, 245, 200] : [235, 235, 245], d ? .95 : .85, 700);
-      gx += ws[i] + gap;
-    });
-    ctx.globalAlpha = 1;
+    const done = this.doneAt !== null, pts = Math.round(this.kn - this.epKn0);
+    let left, col = [255, 255, 255];
+    if (this.ep < 3) { left = `${done ? '✓ ' : ''}${fmtClock(this.epClock)}`; col = done ? [140, 235, 170] : this.epClock > PAR[this.ep] ? [190, 190, 205] : col; }
+    else left = `⏳ ${fmtClock(this.T > .4 ? EPOCHS[3].tau / this.ff * Math.log(this.T / .4) : 0)}`;
+    hudClock(alpha, left, col, pts, this.goals());
   },
   // Заголовок эпохи: всплывает и гаснет, игру не останавливает
   drawBanner(alpha) {
-    const b = this.banner; if (!G.started || b > 4.2) return;
-    const E = EPOCHS[this.ep], a = smooth(0, .4, b) * (1 - smooth(3, 4.2, b)) * alpha, y = G.H * .3;
-    label(`ЭПОХА ${this.ep + 1} · ${E.when}`, G.W / 2, y - 36, 12, [255, 210, 122], .85 * a, 700);
-    label(E.name, G.W / 2, y, 40, [255, 255, 255], a, 800);
-    label(E.line, G.W / 2, y + 36, 15, [220, 225, 240], .8 * a, 500);
+    const E = EPOCHS[this.ep];
+    hudBanner(this.banner, `ЭПОХА ${this.ep + 1} · ${E.when}`, E.name, E.line, alpha);
   },
   overlay(alpha) { this.drawClock(alpha); this.drawBanner(alpha); ctx.globalAlpha = 1; },
   viewR() { return 3.5 + this.hr() * 1.9; },
