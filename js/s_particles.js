@@ -2,8 +2,9 @@
 /* Уровень частиц: эпохи 1–2. «Вселенная как коллайдер».
    Игрок — не частица, а ДЕТЕКТОР (круг вокруг курсора).
    - Клик = снимок: изучено всё, что сейчас в круге, и следы событий последних долей секунды.
-   - Снимки дают ЗНАНИЯ ✦, за них прокачивается детектор (радиус, затвор, сжатие).
-   - Сжатие (Пробел): всё рядом летит к центру и нагревается → лобовые столкновения.
+   - Снимки дают ЗНАНИЯ ✦, за них прокачивается детектор (радиус, затвор, бросок, фокус).
+   - Рогатка: зажми частицу и оттяни — время замедляется, видно траекторию, цель с упреждением
+     и энергию столкновения на шкале с порогами 2m. Отпусти — бросок. Сталкивает только рука.
    - Столкновение двух квантов рождает пару частица + античастица (E = mc²).
    - Открытое в забеге Вселенная дальше рождает сама — пока хватает температуры.
    Эпоха 1 (T > 160 ГэВ): всё безмассовое и летит со скоростью света.
@@ -16,9 +17,14 @@ const UPG = [
     about: 'Круг больше — в кадр попадает больше частиц, камера отъезжает' },
   { key: 'sh', name: 'Быстрый затвор', ic: '⏱', val: [1.2, .85, .6, .4], fmt: v => v.toFixed(2) + ' с',
     about: 'Снимки чаще — проще поймать короткоживущую частицу' },
-  { key: 'cmp', name: 'Сильное сжатие', ic: '✸', val: [1.25, 1.5, 1.8, 2.2], fmt: v => '×' + v,
-    about: 'Сжатие сильнее греет кванты — хватает энергии на тяжёлые пары' },
+  { key: 'pow', name: 'Сила броска', ic: '➶', val: [3, 4, 5, 6.5], fmt: v => '×' + v + ' T',
+    about: 'Полное натяжение даёт больше энергии — хватает на тяжёлые пары и резонансы' },
+  { key: 'slow', name: 'Фокус', ic: '◔', val: [.25, .16, .1], fmt: v => '×' + v,
+    about: 'Пока целишься, время течёт ещё медленнее' },
 ];
+// Рогатка: натяжение до maxPull мировых единиц; слабое натяжение в span раз слабее полного
+// (логарифмическая шкала — удобно попадать в резонанс); cone — захват цели с упреждением.
+const AIM = { maxPull: 3, span: 400, cone: 14 * DEG, hitR: .42, flungT: 7, grab: .7 };
 // пороги знаний: на каждом игра встаёт на паузу и предлагает выбрать улучшение
 const KN_STEPS = [10, 25, 45, 75, 115, 165, 230, 310, 400, 500];
 const LEP_C = [[150, 205, 255], [120, 165, 255], [150, 120, 255]];
@@ -30,16 +36,16 @@ const FERMIONS = ['u', 'd', 'c', 's', 't', 'b', 'e', 'mu', 'ta', 'ne', 'nm', 'nt
 const EPOCHS = [
   { name: 'Чистая энергия', floor: 165, tau: 36, startT: Infinity, when: '10⁻¹² с после Большого взрыва',
     phys: 'Вселенная — раскалённый газ квантов: фотонов и глюонов. Массы нет ни у чего, всё летит со скоростью света. Энергия может стать веществом: два кванта при столкновении рождают пару <b>частица + античастица</b> (E = mc²).',
-    todo: '<b>Клик</b> — снимок: определи, что в круге. <b>Пробел</b> — сжатие: кванты слетаются в центр детектора и сталкиваются.' },
+    todo: '<b>Клик</b> — снимок: определи, что в круге. <b>Зажми квант и оттяни, как рогатку</b> — время замедлится, покажется траектория. Отпусти в другой квант: из энергии столкновения родится пара.' },
   { name: 'Поле Хиггса', floor: 90, tau: 14, startT: 160, when: '10⁻¹¹ с · 160 ГэВ',
     phys: 'Поле Хиггса «застывает» во всём пространстве. Частицы, которые с ним взаимодействуют, обретают <b>массу</b> и замедляются. Переносчики слабой силы W и Z становятся тяжёлыми — поэтому слабая сила такая слабая.',
-    todo: 'Рядом всплески поля — <b>бозоны Хиггса</b>. Сними их, пока не распались. W и Z рождаются при сильном сжатии или в <b>горячих точках</b> (мерцающее кольцо).' },
+    todo: 'Рядом всплески поля — <b>бозоны Хиггса</b>. Сними их, пока не распались. Теперь работает E = mc²: <b>тяни сильнее</b> — шкала внизу покажет, на какие пары хватает энергии. Два глюона точно в светлой полосе рождают H; W и Z — сильный бросок или <b>горячая точка</b>.' },
   { name: 'Распады', floor: 3, tau: 14, startT: Infinity, when: '10⁻¹⁰ с · ~90 ГэВ',
     phys: 'Тяжёлые частицы нестабильны. t-кварк живёт 5·10⁻²⁵ с и распадается на b-кварк, тот — на c, дальше s… Физики узнают частицы по <b>осколкам распада</b>.',
     todo: 'Мерцающее кольцо — <b>горячая точка</b>: там сейчас родится тяжёлая частица. Наведи круг и сними <b>вспышку распада</b>. Потом следуй за осколком и сними его распад — так собирается цепочка.' },
   { name: 'Аннигиляция', floor: 0, tau: 20, startT: 3, when: '10⁻⁷ с · 3 ГэВ',
     phys: 'Вещество и антивещество уничтожают друг друга и превращаются в свет. Но вещества чуть больше: один лишний кварк на миллиард пар (в игре — гораздо больше). Из этого остатка сделаны звёзды, планеты и ты.',
-    todo: '<b>Пробел</b> притягивает кварки и <b>сохраняет</b> их в детекторе. Антикварк в ловушке уничтожит один сохранённый кварк — сжимай там, где больше вещества (шары), а не антивещества (кольца).' },
+    todo: 'Наведи детектор на кварки вещества (шары) — он их <b>сохранит</b>. Антикварки (кольца) тянутся к веществу: долетев до детектора, антикварк уничтожит сохранённый кварк. <b>Хватай антикварк и вышвыривай</b> подальше.' },
 ];
 const CHAINS = [['t', 'b', 'c'], ['ta', 'mu']]; // чьи распады нужно снять в эпохе 3
 const STOCK_GOAL = 12;
@@ -71,12 +77,12 @@ function waveLine(sx, sy, dx, dy, L, per, amp, phase, cols, a, lw) {
 
 const Particles = {
   key: 'particles', name: 'Частицы', bg: [44, 34, 14],
-  controls: 'Мышь — вести детектор · Клик — снимок · Пробел — сжатие · Enter — ускорить остывание',
+  controls: 'Мышь — вести детектор · Клик — снимок · Зажать частицу и оттянуть — бросок · Enter — ускорить остывание',
 
   enter() {
     this.p = []; this.t = 0; this.T = T_START; this.hig = 0; this.higT = -1; this.ff = 1;
     this.advanced = false; this.sawTop = false; this.msgCd = 0; this.said = {};
-    this.kn = 0; this.picks = 0; this.lvl = { r: 0, sh: 0, cmp: 0 }; this.shotCd = 0; this.tracks = []; this.floats = []; this.seenN = {};
+    this.kn = 0; this.picks = 0; this.lvl = { r: 0, sh: 0, pow: 0, slow: 0 }; this.press = null; this.aim = null; this.ejected = 0; this.shotCd = 0; this.tracks = []; this.floats = []; this.seenN = {};
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.cardFor = -1; this.epT = 0;
     this.pairs = 0; this.decSeen = new Set(); this.hot = []; this.hotCd = 3; this.stock = 0; this.soupCd = 0;
@@ -119,27 +125,127 @@ const Particles = {
     A.cd = B.cd = .4; return [A, B];
   },
   meff(o) { return SM[o.sp].m * this.hig; },
-  speed(o) { const m = this.meff(o); return m <= 0 ? C_LIGHT : C_LIGHT * o.p / Math.sqrt(o.p * o.p + m * m); },
+  speed(o) { if (o.v != null) return o.v; const m = this.meff(o); return m <= 0 ? C_LIGHT : C_LIGHT * o.p / Math.sqrt(o.p * o.p + m * m); },
   isQ(o) { return o.sp === 'ph' || o.sp === 'g'; },
   inHand(o) { return Math.hypot(o.x - P.x, o.y - P.y) < this.hr(); },
   // Больцмановский вес: сколько частиц этого сорта держит Вселенная при температуре T
   weight(sp) { const m = SM[sp].m * this.hig; return m <= 0 ? 1 : Math.exp(-m / this.T); },
 
-  // ---------- действие игрока: сжатие ----------
-  dash() {
-    if (!G.started || P.dashCd > 0) return;
-    const R0 = this.hr() * 1.8 + 2, heat = this.up('cmp');
-    // фокус держится, пока кванты с края зоны долетают до центра
-    this.focusT = R0 / C_LIGHT + .4; P.dashCd = P.dashMax = this.focusT + .2;
-    let n = 0;
+  // ---------- действие игрока: рогатка ----------
+  // Что можно схватить: ближайшее к курсору, кроме нейтрино (рукой не поймать) и тяжёлых бозонов
+  grabbable(x, y) {
+    let best = null, bd = AIM.grab;
     for (const o of this.p) {
-      const dx = P.x - o.x, dy = P.y - o.y, d = Math.hypot(dx, dy);
-      if (d > R0 || d < .05) continue;
-      const a = Math.atan2(dy, dx) + randn() * .12;
-      o.dx = Math.cos(a); o.dy = Math.sin(a); o.p *= heat; o.cd = 0; o.pull = true; n++;
+      if (o.dead || o.fade >= 0 || o.born < .5) continue;
+      if (SM[o.sp].kind === 'nu' || o.sp === 'W' || o.sp === 'Z' || o.sp === 'H') continue;
+      const d = Math.hypot(o.x - x, o.y - y) - this.rad(o); if (d < bd) { bd = d; best = o; }
     }
-    fxRing(P.x, P.y, R0, [255, 230, 170], .2, .45);
-    if (n > 1) this.hint('dash', 'Сжатие нагревает: кванты летят навстречу друг другу', 3);
+    return best;
+  },
+  // Эпоха 4: кварк бросается «вручную», без наведения — просто вышвырнуть
+  freeThrow(o) { return this.ep === 3 && SM[o.sp].kind === 'quark'; },
+  partners(o) {
+    if (this.isQ(o)) return this.p.filter(t => t !== o && !t.dead && this.isQ(t) && !(t.fade >= 0));
+    return this.p.filter(t => !t.dead && t.sp === o.sp && t.anti !== o.anti);
+  },
+  vel(o) { const v = this.speed(o); return [o.dx * v, o.dy * v]; },
+  // Упреждение: куда лететь со скоростью speed, чтобы встретить движущуюся цель
+  intercept(px, py, speed, q) {
+    const rx = q.x - px, ry = q.y - py, [ux, uy] = this.vel(q);
+    const a = ux * ux + uy * uy - speed * speed, b = 2 * (rx * ux + ry * uy), c = rx * rx + ry * ry;
+    let t;
+    if (Math.abs(a) < 1e-6) { if (b > -1e-9) return null; t = -c / b; } // та же скорость: догнать можно, только если летит навстречу
+    else {
+      const D = b * b - 4 * a * c; if (D < 0) return null;
+      const sq = Math.sqrt(D), t1 = (-b - sq) / (2 * a), t2 = (-b + sq) / (2 * a);
+      t = Math.min(t1, t2); if (t <= 0) t = Math.max(t1, t2);
+    }
+    if (!(t > 0)) return null;
+    const hx = q.x + ux * t, hy = q.y + uy * t;
+    return { time: t, x: hx, y: hy, dx: (hx - px) / (speed * t), dy: (hy - py) / (speed * t) };
+  },
+  // Чем сильнее натяжение, тем больше энергии; максимум ~ сила броска × T (рука собирает тепло вокруг)
+  shotKin(o, p) {
+    const K0 = this.T * this.up('pow') * Math.pow(1 / AIM.span, 1 - p);
+    if (this.isQ(o)) return { E: K0, pm: K0, speed: C_LIGHT };
+    if (this.freeThrow(o)) return { E: K0, pm: K0, speed: C_LIGHT * (.5 + 1.4 * p) };
+    const m = this.meff(o), E = m + K0, pm = Math.sqrt(E * E - m * m);
+    return { E, pm, speed: Math.max(.3 * C_LIGHT, C_LIGHT * pm / E) };
+  },
+  shotS(o, kin, d, t) { return this.sqrtS({ sp: o.sp, dx: d.x, dy: d.y, p: kin.pm }, t); },
+  planShot(o, dir, p) {
+    const kin = this.shotKin(o, p), free = this.freeThrow(o);
+    let hit = null, d = dir, best = AIM.cone, miss = null, missA = AIM.cone;
+    if (!free) for (const t of this.partners(o)) {
+      const td = Math.hypot(t.x - o.x, t.y - o.y) || 1;
+      const direct = Math.acos(clamp((dir.x * (t.x - o.x) + dir.y * (t.y - o.y)) / td, -1, 1));
+      const sol = this.intercept(o.x, o.y, kin.speed, t);
+      if (!sol || sol.time > 8) { if (direct < missA) { missA = direct; miss = t; } continue; }
+      // целиться можно и в саму цель — упреждение посчитается само
+      const ang = Math.min(Math.acos(clamp(dir.x * sol.dx + dir.y * sol.dy, -1, 1)), direct);
+      if (ang < best) { best = ang; hit = Object.assign({ target: t }, sol); }
+    }
+    if (hit) d = { x: hit.dx, y: hit.dy };
+    else if (!free) {
+      // свободное направление: вдруг кого-то заденем по пути
+      let bt = 8;
+      for (const t of this.partners(o)) {
+        const [ux, uy] = this.vel(t), rx = t.x - o.x, ry = t.y - o.y;
+        const wx = ux - d.x * kin.speed, wy = uy - d.y * kin.speed, w2 = wx * wx + wy * wy;
+        if (w2 < 1e-9) continue;
+        const tm = -(rx * wx + ry * wy) / w2; if (tm <= 0 || tm > bt) continue;
+        const cx = rx + wx * tm, cy = ry + wy * tm;
+        if (cx * cx + cy * cy < AIM.hitR * AIM.hitR * .7) { bt = tm; hit = { target: t, time: tm, x: o.x + d.x * kin.speed * tm, y: o.y + d.y * kin.speed * tm, dx: d.x, dy: d.y }; }
+      }
+    }
+    let rs = null, outs = null, range = null;
+    if (hit) {
+      rs = this.shotS(o, kin, d, hit.target);
+      outs = this.outcomes(o, hit.target, rs);
+      range = [this.shotS(o, this.shotKin(o, 0), d, hit.target), this.shotS(o, this.shotKin(o, 1), d, hit.target)];
+    }
+    return { o, dir: d, p, kin, hit, rs, outs, range, free, miss: hit ? null : miss };
+  },
+  // Что может получиться: [[вид, доля]] по убыванию
+  outcomes(a, b, rs) {
+    let ch;
+    if (this.isQ(a)) ch = this.channels(a, b, rs);
+    else ch = this.hig > .5 && Math.abs(rs - SM.Z.m) < 14 ? [['Z', 1]] : [[SM[a.sp].kind === 'quark' ? 'gg' : 'phph', 1]];
+    const s = ch.reduce((n, c) => n + c[1], 0);
+    return ch.map(([k, w]) => [k, w / s]).sort((x, y) => y[1] - x[1]);
+  },
+  computeAim(mx, my) {
+    const o = this.press.o; if (!o || o.dead) { this.aim = null; return; }
+    const vx = o.x - mx, vy = o.y - my, len = Math.hypot(vx, vy);
+    const p = clamp((len - .3) / AIM.maxPull, 0, 1);
+    const dir = len > 1e-3 ? { x: vx / len, y: vy / len } : { x: o.dx, y: o.dy };
+    this.aim = this.planShot(o, dir, p);
+  },
+  fling(pl) {
+    const o = pl.o; if (!o || o.dead) return;
+    o.dx = pl.dir.x; o.dy = pl.dir.y; o.p = pl.kin.pm; o.flung = AIM.flungT; o.byHand = true; o.cd = 0; o.fade = undefined;
+    if (pl.free) o.v = pl.kin.speed;
+    o.mark = pl.hit ? { x: pl.hit.x, y: pl.hit.y } : null;
+    this.flings = (this.flings || 0) + 1;
+    fxRing(o.x, o.y, .2, [255, 255, 255], .8, .35);
+  },
+  // Ввод: нажатие на частицу → прицел (тап без движения = снимок); нажатие в пустоту → сразу снимок
+  input() {
+    const [mx, my] = S2W(mouse.x, mouse.y);
+    if (mouse.clicked) {
+      mouse.clicked = false;
+      const o = this.grabbable(mx, my);
+      if (o) this.press = { o, x0: mouse.x, y0: mouse.y, moved: false };
+      else this.snapshot();
+    }
+    const pr = this.press; if (!pr) return;
+    if (!pr.moved && Math.hypot(mouse.x - pr.x0, mouse.y - pr.y0) > 8) { pr.moved = true; this.hint('aim', 'Время замедлено. Оттяни дальше — энергия больше. Отпусти — бросок', 3); }
+    if (pr.moved) this.computeAim(mx, my);
+    if (!mouse.down) {
+      const aim = this.aim; this.press = null; this.aim = null;
+      if (!pr.moved) this.snapshot();
+      else if (aim && aim.p > .02) this.fling(aim);
+    }
   },
 
   // ---------- физика событий ----------
@@ -172,8 +278,8 @@ const Particles = {
     a.cd = b.cd = .5;
     const ch = this.channels(a, b, rs);
     if (!ch.length) {
-      if (this.hig > .5) this.hint('low', `Не хватает энергии: √s = ${fmtGeV(rs)}. Сожми область — сжатие нагревает`, 3.5);
-      const t = a.dx; a.dx = b.dx; b.dx = t; const u = a.dy; a.dy = b.dy; b.dy = u; return;
+      if (this.hig > .5) this.hint('low', `Не хватает энергии: √s = ${fmtGeV(rs)}. Тяни рогатку сильнее`, 3.5);
+      const t = a.dx; a.dx = b.dx; b.dx = t; const u = a.dy; a.dy = b.dy; b.dy = u; a.flung = b.flung = 0; return;
     }
     const c = this.pickW(ch);
     a.dead = b.dead = true;
@@ -283,7 +389,7 @@ const Particles = {
     if (fresh) fxRing(P.x, P.y, R0, [255, 215, 110], R0 * 1.5, .7);
     if (kinds >= 2) this.hint('combo', 'Комбо! Разные частицы в одном кадре дают больше знаний', 3);
     this.checkPick();
-    if (Codex.run.size >= 3) this.hint('dash2', 'Пробел — сжатие: кванты летят навстречу и рождают пары частица + античастица', 4);
+    if (Codex.run.size >= 2) this.hint('sling', 'Зажми квант и оттяни, как рогатку. Отпусти в другой квант — родится пара', 4);
   },
   // ---------- прокачка: выбор улучшения на паузе ----------
   opts() { return UPG.filter(u => this.lvl[u.key] < u.val.length - 1); },
@@ -353,11 +459,15 @@ const Particles = {
       .slice(0, extra).forEach(o => o.fade = 1);
   },
 
-  update(dt, act) {
+  update(dt0, act) {
     const prevT = this.T;
     if (act) {
       // карточка эпохи — один раз, в начале
       if (this.cardFor !== this.ep) { this.cardFor = this.ep; this.showCard(); return; }
+    }
+    // пока игрок целится, время замедлено
+    const dt = this.aim ? dt0 * this.up('slow') : dt0;
+    if (act) {
       this.t += dt; this.epT += dt;
       const E = EPOCHS[this.ep], nx = EPOCHS[this.ep + 1];
       const floor = this.epDone ? (nx ? Math.min(nx.startT, this.T) * .999 : 0) : E.floor;
@@ -370,68 +480,55 @@ const Particles = {
     if (this.higT >= 0) { this.higT += dt; this.hig = smooth(0, 9, this.higT); }
     this.bg = mixc([44, 34, 14], [16, 12, 30], this.hig);
     const red = this.T / prevT; // расширение: импульсы краснеют вместе с температурой
-    this.focusT = (this.focusT || 0) - dt;
     if (act) {
-      steer(P, 11, 6, dt);
-      P.x += P.vx * dt; P.y += P.vy * dt;
-      if (mouse.clicked) { mouse.clicked = false; this.snapshot(); }
-      this.shotCd -= dt;
-      for (const f of this.floats) f.t += dt;
+      this.input();
+      // детектор держит позицию, пока игрок натягивает рогатку
+      if (this.press) { P.vx *= .8; P.vy *= .8; } else steer(P, 11, 6, dt0);
+      P.x += P.vx * dt0; P.y += P.vy * dt0;
+      this.shotCd -= dt0;
+      for (const f of this.floats) f.t += dt0;
       this.floats = this.floats.filter(f => f.t < 1.6);
-      this.shotFx = (this.shotFx || 0) - dt;
+      this.shotFx = (this.shotFx || 0) - dt0;
       this.tracks = this.tracks.filter(tr => this.t - tr.t < TRACK_T);
     }
-    const WR = this.wr(), FR = .3 + .3 * this.hr(), held = [];
+    const WR = this.wr(), grabbed = this.press && this.press.o, ep4 = act && this.ep === 3;
     for (const o of this.p) {
       if (o.dead) continue;
-      // ловушка сжатия: квант, влетевший в фокус, кружит в центре, пока не прилетит второй
-      if (o.held) {
-        if (this.focusT <= 0) { o.held = false; const a = Math.random() * TAU; o.dx = Math.cos(a); o.dy = Math.sin(a); }
-        else {
-          o.ha += dt * 4; o.p *= red;
-          o.x = P.x + Math.cos(o.ha) * FR * .45; o.y = P.y + Math.sin(o.ha) * FR * .45;
-          held.push(o); continue;
-        }
-      } else if (act && this.focusT > 0 && o.pull) {
-        // притянутые сжатием кванты летят к детектору, даже если он сместился
-        const ex = P.x - o.x, ey = P.y - o.y, ed = Math.hypot(ex, ey);
-        if (ed < FR * .8 && this.isQ(o)) { o.held = true; o.pull = false; o.ha = Math.atan2(-ey, -ex); held.push(o); continue; }
-        if (ed < FR * .8 && this.ep === 3 && (o.sp === 'u' || o.sp === 'd')) { this.store(o); continue; }
-        if (ed < FR * .8) { o.pull = false; continue; }
-        o.dx = ex / ed; o.dy = ey / ed;
-      } else o.pull = false;
       o.p *= red; o.born = Math.min(1, o.born + dt * 2); o.cd -= dt;
+      if (o.flung > 0 && (o.flung -= dt) <= 0) o.mark = null;
       if (o.fade >= 0) { o.fade -= dt * 1.5; o.born = Math.min(o.born, Math.max(0, o.fade)); if (o.fade <= 0) o.dead = true; }
+      if (ep4 && SM[o.sp].kind === 'quark' && !o.byHand) this.drift4(o, dt);
       const v = this.speed(o);
       o.x += o.dx * v * dt; o.y += o.dy * v * dt;
-      if (this.hig > .5 && o.life < Infinity) { o.age += dt; if (o.age > o.life) { this.decay(o); continue; } }
+      if (this.hig > .5 && o.life < Infinity && o !== grabbed) { o.age += dt; if (o.age > o.life) { this.decay(o); continue; } }
       if (!act) continue;
       const ox = o.x - P.x, oy = o.y - P.y, d = Math.hypot(ox, oy);
+      if (o.byHand && this.ep === 3) {
+        if (d > viewRadius() + .5) { o.dead = true; this.ejected++; this.floats.push({ x: P.x + ox / d * (viewRadius() - 1.5), y: P.y + oy / d * (viewRadius() - 1.5), t: 0, txt: 'выброшен', c: [140, 235, 170], sz: 13 }); }
+        continue;
+      }
       if (d > WR) { o.x = P.x - ox * .95; o.y = P.y - oy * .95; o.born = 0; }
+      if (ep4 && SM[o.sp].kind === 'quark' && o !== grabbed && d < this.hr() * (o.anti ? .55 : .75)) this.store(o);
     }
-    if (act && held.length >= 2) { const [a, b] = held; a.held = b.held = false; this.collide(a, b); }
     if (act) {
-      // столкновения и аннигиляции — внутри детектора
-      const h = this.p.filter(o => !o.dead && o.cd <= 0 && this.inHand(o));
-      for (let i = 0; i < h.length; i++) for (let j = i + 1; j < h.length; j++) {
-        const a = h[i], b = h[j]; if (a.dead || b.dead) continue;
-        const dx = b.x - a.x, dy = b.y - a.y;
-        // после сжатия в центре фокус: всё, что туда влетело, сталкивается
-        const FR = .3 + .3 * this.hr();
-        const focus = this.focusT > 0 && Math.hypot(a.x - P.x, a.y - P.y) < FR && Math.hypot(b.x - P.x, b.y - P.y) < FR;
-        const qq = this.isQ(a) && this.isQ(b);
-        if (qq && !focus) continue;
-        if (!focus && dx * dx + dy * dy > .16) continue;
-        const va = this.speed(a), vb = this.speed(b);
-        if ((b.dx * vb - a.dx * va) * dx + (b.dy * vb - a.dy * va) * dy >= 0) continue; // разлетаются
-        if (qq) { if (Math.random() < .4) this.collide(a, b); else a.cd = b.cd = .3; }
-        else if (a.sp === b.sp && a.anti !== b.anti && SM[a.sp].kind !== 'nu' && SM[a.sp].kind !== 'boson') this.annihilate(a, b);
+      // сталкивает только рука: брошенная частица против партнёра (квант — квант, частица — своя античастица)
+      for (const o of this.p) {
+        if (o.dead || !(o.flung > 0) || this.freeThrow(o)) continue;
+        for (const t of this.p) {
+          if (t === o || t.dead || t.fade >= 0) continue;
+          const q = this.isQ(o);
+          if (q ? !this.isQ(t) : (t.sp !== o.sp || t.anti === o.anti)) continue;
+          if ((t.x - o.x) ** 2 + (t.y - o.y) ** 2 < AIM.hitR * AIM.hitR) {
+            if (q) this.collide(o, t); else this.annihilate(o, t);
+            break;
+          }
+        }
       }
       if (this.ep === 3) this.annihilateAll();
       this.populate(dt);
       this.checkGoals();
       if (!this.advanced && this.ep === 3 && this.T < .4) {
-        this.advanced = true;
+        this.advanced = true; this.press = this.aim = null;
         // сохранённое вещество выпускаем вокруг детектора — это стартовый материал кварковой плазмы
         for (let i = 0; i < this.stock; i++) {
           const a = i / Math.max(1, this.stock) * TAU, d = rnd(1, 2);
@@ -443,8 +540,24 @@ const Particles = {
         advance();
       }
     }
+    if (this.press && this.press.o && this.press.o.dead) { this.press = null; this.aim = null; }
     this.p = this.p.filter(o => !o.dead);
     if (this.p.length > 260) this.p.splice(0, this.p.length - 260);
+  },
+  // Эпоха 4: кварки почти остановились (упрощение), антикварки ищут вещество — свободное или в детекторе
+  drift4(o, dt) {
+    if (!o.anti) { o.v = .22; return; }
+    let tx = null, ty = null, best = 4;
+    for (const t of this.p) {
+      if (t.dead || t.anti || t.sp !== o.sp) continue;
+      const d = Math.hypot(t.x - o.x, t.y - o.y); if (d < best) { best = d; tx = t.x; ty = t.y; }
+    }
+    if (this.stock > 0) { const d = Math.hypot(P.x - o.x, P.y - o.y); if (d < 6 && d < best + 1.5) { tx = P.x; ty = P.y; } }
+    o.v = tx === null ? .22 : .45;
+    if (tx === null) return;
+    const d = Math.hypot(tx - o.x, ty - o.y) || 1, k = Math.min(1, dt * 2.5);
+    const nx = o.dx + ((tx - o.x) / d - o.dx) * k, ny = o.dy + ((ty - o.y) / d - o.dy) * k, l = Math.hypot(nx, ny) || 1;
+    o.dx = nx / l; o.dy = ny / l;
   },
   higgsOn() {
     this.higT = 0;
@@ -463,7 +576,7 @@ const Particles = {
     if (i === 3) {
       // остатки Вселенной: кварки и антикварки почти поровну — с небольшим перевесом вещества
       for (const o of this.p) if (!this.isQ(o)) o.fade = 1;
-      for (let k = 0; k < 9; k++) { const [x, y] = this.randPos(false); this.pair(pick(['u', 'd']), x, y, rnd(.1, .4)); }
+      for (let k = 0; k < 9; k++) { const [x, y] = this.randPos(false); this.pair(pick(['u', 'd']), x, y, rnd(.1, .4)).forEach(o => o.cd = 2.5); }
       for (let k = 0; k < 4; k++) { const [x, y] = this.randPos(false); this.mk(pick(['u', 'd']), false, x, y, Math.random() * TAU, rnd(.1, .4)); }
     }
   },
@@ -518,8 +631,9 @@ const Particles = {
     this.soupCd = 1.3;
     const n = this.p.filter(o => !o.dead && !this.isQ(o)).length;
     if (n > 34) return;
-    const [x, y] = this.randPos(true), sp = pick(['u', 'd']);
-    if (Math.random() < .68) this.pair(sp, x, y, rnd(.1, .4));
+    const a = Math.random() * TAU, d = rnd(this.hr() + 2, viewRadius() * .95), sp = pick(['u', 'd']);
+    const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
+    if (Math.random() < .68) this.pair(sp, x, y, rnd(.1, .4)).forEach(o => o.cd = 2.5);
     else this.mk(sp, false, x, y, Math.atan2(P.y - y, P.x - x) + rnd(-.8, .8), rnd(.1, .4));
   },
   // Эпоха 4: вещество и антивещество аннигилируют повсюду, а не только в детекторе
@@ -548,7 +662,7 @@ const Particles = {
     switch (this.ep) {
       case 0: return [
         ['Определи квант — фотон или глюон', has('ph') || has('g')],
-        ['Сожми кванты и роди первую пару', this.pairs > 0],
+        ['Столкни два кванта рогаткой — роди пару', this.pairs > 0],
         [`Определи 6 частиц (${Math.min(n, 6)}/6)`, n >= 6]];
       case 1: return [
         ['Дождись, пока поле застынет', this.hig >= 1],
@@ -691,10 +805,12 @@ const Particles = {
     const ks = clamp(1 - this.shotCd / this.up('sh'), 0, 1);
     ctx.strokeStyle = rgb([200, 235, 255], .85); ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(sx, sy, r + 4, -Math.PI / 2, -Math.PI / 2 + TAU * ks); ctx.stroke();
-    // сжатие
-    const k = clamp(1 - P.dashCd / (P.dashMax || 1.1), 0, 1);
-    ctx.strokeStyle = rgb([255, 230, 170], .6); ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(sx, sy, r + 9, -Math.PI / 2, -Math.PI / 2 + TAU * k); ctx.stroke();
+    this.drawAim();
+    // подсветка того, что можно схватить
+    if (!this.press && mouse.has) {
+      const g = this.grabbable(...S2W(mouse.x, mouse.y));
+      if (g) { const [gx, gy] = W2S(g.x, g.y); ring(gx, gy, Math.max(9, this.rad(g) * cam.z + 6), [255, 255, 255], .5 + .3 * Math.sin(G.T * 8), 1.5, [3, 3]); }
+    }
     ring(sx, sy, 3, [255, 255, 255], .8, 1.5);
     label(inF ? `в кадре ${inF}${unk ? ` · неизвестных ${unk}` : ''}` : 'детектор', sx, sy - r - 18, 11, unk ? [255, 215, 110] : [255, 255, 255], unk ? .9 : .45, unk ? 700 : 500);
     for (const f of this.floats) {
@@ -702,6 +818,89 @@ const Particles = {
       const [fx, fy] = W2S(f.x, f.y);
       label(f.txt, fx, fy - 16 - f.t * 26, f.sz || 14, f.c || [140, 220, 255], clamp(1.6 - f.t, 0, 1), 700);
     }
+    ctx.globalAlpha = 1;
+  },
+  // Прицел: резинка, траектория, точка встречи с упреждением, что может родиться
+  drawAim() {
+    const pl = this.aim, pr = this.press; if (!pr || !pl) return;
+    const o = pl.o; if (!o || o.dead) return;
+    const [ox, oy] = W2S(o.x, o.y), [fx, fy] = [mouse.x, mouse.y], z = cam.z;
+    line(ox, oy, fx, fy, [255, 255, 255], .35 + .5 * pl.p, 1.5 + 3 * pl.p);
+    ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.arc(fx, fy, 11, 0, TAU); ctx.fill();
+    ring(fx, fy, 11, [255, 255, 255], .9, 1.5);
+    ring(ox, oy, Math.max(10, this.rad(o) * z + 7), [255, 255, 255], .9, 2);
+    if (pl.p <= .02) return;
+    const len = pl.hit ? Math.hypot(pl.hit.x - o.x, pl.hit.y - o.y) * z : pl.free ? pl.kin.speed * 3 * z : Math.max(G.W, G.H);
+    ctx.setLineDash([6, 7]); line(ox, oy, ox + pl.dir.x * len, oy + pl.dir.y * len, [255, 255, 255], .75, 2); ctx.setLineDash([]);
+    if (pl.free) {
+      const out = Math.hypot(pl.dir.x * len, pl.dir.y * len) / z > 2.5;
+      label(o.anti ? 'вышвырнуть' : 'бросить', ox + pl.dir.x * len, oy + pl.dir.y * len - 14, 12, out ? [140, 235, 170] : [255, 160, 140], .9, 700);
+      return;
+    }
+    if (pl.hit) {
+      const [hx, hy] = W2S(pl.hit.x, pl.hit.y), [tx, ty] = W2S(pl.hit.target.x, pl.hit.target.y);
+      ring(hx, hy, z * (AIM.hitR + .05 * Math.sin(G.T * 8)), [255, 255, 255], .95, 2);
+      ctx.setLineDash([3, 5]); line(tx, ty, hx, hy, [255, 255, 255], .4, 1.5); ctx.setLineDash([]);
+      // известное — поимённо, неизвестное — одной строкой «новое»
+      const known = pl.outs.filter(([k]) => this.outKnown(k)), fresh = pl.outs.filter(([k]) => !this.outKnown(k)).reduce((n, c) => n + c[1], 0);
+      const parts = known.slice(0, 3).map(([k, f]) => `${this.outLab(k)} ${Math.round(f * 100)}%`);
+      if (fresh > 0) parts.unshift(`новое ${Math.round(fresh * 100)}%`);
+      const txt = pl.outs.length ? parts.join(' · ') : 'энергии мало — отскочат';
+      label(`√s ${fmtGeV(pl.rs)}`, hx, hy - z * .6 - 30, 12, [255, 255, 255], .9, 700);
+      label(txt, hx, hy - z * .6 - 14, 12, !pl.outs.length ? [255, 160, 140] : fresh > 0 ? [255, 215, 110] : [210, 230, 255], .95, 700);
+    } else if (pl.miss && !pl.miss.dead) {
+      // цель есть, но её не догнать: квант улетает с той же скоростью света
+      const [mx, my] = W2S(pl.miss.x, pl.miss.y), r = z * .3;
+      line(mx - r, my - r, mx + r, my + r, [255, 140, 120], .9, 2.5); line(mx + r, my - r, mx - r, my + r, [255, 140, 120], .9, 2.5);
+      label('не догнать', mx, my + r + 14, 12, [255, 160, 140], .9, 700);
+    }
+  },
+  outKnown(k) { return Codex.has(k === 'WW' ? 'W' : k === 'gg' ? 'g' : k === 'phph' ? 'ph' : k); },
+  outLab(k) {
+    const sym = sp => Codex.has(sp) ? SM[sp].sym : '?';
+    if (k === 'H' || k === 'Z') return sym(k);
+    if (k === 'WW') return Codex.has('W') ? 'W⁺W⁻' : '??';
+    if (k === 'gg') return 'g g'; if (k === 'phph') return 'γ γ';
+    return Codex.has(k) ? `${SM[k].sym}${SM[k].sym}̅` : '? ?';
+  },
+  // Шкала энергии столкновения (экран): пороги 2m, резонансы H и Z, стрелка — текущее √s
+  overlay(alpha) {
+    const pl = this.aim; if (!pl || !pl.hit || !pl.range) return;
+    const [a, b] = pl.range; if (!(b > a * 1.1)) return;
+    const gw = Math.min(380, G.W - 60), gx = (G.W - gw) / 2, gy = G.H - 92;
+    const pos = v => gx + gw * clamp(Math.log(v / a) / Math.log(b / a), 0, 1);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = 'rgba(10,9,18,.78)'; ctx.beginPath(); ctx.roundRect(gx - 14, gy - 38, gw + 28, 66, 12); ctx.fill();
+    const g = ctx.createLinearGradient(gx, 0, gx + gw, 0); g.addColorStop(0, '#3b4a9a'); g.addColorStop(1, '#ffcf6b');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(gx, gy - 3, gw, 6, 3); ctx.fill();
+    if (this.hig < .05) label('масс ещё нет — на пару хватает любой энергии', gx + gw / 2, gy - 22, 11, [220, 220, 235], .8, 600);
+    else {
+      const q = this.isQ(pl.o), kinds = q ? [pl.o.sp, pl.hit.target.sp].sort().join('') : '';
+      const band = (m, w, k) => {
+        if (this.hig < 1 || m + w < a || m - w > b) return;
+        const x1 = pos(m - w), x2 = pos(m + w);
+        ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.beginPath(); ctx.roundRect(x1, gy - 6, Math.max(6, x2 - x1), 12, 4); ctx.fill();
+        label(Codex.has(k) ? SM[k].sym : '?', (x1 + x2) / 2, gy - 18, 11, [255, 255, 255], 1, 700);
+      };
+      if (kinds === 'gg') band(SM.H.m, 15, 'H');
+      if (!q) band(SM.Z.m, 14, 'Z');
+      if (q) {
+        const list = kinds === 'phph' ? ['u', 'c', 't', 'd', 's', 'b', 'e', 'mu', 'ta'] : ['u', 'c', 't', 'd', 's', 'b'];
+        const th = list.map(sp => [sp, 2 * SM[sp].m * this.hig]);
+        if (kinds === 'phph' && this.hig > .5) th.push(['W', 2 * SM.W.m]);
+        let lastX = -99;
+        for (const [sp, v] of th.filter(([, v]) => v > a && v < b).sort((x, y) => x[1] - y[1])) {
+          const x = pos(v); ctx.fillStyle = '#fff'; ctx.fillRect(x - 1, gy - 8, 2, 16);
+          const lift = x - lastX < 18 ? 34 : 18;
+          label(Codex.has(sp) ? SM[sp].sym : '?', x, gy - lift, 11, Codex.has(sp) ? [255, 255, 255] : [190, 190, 205], .9, 700);
+          lastX = lift === 18 ? x : -99;
+        }
+      }
+    }
+    const px = pos(pl.rs);
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(px, gy + 5); ctx.lineTo(px - 7, gy + 16); ctx.lineTo(px + 7, gy + 16); ctx.closePath(); ctx.fill();
+    label('энергия ' + fmtGeV(pl.rs), clamp(px, gx + 40, gx + gw - 40), gy + 24, 12, [255, 255, 255], 1, 700);
+    label('время замедлено', gx + gw / 2, gy - 50, 11, [255, 255, 255], .6, 600);
     ctx.globalAlpha = 1;
   },
   viewR() { return 3.5 + this.hr() * 1.9; },
@@ -720,7 +919,7 @@ const Particles = {
         ['Знания', `${this.kn.toFixed(1)} ✦`],
         ['Рождается само', open.length ? open.join(' ') : '— ничего, кроме квантов'],
         this.ep === 3 ? ['Сохранено', `${this.stock} / ${STOCK_GOAL} кварков`] : ['Материя : анти', `${nm} : ${na}`],
-        ['Снимок · сжатие', `${this.shotCd > 0 ? 'затвор…' : 'готов'} · ${P.dashCd > 0 ? 'заряжается…' : 'готово'}`],
+        ['Снимок · бросок', `${this.shotCd > 0 ? 'затвор…' : 'готов'} · до ${fmtGeV(this.T * this.up('pow'))}`],
       ],
       goal: goal + '<br>' + this.goals().map(([t, d]) => `${d ? '✓' : '○'} ${t}`).join('<br>'),
       laws: [['Рождение пар (E = mc²)', 1], ['Электрослабая симметрия', 1 - this.hig], ['Слабые распады', this.hig], ['Остывание', 1 - Math.log(T / .4) / Math.log(T_START / .4)]],
