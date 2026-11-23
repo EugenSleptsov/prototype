@@ -2,8 +2,9 @@
 /* Уровень частиц: эпохи 1–2. «Вселенная как коллайдер».
    Игрок — не частица, а ДЕТЕКТОР (круг вокруг курсора).
    - Клик = снимок: изучено всё, что сейчас в круге, и следы событий последних долей секунды.
-   - Снимки дают ЗНАНИЯ ✦, за них прокачивается детектор (радиус, затвор, бросок, фокус).
-   - Рогатка: зажми частицу и оттяни — время замедляется, видно траекторию, цель с упреждением
+   - Снимки дают ОЧКИ ✦. Каждая эпоха — на время и очки, в конце итог, таблица рекордов
+     и выбор одного улучшения детектора (радиус, перезарядка, сила броска, фокус).
+   - Бросок (как из рогатки): зажми КВАНТ и оттяни — время замедляется, видно траекторию, цель с упреждением
      и энергию столкновения на шкале с порогами 2m. Отпусти — бросок. Сталкивает только рука.
    - Столкновение двух квантов рождает пару частица + античастица (E = mc²).
    - Открытое в забеге Вселенная дальше рождает сама — пока хватает температуры.
@@ -15,18 +16,34 @@ const C_LIGHT = 1.2, WORLD_R = 12, T_START = 1000, N_QUANTA = 14, TRACK_T = .8;
 const UPG = [
   { key: 'r', name: 'Радиус детектора', ic: '◎', val: [.9, 1.25, 1.65, 2.1, 2.6], fmt: v => v.toFixed(2),
     about: 'Круг больше — в кадр попадает больше частиц, камера отъезжает' },
-  { key: 'sh', name: 'Быстрый затвор', ic: '⏱', val: [1.2, .85, .6, .4], fmt: v => v.toFixed(2) + ' с',
-    about: 'Снимки чаще — проще поймать короткоживущую частицу' },
+  { key: 'sh', name: 'Перезарядка снимка', ic: '⟳', val: [1.2, .85, .6, .4], fmt: v => v.toFixed(2) + ' с',
+    about: 'Снимать можно чаще — проще поймать короткоживущую частицу' },
   { key: 'pow', name: 'Сила броска', ic: '➶', val: [3, 4, 5, 6.5], fmt: v => '×' + v + ' T',
     about: 'Полное натяжение даёт больше энергии — хватает на тяжёлые пары и резонансы' },
   { key: 'slow', name: 'Фокус', ic: '◔', val: [.25, .16, .1], fmt: v => '×' + v,
     about: 'Пока целишься, время течёт ещё медленнее' },
 ];
-// Рогатка: натяжение до maxPull мировых единиц; слабое натяжение в span раз слабее полного
+// Бросок: натяжение до maxPull мировых единиц; слабое натяжение в span раз слабее полного
 // (логарифмическая шкала — удобно попадать в резонанс); cone — захват цели с упреждением.
 const AIM = { maxPull: 3, span: 400, cone: 14 * DEG, hitR: .42, flungT: 7, grab: .7 };
-// пороги знаний: на каждом игра встаёт на паузу и предлагает выбрать улучшение
-const KN_STEPS = [10, 25, 45, 75, 115, 165, 230, 310, 400, 500];
+// Норматив времени эпохи (с): каждая секунда быстрее даёт +2 к итогу. В эпохе 4 вместо скорости — сохранённое вещество.
+const PAR = [90, 60, 60];
+const LB_KEY = 'proto.lb.v1', LB_TOP = 5;
+// Таблица рекордов — в браузере игрока (localStorage)
+const LB = {
+  load() { try { return JSON.parse(localStorage.getItem(LB_KEY)) || {}; } catch (e) { return {}; } },
+  name() { try { return localStorage.getItem('proto.name') || 'Игрок'; } catch (e) { return 'Игрок'; } },
+  best(key) { const l = this.load()[key]; return l && l.length ? l[0] : null; },
+  // добавляет результат, возвращает список и место (0 — первое)
+  add(key, e) {
+    const all = this.load(), l = all[key] || [];
+    l.push(e); l.sort((a, b) => b.s - a.s || (a.t ?? 1e9) - (b.t ?? 1e9));
+    all[key] = l.slice(0, 20);
+    try { localStorage.setItem(LB_KEY, JSON.stringify(all)); } catch (err) { /* без хранилища таблица живёт до перезагрузки */ }
+    return { list: l, place: l.indexOf(e) };
+  },
+};
+const fmtClock = t => t == null ? '—' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 const LEP_C = [[150, 205, 255], [120, 165, 255], [150, 120, 255]];
 const BOS_C = { W: [255, 150, 70], Z: [255, 105, 115], H: [255, 215, 90], ph: [255, 240, 190] };
 const NU_C = [175, 255, 205];
@@ -36,7 +53,7 @@ const FERMIONS = ['u', 'd', 'c', 's', 't', 'b', 'e', 'mu', 'ta', 'ne', 'nm', 'nt
 const EPOCHS = [
   { name: 'Чистая энергия', floor: 165, tau: 36, startT: Infinity, when: '10⁻¹² с после Большого взрыва',
     phys: 'Вселенная — раскалённый газ квантов: фотонов и глюонов. Массы нет ни у чего, всё летит со скоростью света. Энергия может стать веществом: два кванта при столкновении рождают пару <b>частица + античастица</b> (E = mc²).',
-    todo: '<b>Клик</b> — снимок: определи, что в круге. <b>Зажми квант и оттяни, как рогатку</b> — время замедлится, покажется траектория. Отпусти в другой квант: из энергии столкновения родится пара.' },
+    todo: '<b>Клик</b> — снимок: детектор определяет всё, что сейчас внутри круга. <b>Бросок</b> — как из рогатки: зажми <b>квант</b> (волнистую линию), оттяни <b>назад</b> и отпусти — он полетит вперёд. Пока тянешь, время замедлено и видна траектория. Попади в другой квант — из энергии удара родится пара. Сами частицы бросать не нужно — их снимают.' },
   { name: 'Поле Хиггса', floor: 90, tau: 14, startT: 160, when: '10⁻¹¹ с · 160 ГэВ',
     phys: 'Поле Хиггса «застывает» во всём пространстве. Частицы, которые с ним взаимодействуют, обретают <b>массу</b> и замедляются. Переносчики слабой силы W и Z становятся тяжёлыми — поэтому слабая сила такая слабая.',
     todo: 'Рядом всплески поля — <b>бозоны Хиггса</b>. Сними их, пока не распались. Теперь работает E = mc²: <b>тяни сильнее</b> — шкала внизу покажет, на какие пары хватает энергии. Два глюона точно в светлой полосе рождают H; W и Z — сильный бросок или <b>горячая точка</b>.' },
@@ -77,12 +94,12 @@ function waveLine(sx, sy, dx, dy, L, per, amp, phase, cols, a, lw) {
 
 const Particles = {
   key: 'particles', name: 'Частицы', bg: [44, 34, 14],
-  controls: 'Мышь — вести детектор · Клик — снимок · Зажать частицу и оттянуть — бросок · Enter — ускорить остывание',
+  controls: 'Мышь — вести детектор · Клик — снимок · Зажать квант и оттянуть назад — бросок · Enter — ускорить остывание',
 
   enter() {
     this.p = []; this.t = 0; this.T = T_START; this.hig = 0; this.higT = -1; this.ff = 1;
     this.advanced = false; this.sawTop = false; this.msgCd = 0; this.said = {};
-    this.kn = 0; this.picks = 0; this.lvl = { r: 0, sh: 0, pow: 0, slow: 0 }; this.press = null; this.aim = null; this.ejected = 0; this.shotCd = 0; this.tracks = []; this.floats = []; this.seenN = {};
+    this.kn = 0; this.picks = 0; this.epClock = 0; this.epKn0 = 0; this.doneAt = null; this.lvlTotal = 0; this.cheated = false; this.res = null; this.tutSnap = false; this.flings = 0; this.lvl = { r: 0, sh: 0, pow: 0, slow: 0 }; this.press = null; this.aim = null; this.ejected = 0; this.shotCd = 0; this.tracks = []; this.floats = []; this.seenN = {};
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.cardFor = -1; this.epT = 0;
     this.pairs = 0; this.decSeen = new Set(); this.hot = []; this.hotCd = 3; this.stock = 0; this.soupCd = 0;
@@ -132,12 +149,13 @@ const Particles = {
   weight(sp) { const m = SM[sp].m * this.hig; return m <= 0 ? 1 : Math.exp(-m / this.T); },
 
   // ---------- действие игрока: рогатка ----------
-  // Что можно схватить: ближайшее к курсору, кроме нейтрино (рукой не поймать) и тяжёлых бозонов
+  // Что можно схватить: в эпохах 1–3 — только кванты (из их энергии рождаются пары; частицы снимают),
+  // в эпохе 4 — только антикварки (их вышвыривают, спасая вещество)
   grabbable(x, y) {
     let best = null, bd = AIM.grab;
     for (const o of this.p) {
       if (o.dead || o.fade >= 0 || o.born < .5) continue;
-      if (SM[o.sp].kind === 'nu' || o.sp === 'W' || o.sp === 'Z' || o.sp === 'H') continue;
+      if (this.ep < 3 ? !this.isQ(o) : !(o.anti && SM[o.sp].kind === 'quark')) continue;
       const d = Math.hypot(o.x - x, o.y - y) - this.rad(o); if (d < bd) { bd = d; best = o; }
     }
     return best;
@@ -278,7 +296,7 @@ const Particles = {
     a.cd = b.cd = .5;
     const ch = this.channels(a, b, rs);
     if (!ch.length) {
-      if (this.hig > .5) this.hint('low', `Не хватает энергии: √s = ${fmtGeV(rs)}. Тяни рогатку сильнее`, 3.5);
+      if (this.hig > .5) this.hint('low', `Не хватает энергии: √s = ${fmtGeV(rs)}. Оттяни сильнее`, 3.5);
       const t = a.dx; a.dx = b.dx; b.dx = t; const u = a.dy; a.dy = b.dy; b.dy = u; a.flung = b.flung = 0; return;
     }
     const c = this.pickW(ch);
@@ -388,45 +406,26 @@ const Particles = {
     if (gain > 0) this.floats.push({ x: P.x, y: P.y - R0, t: 0, txt: `+${gain} ✦` + (combo > 1 ? `  комбо ×${combo}` : ''), c: [140, 220, 255], sz: 16 });
     if (fresh) fxRing(P.x, P.y, R0, [255, 215, 110], R0 * 1.5, .7);
     if (kinds >= 2) this.hint('combo', 'Комбо! Разные частицы в одном кадре дают больше знаний', 3);
-    this.checkPick();
-    if (Codex.run.size >= 2) this.hint('sling', 'Зажми квант и оттяни, как рогатку. Отпусти в другой квант — родится пара', 4);
+    this.tutSnap = true;
   },
-  // ---------- прокачка: выбор улучшения на паузе ----------
+  // ---------- прокачка: одно улучшение на экране итогов эпохи ----------
   opts() { return UPG.filter(u => this.lvl[u.key] < u.val.length - 1); },
-  checkPick() {
-    const need = KN_STEPS[this.picks];
-    if (G.paused || need === undefined || this.kn < need || !this.opts().length) return;
-    G.paused = true;
-    const el = document.getElementById('pick');
-    el.querySelector('.pt').textContent = `Знания ✦ ${need}: улучши детектор`;
-    el.querySelector('.pc').innerHTML = this.opts().map((u, i) => {
-      const l = this.lvl[u.key];
-      return `<button data-k="${u.key}"><span class="k">${i + 1}</span><span class="ic">${u.ic}</span>` +
-        `<b>${u.name}</b><i>${u.fmt(u.val[l])} → ${u.fmt(u.val[l + 1])}</i><small>${u.about}</small></button>`;
-    }).join('');
-    el.querySelectorAll('button').forEach(b => b.onclick = () => this.choose(b.dataset.k));
-    el.style.display = 'flex';
-  },
-  pick(i) { const u = this.opts()[i]; if (u) this.choose(u.key); },
+  pick(i) { if (this.res && this.res.up) { const u = this.opts()[i]; if (u) this.choose(u.key); } },
   choose(k) {
-    if (!G.paused) return;
+    if (!this.res || !this.res.up) return;
     const u = UPG.find(x => x.key === k), l = this.lvl[k];
     this.lvl[k]++; this.picks++;
-    document.getElementById('pick').style.display = 'none';
-    G.paused = false;
-    msg(`${u.name}: ${u.fmt(u.val[l])} → ${u.fmt(u.val[l + 1])}`, 2);
+    msg(`${u.name}: ${u.fmt(u.val[l])} → ${u.fmt(u.val[l + 1])}`, 2.5);
     fxRing(P.x, P.y, this.hr(), [140, 220, 255], this.hr() * 1.5, .6);
-    this.checkPick();
+    this.res.up = false; this.closeCard();
   },
   renderUpg(el) {
     el.style.display = 'block';
-    const need = KN_STEPS[this.picks], prev = KN_STEPS[this.picks - 1] || 0;
-    const key = this.kn.toFixed(1) + this.picks;
+    const key = this.picks + '';
     if (el.dataset.k === key) return; el.dataset.k = key;
-    const w = need === undefined ? 100 : clamp((this.kn - prev) / (need - prev), 0, 1) * 100;
-    el.innerHTML = `<b>Знания ✦ ${this.kn.toFixed(1)}${need === undefined ? '' : ` / ${need}`}</b>` +
-      `<div class="xp"><i style="width:${w.toFixed(0)}%"></i></div>` +
-      UPG.map(u => `<div class="lv">${u.ic} ${u.name} <span>${'●'.repeat(this.lvl[u.key])}${'○'.repeat(u.val.length - 1 - this.lvl[u.key])}</span></div>`).join('');
+    el.innerHTML = `<b>Детектор</b>` +
+      UPG.map(u => `<div class="lv">${u.ic} ${u.name} <span>${'●'.repeat(this.lvl[u.key])}${'○'.repeat(u.val.length - 1 - this.lvl[u.key])}</span></div>`).join('') +
+      `<div class="lv" style="opacity:.55">улучшение — после каждой эпохи</div>`;
   },
 
   // ---------- Вселенная сама рождает то, что уже открыто ----------
@@ -471,6 +470,7 @@ const Particles = {
     const dt = this.aim ? dt0 * this.up('slow') : dt0;
     if (live) {
       this.t += dt; this.epT += dt;
+      if (this.doneAt === null) this.epClock += dt0; // часы эпохи идут в реальном времени, до выполнения целей
       const E = EPOCHS[this.ep], nx = EPOCHS[this.ep + 1];
       const floor = this.epDone ? (nx ? Math.min(nx.startT, this.T) * .999 : 0) : E.floor;
       const rate = this.epDone && nx ? 5 : this.ff;
@@ -531,6 +531,14 @@ const Particles = {
       this.checkGoals();
       if (!this.advanced && this.ep === 3 && this.T < .4) {
         this.advanced = true; this.press = this.aim = null;
+        this.showResult(true);
+      }
+    }
+    if (this.press && this.press.o && this.press.o.dead) { this.press = null; this.aim = null; }
+    this.p = this.p.filter(o => !o.dead);
+    if (this.p.length > 260) this.p.splice(0, this.p.length - 260);
+  },
+  endLevel() {
         // сохранённое вещество выпускаем вокруг детектора — это стартовый материал кварковой плазмы
         for (let i = 0; i < this.stock; i++) {
           const a = i / Math.max(1, this.stock) * TAU, d = rnd(1, 2);
@@ -540,11 +548,6 @@ const Particles = {
           ? `Сохранено ${this.stock} кварков вещества. Температура ${fmtGeV(this.T)} — кварки начинают запираться в адроны`
           : `Уцелело лишь ${this.stock} кварков вещества… Но Вселенная остывает — кварки запираются в адроны`, 5);
         advance();
-      }
-    }
-    if (this.press && this.press.o && this.press.o.dead) { this.press = null; this.aim = null; }
-    this.p = this.p.filter(o => !o.dead);
-    if (this.p.length > 260) this.p.splice(0, this.p.length - 260);
   },
   // Эпоха 4: кварки почти остановились (упрощение), антикварки ищут вещество — свободное или в детекторе
   drift4(o, dt) {
@@ -574,6 +577,7 @@ const Particles = {
   // ---------- эпохи ----------
   startEpoch(i) {
     this.ep = i; this.epDone = false; this.epT = 0; this.ff = 1; this.hot = []; this.hotCd = 4;
+    this.epClock = 0; this.epKn0 = this.kn; this.doneAt = null;
     if (i === 1) this.higgsOn();
     if (i === 3) {
       // остатки Вселенной: кварки и антикварки почти поровну — с небольшим перевесом вещества
@@ -584,11 +588,14 @@ const Particles = {
   },
   showCard() {
     const E = EPOCHS[this.ep];
-    G.paused = true;
+    G.paused = true; this.res = null;
+    const best = LB.best('e' + this.ep);
     const el = document.getElementById('epoch');
     el.innerHTML = `<div class="ek">Эпоха ${this.ep + 1} из ${EPOCHS.length} · ${E.when}</div><div class="en">${E.name}</div>` +
       `<div class="ep">${E.phys}</div><div class="et"><span>Что делать</span>${E.todo}</div>` +
       `<div class="eg"><span>Цели</span>${this.goals().map(([t]) => '○ ' + t).join('<br>')}</div>` +
+      `<div class="er">${this.ep < 3 ? `На время: норматив ${fmtClock(PAR[this.ep])}, каждая секунда быстрее — +2 к итогу.` : 'Итог: очки + 10 за каждый сохранённый кварк.'}` +
+      `${best ? ` Рекорд: <b>${best.s}</b> (${best.n})` : ''}</div>` +
       `<button>Начать · Пробел</button>`;
     el.querySelector('button').onclick = () => this.closeCard();
     el.style.display = 'flex';
@@ -596,7 +603,50 @@ const Particles = {
   closeCard() {
     const el = document.getElementById('epoch');
     if (el.style.display !== 'flex') return;
-    el.style.display = 'none'; G.paused = false; this.checkPick();
+    const r = this.res;
+    if (r && r.up) return; // сначала выбрать улучшение
+    el.style.display = 'none'; G.paused = false; this.res = null;
+    if (r && r.final) this.endLevel();
+  },
+  // Итоги эпохи: время, очки, итог, место в таблице рекордов; затем одно улучшение
+  showResult(final) {
+    const i = this.ep, pts = Math.round(this.kn - this.epKn0), t = this.doneAt;
+    const bonus = i === 3 ? this.stock * 10 : t === null ? 0 : Math.max(0, Math.round((PAR[i] - t) * 2));
+    const total = pts + bonus;
+    this.lvlTotal += total;
+    const e = { n: LB.name(), s: total, p: pts, t: t === null ? null : Math.floor(t), d: Date.now() };
+    const esc = x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const row = (x, k, me) => `<tr class="${me ? 'me' : ''}"><td>${k + 1}</td><td>${esc(x.n)}</td><td>${x.s}</td><td>${fmtClock(x.t)}</td></tr>`;
+    const table = (key, entry) => {
+      if (this.cheated) return '<div class="rk">Отладка (]) — результат не записан</div>';
+      const { list, place } = LB.add(key, entry);
+      const top = list.slice(0, LB_TOP).map((x, k) => row(x, k, k === place)).join('') + (place >= LB_TOP ? row(entry, place, true) : '');
+      const rk = place === 0 ? (list.length > 1 ? '🏆 Новый рекорд!' : '🏆 Первый результат в таблице') : `Место ${place + 1} из ${list.length}`;
+      return `<div class="rk">${rk}</div><table class="lb"><tr><th>#</th><th>Имя</th><th>Итог</th><th>Время</th></tr>${top}</table>`;
+    };
+    let html = `<div class="ek">Эпоха ${i + 1} из ${EPOCHS.length} · итоги</div><div class="en">${EPOCHS[i].name}</div>` +
+      `<div class="rs"><div><span>Время</span>${fmtClock(t)}</div><div><span>Очки</span>${pts} ✦</div>` +
+      `<div><span>${i === 3 ? `Вещество ${this.stock} × 10` : 'За скорость'}</span>+${bonus}</div><div class="tot"><span>Итог</span>${total}</div></div>` +
+      table('e' + i, e);
+    if (final) {
+      const le = { n: e.n, s: this.lvlTotal, p: Math.round(this.kn), t: Math.floor(this.t), d: e.d };
+      html += `<div class="ek" style="margin-top:18px">Весь уровень частиц · итог ${this.lvlTotal}</div>` + table('level', le);
+    }
+    const up = !final && this.opts().length > 0;
+    if (up) html += `<div class="up"><span>Улучши детектор — выбери одно (1–${this.opts().length} или клик)</span><div class="pc">` +
+      this.opts().map((u, k) => {
+        const l = this.lvl[u.key];
+        return `<button data-k="${u.key}"><span class="k">${k + 1}</span><span class="ic">${u.ic}</span>` +
+          `<b>${u.name}</b><i>${u.fmt(u.val[l])} → ${u.fmt(u.val[l + 1])}</i><small>${u.about}</small></button>`;
+      }).join('') + '</div></div>';
+    else html += `<button class="go">${final ? 'Дальше — кварки' : 'Дальше'} · Пробел</button>`;
+    this.res = { final, up };
+    G.paused = true;
+    const el = document.getElementById('epoch');
+    el.innerHTML = html; el.scrollTop = 0;
+    el.querySelectorAll('.pc button').forEach(b => b.onclick = () => this.choose(b.dataset.k));
+    const go = el.querySelector('button.go'); if (go) go.onclick = () => this.closeCard();
+    el.style.display = 'flex';
   },
   // Горячая точка: мерцающее кольцо, через 1,6 с там рождается нужная тяжёлая частица
   hotTarget() {
@@ -656,7 +706,7 @@ const Particles = {
       this.stock--;
       fxFlash(P.x, P.y, this.hr(), [255, 120, 120], .5);
       this.floats.push({ x: P.x, y: P.y, t: 0, txt: `антикварк! −1 (${this.stock})`, c: [255, 130, 130], sz: 14 });
-      this.hint('anti', 'Антикварк аннигилировал с сохранённым кварком. Сжимай там, где больше шаров, а не колец', 4);
+      this.hint('anti', 'Антикварк долетел до детектора и уничтожил сохранённый кварк. Хватай антикварки и вышвыривай их', 4);
     } else fxFlash(P.x, P.y, .6, [255, 255, 255], .3);
   },
   goals() {
@@ -664,7 +714,7 @@ const Particles = {
     switch (this.ep) {
       case 0: return [
         ['Определи квант — фотон или глюон', has('ph') || has('g')],
-        ['Столкни два кванта рогаткой — роди пару', this.pairs > 0],
+        ['Брось квант в другой — роди пару', this.pairs > 0],
         [`Определи 6 частиц (${Math.min(n, 6)}/6)`, n >= 6]];
       case 1: return [
         ['Дождись, пока поле застынет', this.hig >= 1],
@@ -680,16 +730,18 @@ const Particles = {
   },
   checkGoals() {
     if (this.epDone || !this.goals().every(g => g[1])) return;
-    this.epDone = true; this.epGap = 2.5; this.kn += 15;
-    this.floats.push({ x: P.x, y: P.y - this.hr() - .5, t: 0, txt: `Эпоха «${EPOCHS[this.ep].name}» пройдена! +15 ✦`, c: [255, 215, 110], sz: 17 });
-    if (this.ep < EPOCHS.length - 1) msg(`Эпоха «${EPOCHS[this.ep].name}» пройдена. Вселенная остывает дальше…`, 3);
-    else msg('Вещество спасено! Можно собирать ещё или ускорить остывание (Enter)', 4);
-    this.checkPick();
+    this.epDone = true; this.epGap = 2.5; this.kn += 15; this.doneAt = this.epClock;
+    this.press = this.aim = null;
+    if (this.ep < EPOCHS.length - 1) this.showResult(false);
+    else {
+      this.floats.push({ x: P.x, y: P.y - this.hr() - .5, t: 0, txt: `Цель выполнена! +15 ✦`, c: [255, 215, 110], sz: 17 });
+      msg('Вещество спасено! Сохраняй ещё — каждый кварк +10 к итогу. Enter — ускорить остывание', 4);
+    }
   },
   enterKey() { this.ff = this.ff > 1 ? 1 : 4; msg(this.ff > 1 ? 'Время ускорено ×4' : 'Обычный ход времени', 1.5); },
   cheat() {
     for (const k of Object.keys(SM)) Codex.see(k);
-    this.kn += 100; this.pairs++; this.sawTop = true;
+    this.kn += 100; this.pairs++; this.sawTop = true; this.cheated = true;
     for (const ch of CHAINS) for (const sp of ch) this.decSeen.add(sp);
     if (this.ep === 1) this.higT = 99;
     if (this.ep === 3) this.stock = STOCK_GOAL;
@@ -803,11 +855,12 @@ const Particles = {
     }
     glow(sx, sy, r, [255, 255, 255], ready ? .05 : .02);
     ring(sx, sy, r, [255, 255, 255], ready ? .75 : .35, 1.5, [6, 6]);
-    // затвор
+    // перезарядка снимка
     const ks = clamp(1 - this.shotCd / this.up('sh'), 0, 1);
     ctx.strokeStyle = rgb([200, 235, 255], .85); ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(sx, sy, r + 4, -Math.PI / 2, -Math.PI / 2 + TAU * ks); ctx.stroke();
     this.drawAim();
+    this.drawTutorial();
     // подсветка того, что можно схватить
     if (!this.press && mouse.has) {
       const g = this.grabbable(...S2W(mouse.x, mouse.y));
@@ -866,7 +919,62 @@ const Particles = {
     return Codex.has(k) ? `${SM[k].sym}${SM[k].sym}̅` : '? ?';
   },
   // Шкала энергии столкновения (экран): пороги 2m, резонансы H и Z, стрелка — текущее √s
+  // Часы и очки эпохи — сверху по центру
+  drawClock(alpha) {
+    if (!G.started) return;
+    const x = G.W / 2, y = 26, done = this.doneAt !== null, pts = Math.round(this.kn - this.epKn0);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = 'rgba(10,9,18,.6)'; ctx.beginPath(); ctx.roundRect(x - 120, y - 20, 240, 58, 10); ctx.fill();
+    label(`${done ? '✓ ' : '⏱ '}${fmtClock(this.epClock)}`, x - 52, y, 22, done ? [140, 235, 170] : [255, 255, 255], 1, 700);
+    label(`${pts} ✦`, x + 58, y, 22, [255, 215, 110], 1, 700);
+    let sub;
+    if (this.ep < 3) {
+      const best = LB.best('e' + this.ep), left = PAR[this.ep] - this.epClock;
+      sub = (left > 0 ? `норматив ${fmtClock(PAR[this.ep])} · бонус +${Math.round(left * 2)}` : 'норматив пройден') + (best ? ` · рекорд ${best.s}` : '');
+    } else {
+      const left = this.T > .4 ? EPOCHS[3].tau / this.ff * Math.log(this.T / .4) : 0;
+      sub = `сохранено ${this.stock} · остывание ~${fmtClock(left)}`;
+    }
+    label(sub, x, y + 24, 11, [220, 220, 235], .8, 600);
+    ctx.globalAlpha = 1;
+  },
+  // Обучение в эпохе 1: сначала снимок, потом призрачный бросок на ближайшем кванте
+  drawTutorial() {
+    if (this.ep !== 0 || this.press || G.paused || !G.started) return;
+    const z = cam.z, [sx, sy] = W2S(P.x, P.y), r = this.hr() * z;
+    if (!this.tutSnap) {
+      const ph = (G.T % 1.4) / 1.4;
+      ring(sx, sy, r * (1 + .25 * ph), [255, 255, 255], .5 * (1 - ph), 2);
+      label('клик — снимок: что внутри круга?', sx, sy + r + 20, 14, [255, 255, 255], .95, 700);
+      return;
+    }
+    if (this.flings > 0) return;
+    const near = q => Math.hypot(q.x - P.x, q.y - P.y);
+    let o = this.tutO;
+    if (!o || o.dead || near(o) > viewRadius() * .75) {
+      o = this.p.filter(q => this.isQ(q) && !q.dead && q.born > .8 && near(q) < viewRadius() * .6).sort((a, b) => near(a) - near(b))[0];
+      this.tutO = o;
+    }
+    if (!o) return;
+    let t = null, td = 1e9;
+    for (const q of this.p) if (q !== o && this.isQ(q) && !q.dead) { const d = Math.hypot(q.x - o.x, q.y - o.y); if (d < td) { td = d; t = q; } }
+    let dx = t ? t.x - o.x : P.x - o.x, dy = t ? t.y - o.y : P.y - o.y; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    const ph = (G.T % 2.4) / 2.4, [ox, oy] = W2S(o.x, o.y);
+    ring(ox, oy, 14, [255, 215, 110], .9, 2);
+    if (ph < .7) {
+      const pull = smooth(.1, .6, ph) * 1.6, hx = ox - dx * pull * z, hy = oy - dy * pull * z;
+      line(ox, oy, hx, hy, [255, 255, 255], .7, 2.5);
+      ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.beginPath(); ctx.arc(hx, hy, 12, 0, TAU); ctx.fill();
+      ring(hx, hy, 12, [255, 255, 255], .95, 2);
+    } else {
+      const k = (ph - .7) / .3, L = (.5 + 2.5 * k) * z;
+      ctx.setLineDash([6, 7]); line(ox, oy, ox + dx * L, oy + dy * L, [255, 215, 110], .9 * (1 - k * .5), 2); ctx.setLineDash([]);
+    }
+    label('зажми квант · оттяни назад · отпусти', ox, oy - 30, 14, [255, 215, 110], .95, 700);
+    if (t) { const [tx, ty] = W2S(t.x, t.y); label('в другой квант', tx, ty - 22, 12, [255, 255, 255], .7, 600); }
+  },
   overlay(alpha) {
+    this.drawClock(alpha);
     const pl = this.aim; if (!pl || !pl.hit || !pl.range) return;
     const [a, b] = pl.range; if (!(b > a * 1.1)) return;
     const gw = Math.min(380, G.W - 60), gx = (G.W - gw) / 2, gy = G.H - 92;
@@ -918,10 +1026,10 @@ const Particles = {
       title, sub: `t ≈ ${fmtSci(tsec)} с · T ≈ ${fmtGeV(T)} (${fmtSci(gevToK(T))} K)${this.ff > 1 ? ' · ×4' : ''}`,
       lines: [
         ['Открыто', `${Codex.run.size} / 17`],
-        ['Знания', `${this.kn.toFixed(1)} ✦`],
+        ['Очки', `${this.kn.toFixed(1)} ✦`],
         ['Рождается само', open.length ? open.join(' ') : '— ничего, кроме квантов'],
         this.ep === 3 ? ['Сохранено', `${this.stock} / ${STOCK_GOAL} кварков`] : ['Материя : анти', `${nm} : ${na}`],
-        ['Снимок · бросок', `${this.shotCd > 0 ? 'затвор…' : 'готов'} · до ${fmtGeV(this.T * this.up('pow'))}`],
+        ['Снимок · бросок', `${this.shotCd > 0 ? 'перезарядка…' : 'готов'} · до ${fmtGeV(this.T * this.up('pow'))}`],
       ],
       goal: goal + '<br>' + this.goals().map(([t, d]) => `${d ? '✓' : '○'} ${t}`).join('<br>'),
       laws: [['Рождение пар (E = mc²)', 1], ['Электрослабая симметрия', 1 - this.hig], ['Слабые распады', this.hig], ['Остывание', 1 - Math.log(T / .4) / Math.log(T_START / .4)]],

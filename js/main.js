@@ -36,7 +36,13 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyR' && G.ended) location.reload();
 });
 addEventListener('keyup', e => keys.delete(e.code));
-document.getElementById('go').onclick = () => { document.getElementById('intro').style.display = 'none'; G.started = true; };
+// имя для таблицы рекордов запоминается в браузере
+const pname = document.getElementById('pname');
+try { pname.value = localStorage.getItem('proto.name') || ''; } catch (e) { /* без хранилища */ }
+document.getElementById('go').onclick = () => {
+  try { localStorage.setItem('proto.name', pname.value.trim() || 'Игрок'); } catch (e) { /* без хранилища */ }
+  document.getElementById('intro').style.display = 'none'; G.started = true;
+};
 
 // ---------- цикл ----------
 function update(dt) {
