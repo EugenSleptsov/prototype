@@ -26,7 +26,23 @@
   .overlay kbd{background:#ffffff22;padding:1px 6px;border-radius:4px}
   .overlay button{margin-top:14px;font-size:16px;padding:8px 20px;border-radius:8px;border:0;background:#8fd0ff;color:#012;cursor:pointer}
   #end{display:none}
-  @media (max-width:700px){#laws{display:none}#hud{max-width:none;right:16px}}
+  #codex{position:fixed;right:16px;top:190px;width:230px;font-size:12px;pointer-events:none;display:none}
+  #codex b{display:block;font-size:11px;opacity:.6;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em}
+  .cxg{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+  .cx{height:34px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:15px;font-weight:600;border:1px solid #ffffff18}
+  .cx.off{opacity:.25}
+  .cx.old{opacity:.5;border-style:dashed}
+  .cx.quark.on{background:#7a3d9a88;border-color:#c48be8}
+  .cx.lepton.on{background:#2f7a4e88;border-color:#7fdca4}
+  .cx.nu.on{background:#2f7a4e55;border-color:#7fdca4}
+  .cx.boson.on{background:#9a4a2e88;border-color:#f0a070}
+  #card{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);max-width:min(460px,86vw);background:#000a;border:1px solid #ffffff30;border-radius:10px;padding:10px 14px;opacity:0;transition:opacity .4s;pointer-events:none}
+  #card .ck{font-size:11px;opacity:.6;text-transform:uppercase;letter-spacing:.08em}
+  #card .cn{font-size:17px;font-weight:600;margin:3px 0}
+  #card .cf{font-size:13px;opacity:.85;line-height:1.4}
+  .cs{display:inline-block;min-width:26px;text-align:center;border-radius:5px;padding:0 4px}
+  .cs.quark{background:#7a3d9a}.cs.lepton,.cs.nu{background:#2f7a4e}.cs.boson{background:#9a4a2e}
+  @media (max-width:700px){#laws{display:none}#codex{display:none!important}#hud{max-width:none;right:16px}}
 </style>
 </head>
 <body>
@@ -40,13 +56,15 @@
 <div id="laws" class="shadow"><b>Законы этапа</b><div id="bars"></div></div>
 <div id="controls" class="shadow"></div>
 <div id="msg" class="shadow"></div>
+<div id="codex" class="shadow"></div>
+<div id="card" class="shadow"></div>
 
 <div id="intro" class="overlay"><div>
   <h1>Proto-type</h1>
-  <p>Через миллионную долю секунды после Большого взрыва. Вселенная — горячий кварковый суп. Ты — один кварк.</p>
-  <p>На каждом масштабе работает своя физика, и тебе придётся играть по её правилам:
-  связывать кварки глюонными струнами, пробивать кулоновский барьер, ловить электроны и собирать молекулы.</p>
-  <p style="opacity:.75">Мышь — двигаться, <kbd>Пробел</kbd> — рывок. Остальное подскажет игра.<br>
+  <p>Триллионная доля секунды после Большого взрыва. Материи ещё нет — только чистая энергия: кванты света и глюоны, раскалённые до 10¹⁶ градусов.</p>
+  <p>Ты — детектор, глаз Вселенной. Сталкивай энергию, рождай из неё частицы и открывай законы, по которым они живут.
+  Всё, что ты откроешь, Вселенная научится делать сама. Дальше — кварки, ядра, атомы, молекулы, и на каждом масштабе своя физика.</p>
+  <p style="opacity:.75">Мышь — двигаться, <kbd>Пробел</kbd> — главное действие этапа. Остальное подскажет игра.<br>
   Отладка: <kbd>]</kbd> — пропустить этап.</p>
   <button id="go">Начать</button>
 </div></div>
@@ -58,12 +76,15 @@
   <p style="opacity:.75"><kbd>R</kbd> — начать заново</p>
 </div></div>
 
-<script src="js/util.js"></script>
-<script src="js/core.js"></script>
-<script src="js/s0_quarks.js"></script>
-<script src="js/s1_nuclei.js"></script>
-<script src="js/s2_atoms.js"></script>
-<script src="js/s3_molecules.js"></script>
-<script src="js/main.js"></script>
+<script src="js/util.js?v=9"></script>
+<script src="js/core.js?v=9"></script>
+<script src="js/universe.js?v=9"></script>
+<script src="js/codex.js?v=9"></script>
+<script src="js/s0_quarks.js?v=9"></script>
+<script src="js/s_particles.js?v=9"></script>
+<script src="js/s1_nuclei.js?v=9"></script>
+<script src="js/s2_atoms.js?v=9"></script>
+<script src="js/s3_molecules.js?v=9"></script>
+<script src="js/main.js?v=9"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 "use strict";
-const STAGES = [Quarks, Nuclei, Atoms, Mols];
-const LADDER = ['Кварки', 'Ядра', 'Атомы', 'Молекулы', 'Органика', 'Протоклетки', 'Клетки', 'Организмы'];
+const STAGES = [Particles, Quarks, Nuclei, Atoms, Mols];
+const LADDER = ['Частицы', 'Кварки', 'Ядра', 'Атомы', 'Молекулы', 'Органика', 'Протоклетки', 'Клетки', 'Организмы'];
 const TRANS_DUR = 3;
 
 // Переход: старый этап продолжает жить и гаснет, новый проявляется и забирает его частицы.
@@ -44,6 +44,7 @@ function update(dt) {
     G.prev.update(dt, false);
     if (G.trans >= 1) { G.prev = null; G.trans = 1; }
   }
+  tickCard(dt);
   for (const f of G.fx) f.t += dt;
   G.fx = G.fx.filter(f => f.t < f.dur);
   const tz = Math.max(100, Math.min(G.W, G.H)) / 2 / G.stage.viewR();
@@ -104,6 +105,7 @@ function hud() {
   document.getElementById('controls').textContent = G.stage.controls;
   const key = G.stage.key;
   if (key !== lawsKey) { lawsKey = key; barsEl.innerHTML = h.laws.map(([n], i) => `<div>${n}</div><div class="bar"><i id="law${i}"></i></div>`).join(''); }
+  Codex.render(true);
   h.laws.forEach(([, w], i) => { const el = document.getElementById('law' + i); if (el) el.style.width = (clamp(w, 0, 1) * 100).toFixed(0) + '%'; });
 }
 

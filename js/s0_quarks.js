@@ -15,9 +15,21 @@ const Quarks = {
   key: 'quarks', name: 'Кварк-глюонная плазма', bg: [34, 6, 26],
   controls: 'Мышь — двигаться · Пробел — рывок (осторожно: рвёт струны)',
 
-  enter() {
+  enter(prev) {
     this.q = []; this.groups = new Map(); this.gid = 1; this.t = 0;
     this.temp = 3.2; this.conf = 0; this.done = false; this.doneT = 0; this.advanced = false; this.saidConf = false;
+    if (prev && prev.key === 'particles') {
+      // лёгкие кварки уровня частиц становятся стартовым материалом плазмы
+      P.vx = P.vy = 0;
+      let n = 0;
+      for (const o of prev.p) {
+        if ((o.sp !== 'u' && o.sp !== 'd') || o.dead || Math.hypot(o.x - P.x, o.y - P.y) < .8 || n >= 30) continue;
+        const q = this.mk(o.x, o.y, o.col, o.anti, o.sp); q.vx = o.dx * 2; q.vy = o.dy * 2; q.age = 1; n++;
+      }
+      this.pq = this.mk(P.x, P.y, 0, false, 'u'); this.pq.player = true; this.pq.age = 1;
+      for (let i = n; i < 60; i++) this.spawn(true);
+      return;
+    }
     P.x = P.y = P.vx = P.vy = 0;
     this.pq = this.mk(0, 0, 0, false, 'u'); this.pq.player = true; this.pq.age = 1;
     for (let i = 0; i < 60; i++) this.spawn(true);
