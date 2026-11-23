@@ -30,6 +30,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Enter' || e.code === 'NumpadEnter') G.stage.enterKey && G.stage.enterKey();
   if (e.code === 'KeyX') G.stage.detach && G.stage.detach();
   if (/^Digit[1-9]$/.test(e.code) && G.paused && G.stage.pick) G.stage.pick(+e.code.slice(5) - 1);
+  if (G.paused && (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter')) { e.preventDefault(); G.stage.closeCard && G.stage.closeCard(); return; }
   if (G.paused) return;
   if (e.code === 'BracketRight') G.stage.cheat && G.stage.cheat();
   if (e.code === 'KeyR' && G.ended) location.reload();
