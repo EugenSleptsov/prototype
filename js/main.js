@@ -26,10 +26,11 @@ addEventListener('wheel', e => { G.stage.wheel && G.stage.wheel(e.deltaY); }, { 
 addEventListener('keydown', e => {
   keys.add(e.code);
   if (!G.started) return;
-  if (e.code === 'Space') { e.preventDefault(); G.stage.dash && G.stage.dash(); }
+  if (e.code === 'Space' && !G.paused) { e.preventDefault(); G.stage.dash && G.stage.dash(); }
   if (e.code === 'Enter' || e.code === 'NumpadEnter') G.stage.enterKey && G.stage.enterKey();
   if (e.code === 'KeyX') G.stage.detach && G.stage.detach();
-  if (/^Digit[1-9]$/.test(e.code) && G.stage.buy) G.stage.buy(+e.code.slice(5) - 1);
+  if (/^Digit[1-9]$/.test(e.code) && G.paused && G.stage.pick) G.stage.pick(+e.code.slice(5) - 1);
+  if (G.paused) return;
   if (e.code === 'BracketRight') G.stage.cheat && G.stage.cheat();
   if (e.code === 'KeyR' && G.ended) location.reload();
 });
@@ -127,7 +128,7 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(.05, Math.max(0, (now - last) / 1000)); last = now;
   try {
-    update(dt);
+    if (!G.paused) update(dt);
     if (!isFinite(P.x + P.y + cam.z)) recover();
     render(); hud();
   } catch (err) { recover(err); }
