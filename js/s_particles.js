@@ -9,7 +9,7 @@
    Эпоха 1 (T > 160 ГэВ): всё безмассовое и летит со скоростью света.
    Эпоха 2: поле Хиггса застывает → массы. Пара рождается, только если √s ≥ 2m.
    Тяжёлые частицы быстро распадаются, Вселенная остывает — окна закрываются. */
-const C_LIGHT = 3, WORLD_R = 12, T_START = 1000, N_QUANTA = 70, TRACK_T = .8;
+const C_LIGHT = 1.2, WORLD_R = 12, T_START = 1000, N_QUANTA = 28, TRACK_T = .8;
 // Прокачка детектора: значения по уровням и цена следующего уровня в знаниях ✦
 const UPG = [
   { key: 'r', name: 'Радиус детектора', val: [.9, 1.25, 1.65, 2.1, 2.6], cost: [10, 30, 70, 140], fmt: v => v.toFixed(2) },
@@ -104,9 +104,10 @@ const Particles = {
   // ---------- действие игрока: сжатие ----------
   dash() {
     if (!G.started || P.dashCd > 0) return;
-    P.dashCd = 1.1; this.focusT = .9;
-    let n = 0;
     const R0 = this.hr() * 1.8, heat = this.up('cmp');
+    // фокус держится, пока кванты с края зоны долетают до центра
+    this.focusT = R0 / C_LIGHT + .4; P.dashCd = P.dashMax = this.focusT + .2;
+    let n = 0;
     for (const o of this.p) {
       const dx = P.x - o.x, dy = P.y - o.y, d = Math.hypot(dx, dy);
       if (d > R0 || d < .05) continue;
@@ -283,21 +284,27 @@ const Particles = {
     if ((cnt.ph || 0) + (cnt.g || 0) < this.nQ() && Math.random() < dt * 40) this.spawnQuantum(false);
     for (const sp of [...FERMIONS, 'W', 'Z', 'H']) {
       if (!Codex.has(sp)) continue;
-      const s = SM[sp], base = s.kind === 'quark' || s.kind === 'lepton' ? 1.5 : 1, target = base * this.weight(sp);
+      const s = SM[sp], base = s.kind === 'quark' || s.kind === 'lepton' ? 1 : .7, target = base * this.weight(sp);
       const have = cnt[sp] || 0;
-      if (have < target - .5 && Math.random() < dt * .6) {
+      if (have < target - .5 && Math.random() < dt * .25) {
         const [x, y] = this.randPos(true), pp = this.thermalP(this.T);
         if (s.kind === 'boson' && sp !== 'W') this.mk(sp, false, x, y, Math.random() * TAU, pp);
         else this.pair(sp, x, y, pp);
-      } else if (have > target * 1.5 + 1) {
-        // лишние аннигилируют где-то вдали (за краем экрана)
-        let extra = have - Math.ceil(target * 1.5 + 1);
-        for (const o of this.p) {
-          if (extra <= 0) break;
-          if (o.sp === sp && !o.dead && !onScreen(...W2S(o.x, o.y), 30)) { o.dead = true; extra--; }
-        }
-      }
+      } else if (have > target * 1.5 + 1) this.thin(o => o.sp === sp, have - Math.ceil(target * 1.5 + 1));
     }
+    const nq = (cnt.ph || 0) + (cnt.g || 0), capQ = Math.ceil(this.nQ() * 1.15);
+    if (nq > capQ) this.thin(o => this.isQ(o), nq - capQ);
+  },
+  // Лишние частицы уходят: за экраном — сразу, на экране — плавно гаснут, дальние от детектора первыми
+  thin(pred, extra) {
+    const c = this.p.filter(o => pred(o) && !o.dead && !(o.fade >= 0));
+    for (const o of c) {
+      if (extra <= 0) return;
+      if (!onScreen(...W2S(o.x, o.y), 30)) { o.dead = true; extra--; }
+    }
+    c.filter(o => !o.dead && !this.inHand(o))
+      .sort((a, b) => Math.hypot(b.x - P.x, b.y - P.y) - Math.hypot(a.x - P.x, a.y - P.y))
+      .slice(0, extra).forEach(o => o.fade = 1);
   },
 
   update(dt, act) {
@@ -326,6 +333,7 @@ const Particles = {
     for (const o of this.p) {
       if (o.dead) continue;
       o.p *= red; o.born = Math.min(1, o.born + dt * 2); o.cd -= dt;
+      if (o.fade >= 0) { o.fade -= dt * 1.5; o.born = Math.min(o.born, Math.max(0, o.fade)); if (o.fade <= 0) o.dead = true; }
       const v = this.speed(o);
       o.x += o.dx * v * dt; o.y += o.dy * v * dt;
       if (this.hig > .5 && o.life < Infinity) { o.age += dt; if (o.age > o.life) { this.decay(o); continue; } }
@@ -492,7 +500,7 @@ const Particles = {
     ctx.strokeStyle = rgb([200, 235, 255], .85); ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(sx, sy, r + 4, -Math.PI / 2, -Math.PI / 2 + TAU * ks); ctx.stroke();
     // сжатие
-    const k = clamp(1 - P.dashCd / 1.1, 0, 1);
+    const k = clamp(1 - P.dashCd / (P.dashMax || 1.1), 0, 1);
     ctx.strokeStyle = rgb([255, 230, 170], .6); ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(sx, sy, r + 9, -Math.PI / 2, -Math.PI / 2 + TAU * k); ctx.stroke();
     ring(sx, sy, 3, [255, 255, 255], .8, 1.5);
