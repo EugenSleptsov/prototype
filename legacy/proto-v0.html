@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Без названия — прототип</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#05030a;font-family:system-ui,"Segoe UI",sans-serif;color:#dde3f0}
+  canvas{display:block;cursor:crosshair}
+  #hud{position:fixed;left:16px;top:12px;pointer-events:none;text-shadow:0 1px 3px #000}
+  #stage{font-size:22px;font-weight:600;letter-spacing:.02em}
+  #next{font-size:14px;opacity:0}
+  #scale{opacity:.7;font-size:13px;margin-top:2px}
+  #want{margin-top:8px;font-size:14px;display:flex;align-items:center;gap:8px}
+  #want i{display:inline-block;width:12px;height:12px;border-radius:50%}
+  #mech{position:fixed;right:16px;top:12px;font-size:12px;width:210px;pointer-events:none;text-shadow:0 1px 3px #000}
+  #mech b{display:block;font-size:11px;opacity:.6;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em}
+  .bar{height:4px;background:#ffffff1c;margin:3px 0 8px;border-radius:2px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:#8fd0ff;transition:width .2s}
+  #msg{position:fixed;left:50%;top:18%;transform:translateX(-50%);font-size:18px;opacity:0;transition:opacity .6s;text-align:center;pointer-events:none;text-shadow:0 1px 4px #000;max-width:90vw}
+  #intro{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#05030acc;z-index:5}
+  #intro div{max-width:520px;padding:24px;line-height:1.5}
+  #intro h1{margin:0 0 8px;font-size:28px}
+  #intro kbd{background:#ffffff22;padding:1px 6px;border-radius:4px}
+  #intro button{margin-top:14px;font-size:16px;padding:8px 18px;border-radius:8px;border:0;background:#8fd0ff;color:#041;cursor:pointer}
+  @media (max-width:640px){#mech{display:none}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="stage"></div>
+  <div id="next"></div>
+  <div id="scale"></div>
+  <div id="want"></div>
+</div>
+<div id="mech"><b>Активные законы</b><div id="bars"></div></div>
+<div id="msg"></div>
+<div id="intro"><div>
+  <h1>Без названия</h1>
+  <p>Ты — флуктуация в кварк-глюонной плазме. Расти.</p>
+  <p>Мышь — двигаться. Поглощай то, что меньше тебя. Большое отталкивает, а хищники откусывают.
+  Подсвеченные частицы — то, что тебе сейчас нужно (бонус и «комбо» стадии).</p>
+  <p>Стадий-экранов нет: мир, законы и твоё тело меняются плавно вместе с масштабом.</p>
+  <p style="opacity:.7">Отладка: <kbd>+</kbd>/<kbd>-</kbd> — масса ×2 / ÷2, чтобы быстро посмотреть переходы.</p>
+  <button id="go">Начать</button>
+</div></div>
+<script>
+"use strict";
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const bump = (a, b, c, d, x) => smooth(a, b, x) * (1 - smooth(c, d, x));
+function randn() { let u = 0; while (!u) u = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * Math.random()); }
+const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+const mixc = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+const rot = (u, v, a) => [u * Math.cos(a) - v * Math.sin(a), u * Math.sin(a) + v * Math.cos(a)];
+
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let W, H, DPR;
+function resize() {
+  DPR = Math.min(2, devicePixelRatio || 1); W = Math.max(1, innerWidth); H = Math.max(1, innerHeight);
+  cv.width = W * DPR; cv.height = H * DPR; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+}
+addEventListener('resize', resize); resize();
+
+/* ---------- Лестница масштабов ---------- */
+const DEC = 1.5; // десятичных порядков массы на одну «эпоху»
+const STAGES = [
+  { name: 'Кварк-глюонная плазма', short: 'Кварки', real: -18, bg: [34, 6, 26], kinds: ['qr', 'qg', 'qb'],
+    combo: 'Цветовой синглет: r + g + b → стабильный адрон' },
+  { name: 'Нуклоны', short: 'Нуклоны', real: -15.2, bg: [22, 8, 38], kinds: ['p', 'n', 'e'],
+    combo: 'Протоны, нейтроны и электроны — ядро одевается облаком' },
+  { name: 'Атомы', short: 'Атомы', real: -10.3, bg: [8, 14, 40], kinds: ['H', 'C', 'N', 'O'],
+    combo: 'H, C, N, O — алфавит жизни собран' },
+  { name: 'Молекулы', short: 'Молекулы', real: -9.4, bg: [6, 22, 42], kinds: ['h2o', 'co2', 'ch4', 'nh3'],
+    combo: 'Вода, CO₂, метан, аммиак — первичный бульон' },
+  { name: 'Органика', short: 'Органика', real: -8.6, bg: [6, 30, 40], kinds: ['amino', 'sugar', 'nucl'],
+    combo: 'Аминокислоты, сахара, нуклеотиды — строительные блоки' },
+  { name: 'Протоклетки', short: 'Протоклетки', real: -7.2, bg: [8, 36, 34], kinds: ['vesicle', 'rna'],
+    combo: 'Мембрана + РНК — протоклетка копирует себя' },
+  { name: 'Клетки', short: 'Клетки', real: -5.8, bg: [12, 38, 28], kinds: ['bact', 'alga', 'amoeba'],
+    combo: 'Симбиоз! Чужие клетки стали твоими органеллами' },
+  { name: 'Колонии', short: 'Колонии', real: -4.4, bg: [16, 34, 26], kinds: ['colony', 'worm', 'jelly'],
+    combo: 'Клетки колонии специализируются' },
+  { name: 'Многоклеточные', short: 'Организмы', real: -3, bg: [22, 30, 30], kinds: ['colony', 'worm', 'jelly'],
+    combo: 'Ты — организм. (Дальше прототип пока не идёт)' },
+];
+const MAXS = STAGES.length - 0.01;
+const MAXM = Math.pow(10, MAXS * DEC); // потолок прототипа
+const stageOfMass = m => clamp(Math.log10(m) / DEC, 0, MAXS);
+
+// Веса механик — главное в плавности: несколько законов всегда работают одновременно.
+function weights(s) {
+  return {
+    quantum: 1 - smooth(1.2, 3.2, s),
+    em: bump(0.5, 1.5, 3.8, 5.2, s),
+    metab: smooth(4.0, 5.6, s),
+    hunt: smooth(5.2, 6.6, s),
+  };
+}
+const MECH = [['quantum', 'Квантовое дрожание'], ['em', 'Сродство / химия'], ['metab', 'Метаболизм, плавание'], ['hunt', 'Охота и бегство']];
+
+/* ---------- Рисование видов ---------- */
+let T = 0;
+function ball(x, y, r, c, a = 1) {
+  if (r < 0.8) { ctx.fillStyle = rgb(c, a); ctx.fillRect(x - .7, y - .7, 1.4, 1.4); return; }
+  const g = ctx.createRadialGradient(x - r * .35, y - r * .4, r * .05, x, y, r);
+  g.addColorStop(0, rgb(mixc(c, [255, 255, 255], .6), a)); g.addColorStop(.6, rgb(c, a)); g.addColorStop(1, rgb(mixc(c, [0, 0, 0], .5), a));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+}
+function glow(x, y, r, c, a) {
+  if (r < 1 || a <= 0) return;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, rgb(c, a)); g.addColorStop(1, rgb(c, 0));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+}
+const QC = { qr: [255, 70, 100], qg: [90, 255, 140], qb: [100, 150, 255] };
+const EL = { H: [235, 235, 240], C: [90, 90, 100], N: [80, 120, 255], O: [240, 70, 60] };
+const VAL = { H: 1, C: 4, N: 5, O: 6 };
+
+function quark(x, y, r, c) { glow(x, y, r * 2.4, c, .5 + .15 * Math.sin(T * 9 + x)); ball(x, y, r * .55, c); }
+function nucleon(x, y, r, c, e, plus) {
+  glow(x, y, r * 1.5, c, .15); ball(x, y, r, c);
+  const qs = [QC.qr, QC.qg, QC.qb];
+  for (let i = 0; i < 3; i++) { const a = e.rot * 2 + i * TAU / 3; ball(x + Math.cos(a) * r * .45, y + Math.sin(a) * r * .45, r * .2, qs[i], .85); }
+  if (plus && r > 12) { ctx.fillStyle = '#fff'; ctx.font = `${r * .6 | 0}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('+', x, y); }
+}
+function atom(x, y, r, el, e) {
+  glow(x, y, r, [140, 180, 255], .28);
+  ball(x, y, r * .28, EL[el]);
+  const v = VAL[el];
+  for (let i = 0; i < v; i++) {
+    const a = e.rot * 3 + i * TAU / v + Math.sin(T + i) * .3, rr = r * (.55 + .2 * (i % 2));
+    ball(x + Math.cos(a) * rr, y + Math.sin(a) * rr * .8, Math.max(.8, r * .06), [150, 210, 255]);
+  }
+  if (r > 18) { ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = `600 ${r * .3 | 0}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(el, x, y + r * .5); }
+}
+function atomSmall(x, y, r, el) { glow(x, y, r * 1.7, [150, 190, 255], .18); ball(x, y, r, EL[el]); }
+function molecule(x, y, r, e, center, arms) {
+  const L = r * .6, pts = arms.map(([el, a]) => { const an = e.rot + a * Math.PI / 180; return [el, x + Math.cos(an) * L, y + Math.sin(an) * L]; });
+  ctx.strokeStyle = 'rgba(220,230,255,.55)'; ctx.lineWidth = Math.max(1, r * .09);
+  ctx.beginPath(); for (const p of pts) { ctx.moveTo(x, y); ctx.lineTo(p[1], p[2]); } ctx.stroke();
+  for (const p of pts) atomSmall(p[1], p[2], r * (p[0] === 'H' ? .2 : .3), p[0]);
+  atomSmall(x, y, r * .32, center);
+}
+function chain(x, y, r, e, cols, n, side) {
+  const pts = [];
+  for (let i = 0; i < n; i++) { const u = (i / (n - 1) - .5) * 1.6, v = Math.sin(i * 1.4 + T * 1.5 + e.seed) * .22; const p = rot(u * r, v * r, e.rot); pts.push([x + p[0], y + p[1]]); }
+  ctx.strokeStyle = 'rgba(230,240,255,.5)'; ctx.lineWidth = Math.max(1, r * .07);
+  ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+  pts.forEach((p, i) => {
+    if (side) { const s = rot(0, (i % 2 ? 1 : -1) * r * .3, e.rot); ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] + s[0], p[1] + s[1]); ctx.stroke(); ball(p[0] + s[0], p[1] + s[1], r * .1, cols[(i + 2) % cols.length]); }
+    ball(p[0], p[1], r * .15, cols[i % cols.length]);
+  });
+}
+function ringMol(x, y, r, e, n, cols) {
+  const pts = [];
+  for (let i = 0; i < n; i++) { const a = e.rot + i * TAU / n; pts.push([x + Math.cos(a) * r * .55, y + Math.sin(a) * r * .55]); }
+  ctx.strokeStyle = 'rgba(230,240,255,.55)'; ctx.lineWidth = Math.max(1, r * .07);
+  ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.stroke();
+  pts.forEach((p, i) => ball(p[0], p[1], r * .16, cols[i % cols.length]));
+}
+function vesicle(x, y, r, e) {
+  ctx.fillStyle = 'rgba(150,220,255,.07)'; ctx.beginPath(); ctx.arc(x, y, r * .9, 0, TAU); ctx.fill();
+  const n = clamp(Math.round(r * .9), 10, 48);
+  for (let k = 0; k < 2; k++) for (let i = 0; i < n; i++) {
+    const a = TAU * i / n + e.rot * .2 + k * .1, rr = r * (k ? .72 : .9);
+    ball(x + Math.cos(a) * rr, y + Math.sin(a) * rr, Math.max(.6, r * .06), [240, 200, 120]);
+  }
+  for (let i = 0; i < 3; i++) { const a = e.seed * 3 + i * 2.1 + T * .3; ball(x + Math.cos(a) * r * .35, y + Math.sin(a) * r * .3, r * .1, [130, 200, 255]); }
+}
+const BASES = [[255, 90, 90], [90, 220, 120], [90, 150, 255], [255, 210, 80]];
+function rna(x, y, r, e) {
+  const n = 14, pts = [];
+  for (let i = 0; i < n; i++) { const u = (i / (n - 1) - .5) * 1.9, v = Math.sin(i * .9 + T * 2 + e.seed) * .25; const p = rot(u * r, v * r, e.rot); pts.push([x + p[0], y + p[1]]); }
+  ctx.lineWidth = Math.max(1, r * .06);
+  pts.forEach((p, i) => { if (i % 1 === 0) { const s = rot(0, r * .22, e.rot); ctx.strokeStyle = rgb(BASES[(i + (e.seed | 0)) % 4], .9); ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] + s[0], p[1] + s[1]); ctx.stroke(); } });
+  ctx.strokeStyle = 'rgba(240,230,200,.9)'; ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+}
+function bact(x, y, r, e) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(e.rot);
+  ctx.strokeStyle = 'rgba(220,230,180,.6)'; ctx.lineWidth = Math.max(1, r * .05); ctx.beginPath();
+  for (let i = 0; i < 15; i++) { const u = -r * (.95 + i * .08), v = Math.sin(i * .9 - T * 12 + e.seed) * r * .12 * (i / 15); i ? ctx.lineTo(u, v) : ctx.moveTo(u, v); }
+  ctx.stroke();
+  const g = ctx.createLinearGradient(0, -r * .5, 0, r * .5); g.addColorStop(0, 'rgba(230,240,140,.9)'); g.addColorStop(1, 'rgba(140,170,60,.9)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, r, r * .48, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(80,100,30,.8)'; ctx.stroke();
+  ctx.strokeStyle = 'rgba(70,60,30,.6)'; ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const u = (i / 9 - .5) * r, v = Math.sin(i * 1.7 + e.seed) * r * .15; i ? ctx.lineTo(u, v) : ctx.moveTo(u, v); }
+  ctx.stroke(); ctx.restore();
+}
+function alga(x, y, r, e) {
+  ctx.fillStyle = 'rgba(60,170,80,.85)'; ctx.beginPath(); ctx.arc(x, y, r * .9, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(160,240,150,.9)'; ctx.lineWidth = Math.max(1, r * .08); ctx.stroke();
+  for (let i = 0; i < 5; i++) { const a = e.rot + i * TAU / 5, p = [x + Math.cos(a) * r * .5, y + Math.sin(a) * r * .5]; ctx.fillStyle = 'rgba(20,110,40,.9)'; ctx.beginPath(); ctx.ellipse(p[0], p[1], r * .18, r * .1, a, 0, TAU); ctx.fill(); }
+}
+function blob(x, y, r, e, fill, stroke, k1, k2) {
+  ctx.beginPath();
+  for (let i = 0; i <= 28; i++) { const a = i / 28 * TAU, rr = r * (.85 + .13 * Math.sin(k1 * a + T * 1.7 + e.seed) + .06 * Math.sin(k2 * a - T * 2.3)); const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+  ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1, r * .05); ctx.stroke();
+}
+function amoeba(x, y, r, e) {
+  blob(x, y, r, e, 'rgba(190,120,255,.5)', 'rgba(230,190,255,.85)', 3, 5);
+  ball(x + Math.cos(e.seed) * r * .2, y, r * .25, [120, 60, 170]);
+  ball(x - r * .35, y + r * .3, r * .1, [230, 200, 255], .6);
+}
+function colony(x, y, r, e) {
+  for (let i = 0; i < 7; i++) {
+    const a = e.rot * .3 + i * TAU / 6, d = i ? r * .58 : 0, px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+    ctx.fillStyle = 'rgba(90,200,190,.45)'; ctx.beginPath(); ctx.arc(px, py, r * .32, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(170,250,240,.8)'; ctx.lineWidth = Math.max(1, r * .03); ctx.stroke();
+    ball(px, py, r * .08, [40, 110, 120]);
+  }
+}
+function worm(x, y, r, e) {
+  const n = 7;
+  for (let i = n - 1; i >= 0; i--) {
+    const u = r * (.75 - i * .26), v = Math.sin(i * .8 - T * 5 + e.seed) * r * .16, p = rot(u, v, e.rot);
+    ball(x + p[0], y + p[1], r * (.3 - .025 * i), [230, 150, 120]);
+  }
+  const h = rot(r * .85, 0, e.rot);
+  for (const s of [-1, 1]) { const q = rot(r * .82, s * r * .12, e.rot); ball(x + q[0], y + q[1], r * .06, [20, 20, 20]); }
+}
+function jelly(x, y, r, e) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(e.rot + Math.PI / 2);
+  ctx.strokeStyle = 'rgba(255,170,220,.6)'; ctx.lineWidth = Math.max(1, r * .04);
+  for (let k = 0; k < 6; k++) { ctx.beginPath(); const ox = (k / 5 - .5) * r * 1.1; for (let i = 0; i < 12; i++) { const v = -i * r * .1, u = ox + Math.sin(i * .7 + T * 3 + k) * r * .08; i ? ctx.lineTo(u, v) : ctx.moveTo(u, v); } ctx.stroke(); }
+  const pulse = 1 + .07 * Math.sin(T * 3 + e.seed);
+  ctx.fillStyle = 'rgba(255,140,210,.45)'; ctx.beginPath(); ctx.ellipse(0, 0, r * .75 * pulse, r * .65 / pulse, 0, 0, Math.PI); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,210,240,.85)'; ctx.stroke();
+  ctx.restore();
+}
+
+const KD = {
+  qr: { n: 'красный кварк', c: QC.qr, d: (x, y, r) => quark(x, y, r, QC.qr) },
+  qg: { n: 'зелёный кварк', c: QC.qg, d: (x, y, r) => quark(x, y, r, QC.qg) },
+  qb: { n: 'синий кварк', c: QC.qb, d: (x, y, r) => quark(x, y, r, QC.qb) },
+  p: { n: 'протон', c: [230, 80, 70], d: (x, y, r, e) => nucleon(x, y, r, [230, 80, 70], e, true) },
+  n: { n: 'нейтрон', c: [170, 170, 185], d: (x, y, r, e) => nucleon(x, y, r, [170, 170, 185], e, false) },
+  e: { n: 'электрон', c: [120, 200, 255], d: (x, y, r) => { glow(x, y, r * 3, [120, 200, 255], .6); ball(x, y, r * .5, [170, 225, 255]); } },
+  H: { n: 'водород', c: EL.H, d: (x, y, r, e) => atom(x, y, r, 'H', e) },
+  C: { n: 'углерод', c: [150, 150, 160], d: (x, y, r, e) => atom(x, y, r, 'C', e) },
+  N: { n: 'азот', c: EL.N, d: (x, y, r, e) => atom(x, y, r, 'N', e) },
+  O: { n: 'кислород', c: EL.O, d: (x, y, r, e) => atom(x, y, r, 'O', e) },
+  h2o: { n: 'вода', c: [240, 120, 110], d: (x, y, r, e) => molecule(x, y, r, e, 'O', [['H', 52], ['H', -52]]) },
+  co2: { n: 'CO₂', c: [200, 110, 110], d: (x, y, r, e) => molecule(x, y, r, e, 'C', [['O', 0], ['O', 180]]) },
+  ch4: { n: 'метан', c: [170, 170, 180], d: (x, y, r, e) => molecule(x, y, r, e, 'C', [['H', 0], ['H', 90], ['H', 180], ['H', 270]]) },
+  nh3: { n: 'аммиак', c: [120, 150, 255], d: (x, y, r, e) => molecule(x, y, r, e, 'N', [['H', 90], ['H', 210], ['H', 330]]) },
+  amino: { n: 'аминокислота', c: [255, 180, 90], d: (x, y, r, e) => chain(x, y, r, e, [[90, 90, 100], [80, 120, 255], [240, 70, 60], [255, 180, 90]], 5, true) },
+  sugar: { n: 'сахар', c: [255, 230, 160], d: (x, y, r, e) => ringMol(x, y, r, e, 6, [[90, 90, 100], [90, 90, 100], [240, 70, 60], [90, 90, 100], [90, 90, 100], [255, 230, 160]]) },
+  nucl: { n: 'нуклеотид', c: [130, 200, 255], d: (x, y, r, e) => { ringMol(x - r * .3, y, r * .7, e, 5, [[90, 90, 100], [240, 70, 60]]); chain(x + r * .35, y, r * .55, e, BASES, 3, false); } },
+  vesicle: { n: 'липидный пузырёк', c: [240, 200, 120], d: vesicle },
+  rna: { n: 'РНК', c: [240, 230, 200], d: rna },
+  bact: { n: 'бактерия', c: [200, 220, 110], d: bact, flee: 1, orient: 1 },
+  alga: { n: 'водоросль', c: [70, 180, 90], d: alga, flee: 1 },
+  amoeba: { n: 'амёба (хищник)', c: [190, 120, 255], d: amoeba, pred: 1 },
+  colony: { n: 'колония', c: [90, 200, 190], d: colony },
+  worm: { n: 'червячок', c: [230, 150, 120], d: worm, flee: 1, orient: 1 },
+  jelly: { n: 'медуза (хищник)', c: [255, 140, 210], d: jelly, pred: 1, orient: 1 },
+};
+
+/* ---------- Мир ---------- */
+const P = { x: 0, y: 0, vx: 0, vy: 0, m: 1, r: 1, parts: [], hitCd: 0, want: null, got: new Set(), stageI: -1 };
+let ents = [], fx = [];
+const cam = { x: 0, y: 0, z: 40 };
+let started = false;
+const mouse = { x: 0, y: 0, has: false };
+addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; });
+addEventListener('touchmove', e => { const t = e.touches[0]; mouse.x = t.clientX; mouse.y = t.clientY; mouse.has = true; }, { passive: true });
+addEventListener('keydown', e => {
+  if (e.key === '+' || e.key === '=') P.m = Math.min(MAXM, P.m * 2);
+  if (e.key === '-' || e.key === '_') P.m = Math.max(1, P.m / 2);
+});
+document.getElementById('go').onclick = () => { document.getElementById('intro').style.display = 'none'; started = true; };
+
+const pStage = () => stageOfMass(P.m);
+const viewR = () => Math.hypot(W, H) / 2 / cam.z;
+
+function pickWant() {
+  const st = STAGES[Math.floor(pStage())];
+  const left = st.kinds.filter(k => !P.got.has(k));
+  P.want = left[Math.random() * left.length | 0];
+}
+
+function spawn(anywhere) {
+  const R = viewR(), ang = Math.random() * TAU;
+  let d = anywhere ? lerp(P.r * 4, R * 1.6, Math.sqrt(Math.random())) : lerp(R * 1.05, R * 1.7, Math.random());
+  let m = clamp(P.m * Math.pow(10, randn() * .5 - .3), 0.25, MAXM * 4);
+  const s = clamp(Math.log10(m) / DEC + randn() * .12, 0, MAXS);
+  const st = STAGES[s | 0];
+  let kind = st.kinds[Math.random() * st.kinds.length | 0];
+  if (P.want && Math.random() < .25 && Math.abs(s - pStage()) < 1) kind = P.want;
+  if (kind === 'e') m *= .3;
+  d = Math.max(d, (P.r + Math.sqrt(m)) * 1.5);
+  ents.push({ x: P.x + Math.cos(ang) * d, y: P.y + Math.sin(ang) * d, vx: 0, vy: 0, m, r: Math.sqrt(m), kind,
+    rot: Math.random() * TAU, spin: randn() * .5, seed: Math.random() * 100, age: 0, die: 0, dead: false });
+}
+
+let msgTimer = 0;
+function showMsg(t) { const el = document.getElementById('msg'); el.textContent = t; el.style.opacity = 1; msgTimer = 3.2; }
+
+function addPart(e) {
+  P.parts.push({ kind: e.kind, m: e.m, a: Math.random() * TAU, d: Math.sqrt(Math.random()) * .8, w: randn() * .15,
+    rot: e.rot, seed: e.seed, k: 0, fx: (e.x - P.x) / P.r, fy: (e.y - P.y) / P.r });
+  if (P.parts.length > 90) { let mi = 0; P.parts.forEach((p, i) => { if (p.m < P.parts[mi].m) mi = i; }); P.parts.splice(mi, 1); }
+}
+
+function absorb(e) {
+  e.dead = true;
+  let gain = e.m * .75;
+  if (e.kind === P.want) {
+    gain *= 2; P.got.add(e.kind);
+    const st = STAGES[Math.floor(pStage())];
+    if (st.kinds.every(k => P.got.has(k))) { gain += P.m * .12; showMsg(st.combo); P.got.clear(); }
+    pickWant();
+  }
+  P.m += gain; addPart(e);
+  fx.push({ x: e.x, y: e.y, r: e.r, t: 0, c: KD[e.kind].c });
+}
+
+function update(dt) {
+  T += dt;
+  const s = pStage(), w = weights(s), si = Math.floor(s);
+  if (si !== P.stageI) { P.stageI = si; P.got.clear(); pickWant(); }
+
+  // --- игрок: отклик плавно меняется от «дрейфа в плазме» к «плаванию»
+  if (started && mouse.has) {
+    const mx = (mouse.x - W / 2) / cam.z + cam.x, my = (mouse.y - H / 2) / cam.z + cam.y;
+    const dx = mx - P.x, dy = my - P.y, d = Math.hypot(dx, dy) || 1e-9;
+    const sp = P.r * lerp(3.2, 4.2, w.metab) * Math.min(1, d / (P.r * 4));
+    const resp = lerp(1.2, 5, w.metab);
+    P.vx += (dx / d * sp - P.vx) * Math.min(1, dt * resp);
+    P.vy += (dy / d * sp - P.vy) * Math.min(1, dt * resp);
+  }
+  const jit = P.r * 2.5 * w.quantum * Math.sqrt(dt);
+  P.vx += randn() * jit; P.vy += randn() * jit;
+  P.x += P.vx * dt; P.y += P.vy * dt;
+  P.hitCd -= dt;
+  P.m = clamp(P.m, 1, MAXM);
+  P.r += (Math.sqrt(P.m) - P.r) * Math.min(1, dt * 4);
+
+  // --- сущности
+  const hw = Math.max(w.hunt, w.metab * .5);
+  for (const e of ents) {
+    e.age += dt;
+    const K = KD[e.kind];
+    const ej = e.r * 2.5 * w.quantum * Math.sqrt(dt);
+    e.vx += randn() * ej; e.vy += randn() * ej;
+    const dx = P.x - e.x, dy = P.y - e.y, d = Math.hypot(dx, dy) || 1e-9;
+    if (e.kind === P.want && d < P.r * 7) { const f = P.r * 2.5 * w.em * dt; e.vx += dx / d * f; e.vy += dy / d * f; }
+    if (K.pred && P.m < e.m * .85 && d < e.r * 6) { const f = e.r * 2.4 * w.hunt * dt; e.vx += dx / d * f; e.vy += dy / d * f; }
+    if (K.flee && P.m > e.m * 1.15 && d < P.r * 4) { const f = e.r * 1.8 * hw * dt; e.vx -= dx / d * f; e.vy -= dy / d * f; }
+    if (w.metab > 0) { const a = e.seed + T * .4; e.vx += Math.cos(a) * e.r * .8 * w.metab * dt; e.vy += Math.sin(a) * e.r * .8 * w.metab * dt; }
+    const dr = Math.exp(-dt * 1.2); e.vx *= dr; e.vy *= dr;
+    e.x += e.vx * dt; e.y += e.vy * dt;
+    if (K.orient && w.metab > .2) {
+      const ta = Math.atan2(e.vy, e.vx); let da = ta - e.rot; da = Math.atan2(Math.sin(da), Math.cos(da)); e.rot += da * Math.min(1, dt * 4);
+    } else e.rot += e.spin * dt;
+
+    // столкновение с игроком
+    if (!started) continue;
+    if (e.m < P.m * .85) { if (d < P.r + e.r * .3) absorb(e); }
+    else if (d < P.r + e.r) {
+      const nx = -dx / d, ny = -dy / d, ov = P.r + e.r - d, tm = P.m + e.m;
+      P.x -= nx * ov * e.m / tm; P.y -= ny * ov * e.m / tm; e.x += nx * ov * P.m / tm; e.y += ny * ov * P.m / tm;
+      const kick = (P.r + e.r) * .8;
+      P.vx -= nx * kick; P.vy -= ny * kick; e.vx += nx * kick * .3; e.vy += ny * kick * .3;
+      const pred = K.pred && w.hunt > .1;
+      if (P.hitCd <= 0 && (pred || w.quantum > .05)) {
+        P.hitCd = 1.2;
+        const loss = P.m * (pred ? .04 + .08 * w.hunt : .03 * w.quantum);
+        P.m -= loss; if (pred) e.m = Math.min(e.m + loss * .7, P.m * 4), e.r = Math.sqrt(e.m);
+        fx.push({ x: P.x, y: P.y, r: P.r, t: 0, c: [255, 80, 80] });
+        if (pred) showMsg('Тебя кусают! Беги от тех, кто крупнее');
+      }
+    }
+  }
+  // хищники едят мелочь
+  if (w.hunt > .1) for (const a of ents) if (KD[a.kind].pred && !a.dead) for (const b of ents) {
+    if (b === a || b.dead || b.m > a.m * .7) continue;
+    if (Math.hypot(a.x - b.x, a.y - b.y) < a.r) { b.dead = true; a.m = Math.min(a.m + b.m * .5, P.m * 4); a.r = Math.sqrt(a.m); }
+  }
+
+  // спавн/деспавн вокруг текущего масштаба
+  const R = viewR();
+  for (const e of ents) {
+    if (e.r * cam.z < .7 || Math.hypot(e.x - P.x, e.y - P.y) > R * 2.3) e.die += dt * 1.5;
+  }
+  ents = ents.filter(e => !e.dead && e.die < 1);
+  const vis = ents.filter(e => Math.hypot(e.x - P.x, e.y - P.y) < R).length;
+  for (let i = 0; i < 4 && ents.length < 70; i++) spawn(vis < 22 && Math.random() < .5);
+
+  // части внутри тела: прилетают в свой слот, медленно вращаются, тонут в «текстуре»
+  for (const p of P.parts) { p.k = Math.min(1, p.k + dt * 2.5); p.a += p.w * dt; p.rot += p.w * dt * 2; }
+  P.parts = P.parts.filter(p => P.r * Math.sqrt(p.m / P.m) * cam.z > .6);
+
+  for (const f of fx) f.t += dt;
+  fx = fx.filter(f => f.t < .8);
+
+  // камера: бесшовный зум, держим игрока ~6.5% экрана
+  const tz = Math.max(100, Math.min(W, H)) * .065 / P.r;
+  cam.z = Math.exp(lerp(Math.log(cam.z), Math.log(tz), 1 - Math.exp(-dt * 2.5)));
+  cam.x += (P.x - cam.x) * Math.min(1, dt * 5); cam.y += (P.y - cam.y) * Math.min(1, dt * 5);
+
+  if (msgTimer > 0 && (msgTimer -= dt) <= 0) document.getElementById('msg').style.opacity = 0;
+}
+
+/* ---------- Рендер ---------- */
+function stageLerp(s, key) {
+  const i = Math.min(Math.floor(s), STAGES.length - 1), j = Math.min(i + 1, STAGES.length - 1), t = s - i;
+  const a = STAGES[i][key], b = STAGES[j][key];
+  return Array.isArray(a) ? mixc(a, b, t) : lerp(a, b, t);
+}
+function hash(a, b, c) {
+  let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 1442695041);
+  h = Math.imul(h ^ (h >>> 13), 1274126177); return (h ^ (h >>> 16)) >>> 0;
+}
+function drawDust(s) {
+  const R = viewR(), base = Math.log(R) / Math.log(4);
+  if (!isFinite(base)) return;
+  const col = mixc(stageLerp(s, 'bg'), [255, 255, 255], .45);
+  ctx.fillStyle = rgb(col);
+  for (let k = 0; k < 3; k++) {
+    const L = Math.floor(base) - 1 + k, cell = Math.pow(4, L), u = base - L;
+    const a = smooth(-1, 0, u) * (1 - smooth(1.2, 2, u)) * .5;
+    if (a <= .01) continue;
+    ctx.globalAlpha = a;
+    const x0 = Math.floor((cam.x - W / 2 / cam.z) / cell), x1 = Math.ceil((cam.x + W / 2 / cam.z) / cell);
+    const y0 = Math.floor((cam.y - H / 2 / cam.z) / cell), y1 = Math.ceil((cam.y + H / 2 / cam.z) / cell);
+    const sz = clamp(cell * cam.z * .03, 1, 2.5);
+    if ((x1 - x0) * (y1 - y0) > 6000) continue;
+    for (let ix = x0; ix <= x1; ix++) for (let iy = y0; iy <= y1; iy++) {
+      const h = hash(ix, iy, L); if (h & 1) continue;
+      const wx = (ix + ((h >>> 8) & 255) / 255) * cell, wy = (iy + ((h >>> 16) & 255) / 255) * cell;
+      ctx.fillRect(W / 2 + (wx - cam.x) * cam.z, H / 2 + (wy - cam.y) * cam.z, sz, sz);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+const toS = (x, y) => [W / 2 + (x - cam.x) * cam.z, H / 2 + (y - cam.y) * cam.z];
+
+function drawPlayer(s, w) {
+  const [x, y] = toS(P.x, P.y), r = P.r * cam.z;
+  const wQ = 1 - smooth(.8, 2.2, s), wAtom = bump(1.1, 2, 3, 3.9, s), wBond = bump(2.3, 3.1, 4.8, 5.6, s);
+  const wMem = smooth(4.3, 5.3, s), wCil = bump(5.3, 6.1, 7.6, 8.6, s), wEye = smooth(6.3, 7.3, s);
+  const col = mixc([255, 200, 235], [140, 255, 210], smooth(0, 8, s));
+  glow(x, y, r * 2.6, col, .45 * wQ + .1);
+  if (wAtom > 0) {
+    glow(x, y, r * 1.35, [140, 190, 255], .35 * wAtom);
+    for (let i = 0; i < 6; i++) { const a = T * (1.5 + i * .2) + i, rr = r * (1 + .15 * Math.sin(i)); ball(x + Math.cos(a) * rr, y + Math.sin(a) * rr * .7, Math.max(1, r * .05), [170, 220, 255], wAtom); }
+  }
+  // контур тела
+  const wob = .05 * w.metab;
+  const path = () => { ctx.beginPath(); for (let i = 0; i <= 36; i++) { const a = i / 36 * TAU, rr = r * (1 + wob * Math.sin(4 * a + T * 2) + wob * .6 * Math.sin(7 * a - T * 3)); const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } };
+  path(); ctx.fillStyle = rgb(col, .06 + .14 * wMem); ctx.fill();
+  // внутренности
+  ctx.save(); path(); ctx.clip();
+  const pp = P.parts.map(p => {
+    const pr = Math.min(r * .42, r * Math.sqrt(p.m / P.m) * .95), dd = Math.min(p.d, .92 - pr / r);
+    const tx = Math.cos(p.a) * dd, ty = Math.sin(p.a) * dd, k = p.k * p.k * (3 - 2 * p.k);
+    return [x + lerp(p.fx, tx, k) * r, y + lerp(p.fy, ty, k) * r, pr, p];
+  });
+  if (wBond > 0) {
+    ctx.strokeStyle = rgb([220, 235, 255], .45 * wBond); ctx.lineWidth = Math.max(1, r * .02); ctx.beginPath();
+    for (let i = 0; i < pp.length; i++) for (let j = i + 1; j < pp.length; j++) { const d = Math.hypot(pp[i][0] - pp[j][0], pp[i][1] - pp[j][1]); if (d < r * .45) { ctx.moveTo(pp[i][0], pp[i][1]); ctx.lineTo(pp[j][0], pp[j][1]); } }
+    ctx.stroke();
+  }
+  for (const [px, py, pr, p] of pp) { if (pr < 1.5) { ctx.fillStyle = rgb(KD[p.kind].c, .8); ctx.fillRect(px - .8, py - .8, 1.6, 1.6); } else KD[p.kind].d(px, py, pr, p); }
+  ctx.restore();
+  ball(x, y, r * .3 * wQ, col, wQ);
+  // мембрана
+  if (wMem > 0) { path(); ctx.strokeStyle = rgb([200, 255, 220], .8 * wMem); ctx.lineWidth = Math.max(1, r * .05); ctx.stroke(); }
+  else { path(); ctx.strokeStyle = rgb(col, .25); ctx.lineWidth = 1; ctx.stroke(); }
+  // реснички
+  if (wCil > 0) {
+    ctx.strokeStyle = rgb([200, 255, 220], .6 * wCil); ctx.lineWidth = Math.max(1, r * .02); ctx.beginPath();
+    for (let i = 0; i < 40; i++) { const a = i / 40 * TAU, wv = Math.sin(T * 8 + i) * .3; ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r); ctx.lineTo(x + Math.cos(a + wv * .1) * r * 1.15, y + Math.sin(a + wv * .1) * r * 1.15); }
+    ctx.stroke();
+  }
+  // глаза
+  if (wEye > 0) {
+    const va = Math.atan2(P.vy, P.vx);
+    for (const sgn of [-1, 1]) {
+      const a = va + sgn * .35, ex = x + Math.cos(a) * r * .7, ey = y + Math.sin(a) * r * .7;
+      ctx.fillStyle = rgb([255, 255, 255], wEye); ctx.beginPath(); ctx.arc(ex, ey, r * .14, 0, TAU); ctx.fill();
+      ctx.fillStyle = rgb([10, 10, 20], wEye); ctx.beginPath(); ctx.arc(ex + Math.cos(va) * r * .05, ey + Math.sin(va) * r * .05, r * .07, 0, TAU); ctx.fill();
+    }
+  }
+}
+
+function drawLadder(s) {
+  const x0 = 24, x1 = W - 24, y = H - 26, n = STAGES.length - 1;
+  ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+  ctx.font = '11px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  const narrow = W < 640;
+  STAGES.forEach((st, i) => {
+    const x = lerp(x0, x1, i / n), near = 1 - Math.min(1, Math.abs(s - i - .5) / 1.5);
+    ctx.fillStyle = `rgba(255,255,255,${.25 + .6 * near})`; ctx.fillRect(x - 1, y - 5, 2, 10);
+    if (!narrow || Math.abs(s - i) < 1.2) ctx.fillText(st.short, x, y - 8);
+  });
+  const mx = lerp(x0, x1, s / n);
+  glow(mx, y, 12, [140, 220, 255], .8); ball(mx, y, 4, [200, 240, 255]);
+}
+
+function fmtSize(lg) {
+  const v = Math.pow(10, lg);
+  const u = [[1e-15, 'фм'], [1e-12, 'пм'], [1e-9, 'нм'], [1e-6, 'мкм'], [1e-3, 'мм']];
+  let best = u[0]; for (const q of u) if (v >= q[0]) best = q;
+  const n = v / best[0];
+  return `≈ ${n < 10 ? n.toFixed(1) : Math.round(n)} ${best[1]}`;
+}
+
+const barsEl = document.getElementById('bars');
+barsEl.innerHTML = MECH.map(([k, n]) => `<div>${n}</div><div class="bar"><i id="b_${k}"></i></div>`).join('');
+let hudT = 0;
+function hud(s, w) {
+  if ((hudT += 1) % 6) return;
+  const i = Math.floor(s), f = s - i;
+  document.getElementById('stage').textContent = STAGES[i].name;
+  const nx = document.getElementById('next');
+  if (i + 1 < STAGES.length) { nx.textContent = '→ ' + STAGES[i + 1].name; nx.style.opacity = smooth(.55, .95, f) * .8; } else nx.style.opacity = 0;
+  document.getElementById('scale').textContent = `${fmtSize(stageLerp(s, 'real'))} · масса ×${P.m < 1e4 ? P.m.toFixed(1) : P.m.toExponential(1)}`;
+  const st = STAGES[i];
+  document.getElementById('want').innerHTML = P.want
+    ? `Ищи: <i style="background:${rgb(KD[P.want].c)}"></i>${KD[P.want].n} <span style="opacity:.6">(${P.got.size}/${st.kinds.length})</span>` : '';
+  for (const [k] of MECH) document.getElementById('b_' + k).style.width = (w[k] * 100).toFixed(0) + '%';
+}
+
+function render() {
+  const s = pStage(), w = weights(s);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const bg = stageLerp(s, 'bg');
+  const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.hypot(W, H) / 2);
+  g.addColorStop(0, rgb(mixc(bg, [255, 255, 255], .06))); g.addColorStop(1, rgb(mixc(bg, [0, 0, 0], .6)));
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  drawDust(s);
+
+  for (const e of ents) {
+    const [x, y] = toS(e.x, e.y), r = e.r * cam.z;
+    if (x < -r * 3 || y < -r * 3 || x > W + r * 3 || y > H + r * 3) continue;
+    ctx.globalAlpha = Math.min(1, e.age) * (1 - e.die);
+    if (e.kind === P.want && started) glow(x, y, r * 2.2, [255, 255, 200], .18 + .1 * Math.sin(T * 4));
+    KD[e.kind].d(x, y, r, e);
+    if (started && e.m > P.m * 1.15) { ctx.strokeStyle = KD[e.kind].pred && w.hunt > .1 ? 'rgba(255,70,70,.6)' : 'rgba(255,120,120,.22)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r * 1.1, 0, TAU); ctx.stroke(); }
+  }
+  ctx.globalAlpha = 1;
+  for (const f of fx) { const [x, y] = toS(f.x, f.y); ctx.strokeStyle = rgb(f.c, .6 * (1 - f.t / .8)); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, f.r * cam.z * (1 + f.t * 3), 0, TAU); ctx.stroke(); }
+  drawPlayer(s, w);
+  drawLadder(s);
+  hud(s, w);
+}
+
+function recover() { // страховка: если где-то вылез NaN — не зависаем, а мягко чиним состояние
+  if (!isFinite(P.m)) P.m = 1;
+  if (!isFinite(P.x + P.y)) { P.x = P.y = 0; }
+  P.vx = isFinite(P.vx) ? P.vx : 0; P.vy = isFinite(P.vy) ? P.vy : 0; P.r = Math.sqrt(P.m);
+  P.parts = P.parts.filter(p => isFinite(p.m + p.a + p.fx + p.fy));
+  cam.x = P.x; cam.y = P.y; cam.z = Math.max(100, Math.min(W, H)) * .065 / P.r;
+  ents = ents.filter(e => isFinite(e.x + e.y + e.m + e.vx + e.vy + e.rot));
+}
+let last = performance.now();
+for (let i = 0; i < 50; i++) spawn(true);
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  try {
+    update(dt);
+    if (!isFinite(P.x + P.y + P.m + cam.z)) recover();
+    render();
+  } catch (err) { console.error(err); recover(); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
