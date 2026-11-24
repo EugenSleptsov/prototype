@@ -114,6 +114,12 @@ const EPOCHS = [
   { name: 'Аннигиляция', floor: .5, tau: 36, startT: 3, when: '10⁻⁷ с', line: 'Битва: антивещество идёт волнами — сбереги вещество' },
 ];
 const CHAINS = [['t', 'b', 'c'], ['ta', 'mu']]; // чьи распады нужно снять в эпохе 3
+// Роль семейства: зачем отдавать Вселенной рождение частицы (исследование «Рождение X»)
+//  e      — e⁻ и e⁺ притягиваются и гаснут в γγ: свет для детектора и ✦ за каждую вспышку в кадре
+//  u, d   — копятся в запас (до UD_MAX) и в эпохе 4 сразу ложатся в детектор: фора к барионам
+//  c s b μ τ — каждый снятый распад даёт ✦ по массе (не только первый)
+//  t      — распался у детектора: ⚡ заряжается до полного
+const E_PULL = 2.5, UD_MAX = 6, DEC_PAY = ['c', 's', 'b', 'mu', 'ta', 't'];
 const COL_N = ['красный', 'зелёный', 'синий']; // цвет кварка; у глюона — цвет и антицвет
 const STOCK_GOAL = 15, TRIO_GOAL = 5; // цель эпохи 4 — пять будущих барионов (по кварку каждого цвета)
 const TRIO_W = TRIO_GOAL < 5 ? 'тройки' : 'троек';
@@ -229,7 +235,7 @@ const Particles = {
     this.learn = {}; this.coach = { idle: 0, t: 0, kind: null }; this.en = 0; this.enFx = 0; this.shotCd = 0; this.shotFx = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.bannerFor = -1; this.banner = 99; this.epT = 0;
-    this.pairs = 0; this.decSeen = new Set(); this._pk = null; this.hot = []; this.hotCd = 3; this.stock = 0; this.stockQ = []; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
+    this.pairs = 0; this.decSeen = new Set(); this._pk = null; this.hot = []; this.hotCd = 3; this.stock = 0; this.stockQ = []; this.udRes = []; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
     Codex.run = new Set(); Codex.dirty = true;
     // цели этого забега: что открыть в эпохе 1 и чьи распады снять в эпохе 3
     this.need0 = [...NEED0];
@@ -735,7 +741,32 @@ const Particles = {
       const va = this.speed(a), vb = this.speed(b);
       if (dx * (a.dx * va - b.dx * vb) + dy * (a.dy * va - b.dy * vb) <= 0) continue; // расходятся
       this.annihilate(a, b, true); this.st.ann = (this.st.ann || 0) + 1;
+      if (a.sp === 'e' && Codex.auto.has('e')) this.eFlash((a.x + b.x) / 2, (a.y + b.y) / 2);
     }
+  },
+  // «Рождение e» исследовано: e⁻ и e⁺ (разноимённые заряды) поворачивают друг к другу — встретятся и погаснут в γγ.
+  // Свежие твои и брошенные не трогаем: их ведёшь ты.
+  /** @param {number} dt */
+  attractE(dt) {
+    if (!Codex.auto.has('e') || this.ep === 3) return;
+    const f = this.p.filter(o => o.sp === 'e' && !o.dead && !o.cap && !(o.flung > 0) && !(o.fade >= 0) && !(o.mine > 0) && o.born >= 1 && o.cd <= 0);
+    for (const a of f) {
+      /** @type {Q | null} */
+      let best = null, bd = E_PULL * E_PULL;
+      for (const b of f) if (b.anti !== a.anti) { const d = (b.x - a.x) ** 2 + (b.y - a.y) ** 2; if (d < bd) { bd = d; best = b; } }
+      if (!best) continue;
+      const ca = Math.atan2(a.dy, a.dx), dA = Math.atan2(best.y - a.y, best.x - a.x) - ca;
+      const na = ca + clamp(Math.atan2(Math.sin(dA), Math.cos(dA)), -3 * dt, 3 * dt);
+      a.dx = Math.cos(na); a.dy = Math.sin(na);
+    }
+  },
+  // вспышка e⁺e⁻ → γγ: фотоны — свет для детектора; на виду — ещё и ✦
+  /** @param {number} x @param {number} y */
+  eFlash(x, y) {
+    if (!onScreen(...W2S(x, y), 0)) return;
+    this.kn += 1;
+    this.float(x, y - .3, 'e⁺e⁻ → γγ +1 ✦', PH_C, 12);
+    fxRing(x, y, .1, PH_C, .9, .5);
   },
   // Распады — только когда у частиц есть масса (после перехода Хиггса)
   /** @param {Q} o @returns {[string, boolean][] | null} */
@@ -777,6 +808,11 @@ const Particles = {
     });
     fxRing(o.x, o.y, .1, this.dcol(o), .5, .5);
     if (onScreen(...W2S(o.x, o.y), 0)) Sfx.play('decay');
+    if (o.sp === 't' && Codex.auto.has('t') && this.enOn() && Math.hypot(o.x - P.x, o.y - P.y) < this.fr() * 1.5) { // 173 ГэВ у детектора
+      this.en = E_CAP; this.full = true;
+      fxRing(P.x, P.y, this.hr(), PH_C, this.hr() * 1.8, .8);
+      this.float(P.x, P.y + this.hr() + .3, 't → ⚡ полный заряд', PH_C, 15, -.3);
+    }
     this.event(made, o.x, o.y, o);
   },
   // Событие оставляет СЛЕД: вершину с лучами осколков. Пока след не погас, его можно заснять.
@@ -808,6 +844,9 @@ const Particles = {
           this.decSeen.add(tr.parent); this.kn += 5; Sfx.play('goal');
           this.float(tr.x, tr.y + .4, `${SM[tr.parent].sym}→ ✓ +5`, [255, 215, 110], 15, -.3);
           fxRing(tr.x, tr.y, .2, GOLD, .9, .6);
+        } else if (DEC_PAY.includes(tr.parent) && Codex.auto.has(tr.parent)) {
+          const v = this.value(tr.parent); this.kn += v;
+          this.float(tr.x, tr.y + .4, `${SM[tr.parent].sym}→ +${v} ✦`, [140, 220, 255], 14, -.3);
         }
       }
     }
@@ -861,9 +900,19 @@ const Particles = {
     const need = this.ep === 2 ? this.need2 : this.ep === 0 ? this.need0 : ['H', 'Z', 'W'];
     const all = [...Codex.run].filter(sp => sp === 'H' || this.rs.coll > 0 && ((FERMIONS.includes(sp) && SM[sp].kind !== 'nu') || sp === 'W' || sp === 'Z'));
     for (const sp of [...all.filter(sp => need.includes(sp)), ...all.filter(sp => !need.includes(sp))])
-      L.push({ k: sp, ic: SM[sp].sym, name: `Рождение ${SM[sp].sym}`, cost: [resNew(this.value(sp))], about: () => sp === 'H' ? 'всплески поля рождают H' : `столкновения рождают ${SM[sp].sym}` });
+      L.push({ k: sp, ic: SM[sp].sym, name: `Рождение ${SM[sp].sym}`, cost: [resNew(this.value(sp))], about: () => this.role(sp) });
     if (this.rs.ph && this.ep === 0) L.push(ph);
     return L;
+  },
+  // что даёт «Рождение X»: у каждого семейства своя польза
+  /** @param {string} sp */
+  role(sp) {
+    if (sp === 'H') return 'всплески поля рождают H';
+    if (sp === 'e') return 'e⁺e⁻ гаснут в γγ: свет и ✦';
+    if (sp === 'u' || sp === 'd') return `копятся к эпохе 4: фора ${this.udRes.length}/${UD_MAX} ◉`;
+    if (sp === 't') return 'распад у детектора — ⚡ полный';
+    if (DEC_PAY.includes(sp)) return `каждый снятый распад +${this.value(sp)} ✦`;
+    return `столкновения рождают ${SM[sp].sym}`;
   },
   /** @param {string} k */
   rLvl(k) { return this.rs[k] || 0; },
@@ -907,7 +956,7 @@ const Particles = {
     else if (k !== 'ph' && k !== 'coll') Codex.auto.add(k);
     Codex.dirty = true;
     fxRing(P.x, P.y, this.hr(), GOLD, this.hr() * 1.8, .7);
-    this.float(P.x, P.y - this.hr() - .3, `${r.ic} ${k === 'ph' ? `свет ×${l}` : k === 'g' ? 'глюоны в мире' : k === 'coll' ? 'кванты сталкиваются сами' : k === 'cp' ? 'Вселенная сберегает вещество' : k === 'H' ? 'H рождается в мире' : 'столкновения рождают ' + SM[k].sym}`, GOLD, 16);
+    this.float(P.x, P.y - this.hr() - .3, `${r.ic} ${k === 'ph' ? `свет ×${l}` : k === 'g' ? 'глюоны в мире' : k === 'coll' ? 'кванты сталкиваются сами' : k === 'cp' ? 'Вселенная сберегает вещество' : k === 'H' ? 'H рождается в мире' : SM[k].sym + ': ' + this.role(k)}`, GOLD, 16);
   },
   /** @param {HTMLElement & { _h?: string }} el */
   renderShop(el) {
@@ -945,6 +994,10 @@ const Particles = {
         const [x, y] = this.randPos(true), pp = this.thermalP(this.T);
         if (s.kind === 'boson' && sp !== 'W') this.mk(sp, false, x, y, Math.random() * TAU, pp);
         else this.pair(sp, x, y, pp);
+        if ((sp === 'u' || sp === 'd') && this.udRes.length < UD_MAX) { // вещество Вселенной копится к эпохе адронов
+          this.udRes.push(sp);
+          this.float(P.x, P.y + this.hr() + .3, `+${sp} в запас · ${this.udRes.length}/${UD_MAX} ◉`, [140, 235, 170], 11);
+        }
       } else if (have > target * 1.5 + 1) this.thin(o => o.sp === sp, have - Math.ceil(target * 1.5 + 1));
     }
     if (this.ep === 3 && (cnt.g || 0) > G_MAX4) this.thin(o => o.sp === 'g' && !o.cap, cnt.g - G_MAX4);
@@ -1051,6 +1104,7 @@ const Particles = {
       }
       if (!this.full && this.enOn() && this.en >= E_CAP) this.full = true;
       this.spontaneous(dt);
+      this.attractE(dt);
       if (this.ep === 3 && !this.advanced) this.annihilateAll(); else if (this.ep < 3) this.annihilateMet();
       if (!this.advanced) this.populate(dt);
       if (this.tut) this.tickTut(dt0);
@@ -1169,6 +1223,13 @@ const Particles = {
       for (const o of this.p) if (!this.isQ(o)) o.fade = 1;
       for (let k = 0; k < 9; k++) { const [x, y] = this.randPos(false); this.pair(pick(['u', 'd']), x, y, rnd(.1, .4)).forEach(o => o.cd = 2.5); }
       for (let k = 0; k < 4; k++) { const [x, y] = this.randPos(false); this.mk(pick(['u', 'd']), false, x, y, Math.random() * TAU, rnd(.1, .4)); }
+      // запас: u и d, что Вселенная накопила за прошлые эпохи, сразу в детекторе — цвета поровну, чтобы сложились тройки
+      if (this.udRes.length) {
+        for (const fl of this.udRes) { this.stockQ.push({ fl, col: this.stock % 3 }); this.stock++; }
+        fxRing(P.x, P.y, this.hr() * .3, [140, 235, 170], this.hr() * 1.6, .8);
+        this.float(P.x, P.y - this.hr() - .3, `запас Вселенной: +${this.udRes.length} ◉`, [140, 235, 170], 16);
+        this.udRes = [];
+      }
     }
   },
   // Итоги эпохи — сбоку, игру не останавливают (Tally.note); очки ★ — на детектор прямо в лавке
@@ -1652,7 +1713,7 @@ const Particles = {
     const tl = o.trail; if (!tl || tl.length < 2) return;
     const nu = SM[o.sp].kind === 'nu', known = Codex.has(o.sp);
     if (nu && !known) return;
-    ctx.strokeStyle = rgb(known ? this.color(o) : [205, 220, 245], (nu ? .25 : .4) * a);
+    ctx.strokeStyle = rgb(known ? this.color(o) : [205, 220, 245], (nu ? .25 : SM[o.sp].kind === 'lepton' ? .7 : .4) * a);
     ctx.lineWidth = nu ? 1.1 : o.anti ? 1.4 : 2;
     if (o.anti || nu) ctx.setLineDash([4, 4]);
     ctx.beginPath();
@@ -1671,7 +1732,7 @@ const Particles = {
     for (const o of this.p) {
       const [sx, sy] = W2S(o.x, o.y); if (!onScreen(sx, sy, 80)) continue;
       const a = alpha * o.born;
-      if (!this.isQ(o)) this.drawTrail(o, a * (this.isBg(o) ? .3 : 1));
+      if (!this.isQ(o)) this.drawTrail(o, a * (this.isBg(o) ? .5 : 1));
     }
     for (const tr of this.tracks) this.drawVertex(tr, alpha);
     // энергии мало — подсвечены только три ближайших фотона, а не весь экран
@@ -1732,18 +1793,44 @@ const Particles = {
     if (this.hig >= .5 && this.grabbable(o) && Math.hypot(o.x - P.x, o.y - P.y) < this.fr()) return false; // в зоне поля — можно взять
     return true;
   },
+  // Облик семейства (поверх — сам шар): кварк — свой цветной заряд кружит рядом, лептон — искра со светящимся хвостом,
+  // второе и третье поколение — одно и два кольца (тяжелее — богаче), бозоны — без украшений
+  /** @param {Q} o @param {number} sx @param {number} sy @param {number} r @param {RGB} c */
+  drawLook(o, sx, sy, r, c) {
+    const s = SM[o.sp], gen = s.gen ?? 0, t = G.T + o.ph;
+    if (s.kind === 'quark') {
+      glow(sx, sy, r * 2, c, .25);
+      for (let k = 0; k < 2; k++) { const an = t * (o.anti ? -2.6 : 2.6) + k * Math.PI; ball(sx + Math.cos(an) * (r + 4), sy + Math.sin(an) * (r + 4), k ? 1.6 : 2.4, c, k ? .55 : .95); }
+    } else if (s.kind === 'lepton') {
+      glow(sx, sy, r * 2.6, c, .4);
+      const v = this.speed(o) / C_LIGHT; // искра: короткий яркий хвост за спиной
+      const L = r * (1.6 + 1.8 * v);
+      line(sx - o.dx * r * .6, sy - o.dy * r * .6, sx - o.dx * L, sy - o.dy * L, mixc(c, [255, 255, 255], .5), .5, Math.max(1, r * .22));
+    }
+    if (gen >= 2 && s.kind !== 'nu') for (let k = 0; k < gen - 1; k++) {
+      const rr = r + 6.5 + k * 3.5, sp = t * (k ? -1.4 : 1.1);
+      arc(sx, sy, rr, sp, sp + Math.PI * 1.5, c, .5, 1.1);
+    }
+  },
   // распадётся и даст новое: распад этого вида ещё не снят
   /** @param {Q} o */
   willTell(o) { return this.hig > .5 && o.life < Infinity && !this.decSeen.has(o.sp) && SM[o.sp].kind !== 'nu'; },
   /** @param {Q} o @param {number} sx @param {number} sy @param {number} r @param {number} a @param {boolean} known @param {RGB} c */
   drawParticle(o, sx, sy, r, a, known, c) {
-    const s = SM[o.sp];
-    if (this.isBg(o)) {
-      const rb = Math.max(2.5, r * .5);
-      if (o.anti) ring(sx, sy, rb, c, a * .4, 1.2); else ball(sx, sy, rb, c, a * .4);
+    const s = SM[o.sp], bg = this.isBg(o);
+    // нестабильное мерцает — тем чаще и глубже, чем ближе распад
+    if (o.life < Infinity && this.hig > .5) { const f = clamp(o.age / o.life, 0, 1); a *= 1 - .45 * f * f * (.5 + .5 * Math.sin(G.T * (8 + 40 * f) + o.ph)); }
+    // фон (открытое и сейчас не нужное) — тот же облик, только мельче, тише и без подписи
+    if (bg) { r *= .72; a *= .6; }
+    ctx.globalAlpha = a;
+    if (known && s.kind !== 'nu') this.drawLook(o, sx, sy, r, c);
+    if (bg) {
+      if (s.kind === 'nu') ring(sx, sy, r * .95, NU_C, .3, 1.2, [2.5, 3.5]);
+      else if (o.anti && s.kind !== 'boson') ring(sx, sy, r, c, .9, 2);
+      else { ball(sx, sy, r * 1.15, c, .25); ball(sx, sy, r * .8, c, .95); }
+      ctx.globalAlpha = 1;
       return;
     }
-    ctx.globalAlpha = a;
     if (o.mine > 0) glow(sx, sy, r * 2.8, [255, 255, 255], .2 * Math.min(1, o.mine));
     if (known && this.willTell(o)) label('→ ?', sx + r + 12, sy - r - 3, 10, [255, 255, 255], .8, 800);
     if (o.life < Infinity && this.hig > .5) arc(sx, sy, r + 4, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(1 - o.age / o.life, 0, 1), [255, 255, 255], .4, 1.6);

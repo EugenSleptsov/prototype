@@ -202,6 +202,8 @@ interface ParticlesState {
   hot: Hot[]; hotCd: number;
   /** эпоха 4: запас кварков в детекторе */
   stock: number; stockQ: Stored[]; soupCd: number;
+  /** u и d, что Вселенная накопила к эпохе 4 (фора) */
+  udRes: string[];
   handoff: Handoff[] | null; stockOut: boolean; finale: number;
   /** цели забега: эпоха 1 — что открыть, эпоха 3 — чьи распады снять */
   need0: string[]; need2: string[];
