@@ -51,6 +51,7 @@ const RES_MAX = 4; // исследований в панели ✦ одновр�
 const PROF = [{ n: 'холодный', k: [.82, .92], c: [130, 195, 255] }, { n: 'тёплый', k: [1.05, 1.18], c: [255, 215, 110] }, { n: 'горячий', k: [1.38, 1.5], c: [255, 120, 200] }];
 const SPEC_N = 24, SPEC_U = 6; // пролог: столько пар фотонов в спектре разогрева; высота одной пары в столбце (px)
 const G_WARM = .45, G_HARD = 1.5, G_SPIN = TAU * .9; // пороги жеста: удержание (с) и угол круга
+const G_OVER = 3.2, G_WARN = 2.4; // передержал: с 2,4 с заряд краснеет и дрожит, на 3,2 с — перегрев, жест сгорает (если не крутишь круг)
 // Классы фотонов по энергии относительно температуры (x = E/T, тепловой спектр): доля, ⚡, ✦ за первую находку (k)
 // и ✦ за каждый пойманный (kn) — главный «клик» экономики: больше света в мире → быстрее копятся ✦
 const PH_CLS = [
@@ -142,6 +143,16 @@ function waveLine(sx, sy, dx, dy, L, per, amp, phase, cols, a, lw) {
     }
     ctx.stroke();
   }
+}
+// Дуга-клин: толщина растёт от w0 у начала до w1 у конца — «набираешь» видно по толщине
+function wedge(x, y, r, a0, a1, w0, w1, c, a) {
+  if (!(a > 0) || Math.abs(a1 - a0) < .005) return;
+  const n = Math.max(6, Math.ceil(Math.abs(a1 - a0) / .08)), pts = [];
+  for (let i = 0; i <= n; i++) { const t = i / n, an = a0 + (a1 - a0) * t, w = (w0 + (w1 - w0) * t) / 2; pts.push([an, r + w, r - w]); }
+  ctx.fillStyle = rgb(c, a); ctx.beginPath();
+  pts.forEach(([an, ro], i) => { const X = x + Math.cos(an) * ro, Y = y + Math.sin(an) * ro; if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); });
+  for (let i = pts.length - 1; i >= 0; i--) { const [an, , ri] = pts[i]; ctx.lineTo(x + Math.cos(an) * ri, y + Math.sin(an) * ri); }
+  ctx.closePath(); ctx.fill();
 }
 function arc(x, y, r, a0, a1, c, a, lw, dash) {
   if (!(r > 0) || !(a > 0)) return;
@@ -327,12 +338,22 @@ const Particles = {
   },
   // ---------- пустота: жесты возмущают вакуум ----------
   // Жест: клик — мягкий; удержание ≥ 0,45 с — тёплый, ≥ 1,5 с — жёсткий; круг детектором при удержании — сверхжёсткий
+  gOver(g) { return Math.abs(g.ang) > G_SPIN * .25 ? G_OVER * 2 : G_OVER; }, // кто крутит круг — тому дольше
   gestCls(g) { return Math.abs(g.ang) >= G_SPIN ? 3 : g.t >= G_HARD ? 2 : g.t >= G_WARM ? 1 : 0; },
   vacInput(dt) {
     if (mouse.clicked) { mouse.clicked = false; this.pg = { t: 0, ang: 0, la: null, path: [], c: 0 }; }
     const g = this.pg; if (!g) return;
+    if (g.dead) { if (!mouse.down) this.pg = null; return; } // сгоревший жест ждёт, пока отпустишь
     if (mouse.down) {
       g.t += dt;
+      // передержал: энергия жеста уходит обратно в вакуум — фотона не будет
+      if (g.t >= this.gOver(g)) {
+        g.dead = true; this.st.over = (this.st.over || 0) + 1;
+        for (let k = 0; k < 3; k++) fxRing(P.x, P.y, this.hr() * (.9 + .15 * k), [255, 90, 80], this.hr() * (1.6 + .3 * k), .5 + .1 * k);
+        fxFlash(P.x, P.y, this.hr() * 1.3, [255, 80, 70], .35); Sfx.play('overheat');
+        this.float(P.x, P.y - this.hr() - .2, 'перегрев', [255, 120, 110], 14);
+        return;
+      }
       const v = Math.hypot(P.vx, P.vy);
       if (v > 1.5) { const a = Math.atan2(P.vy, P.vx); if (g.la != null) { let d = a - g.la; d -= TAU * Math.round(d / TAU); g.ang += d; } g.la = a; } else g.la = null;
       const l = g.path[g.path.length - 1];
@@ -353,8 +374,7 @@ const Particles = {
     fxRing(P.x, P.y, .1, C.c, this.hr() * (1.3 + .3 * c), .7); fxFlash(P.x, P.y, this.hr() * (1 + .3 * c), C.c, .3 + .1 * c);
     S.n[c]++; S.pulse[c] = 1; S.last = c;
     Sfx.play(this.liveProf().length ? 'pert' : 'bad', c);
-    if (!this.liveProf().length) this.float(P.x, P.y - this.hr() - .2, `лишний ${C.n}`, [255, 120, 110], 13);
-    else { this.kn += 1; this.float(P.x, P.y - this.hr() - .2, `${C.n} γ +1 ✦`, C.c, 13); }
+    if (this.liveProf().length) { this.kn += 1; this.float(P.x, P.y - this.hr() - .2, `${C.n} γ +1 ✦`, C.c, 13); }
     const p = this.specDone(); if (p) this.ignite(p);
   },
   // Больцмановский вес: сколько частиц этого сорта держит Вселенная при температуре T
@@ -1350,11 +1370,17 @@ const Particles = {
       g.path.forEach(([x, y], i) => { const [px, py] = W2S(x, y); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
       ctx.stroke();
     }
-    const jit = c >= 2 ? Math.sin(G.T * 40) * 1.5 : 0;
-    glow(sx, sy, r * (1 + .3 * k), C.c, .06 + .14 * k);
-    arc(sx, sy, r + 8 + jit, a0, a0 + TAU * Math.max(.02, k), C.c, .95, 4);
+    // заряд — клин: чем дольше держишь, тем толще линия; шкала до перегрева, конец — красная зона
+    const GO = this.gOver(g), kq = Math.min(1, g.t / GO), warn = g.t > (GO === G_OVER ? G_WARN : GO - .8);
+    const jit = warn ? Math.sin(G.T * 50) * 2.5 : c >= 2 ? Math.sin(G.T * 40) * 1.5 : 0;
+    const cc = warn ? mixc(C.c, [255, 70, 60], .5 + .5 * Math.sin(G.T * 20) ** 2) : C.c;
+    glow(sx, sy, r * (1 + .3 * k), cc, .06 + .14 * k);
+    wedge(sx, sy, r + 10, a0, a0 + TAU, 2, 16, [255, 255, 255], .07); // сколько можно набрать
+    const aw = (GO === G_OVER ? G_WARN : GO - .8) / GO;
+    arc(sx, sy, r + 10, a0 + TAU * aw, a0 + TAU, [255, 80, 70], .35, 2);
+    wedge(sx + jit, sy, r + 10, a0, a0 + TAU * Math.max(.02, kq), 2, 2 + 14 * kq, cc, .95);
     // риски порогов удержания
-    for (const q of [G_WARM / G_HARD, 1]) { const an = a0 + TAU * q * .999; line(sx + Math.cos(an) * (r + 3), sy + Math.sin(an) * (r + 3), sx + Math.cos(an) * (r + 13), sy + Math.sin(an) * (r + 13), [255, 255, 255], .5, 1.5); }
+    for (const q of [G_WARM / GO, G_HARD / GO]) { const an = a0 + TAU * q * .999; line(sx + Math.cos(an) * (r + 1), sy + Math.sin(an) * (r + 1), sx + Math.cos(an) * (r + 19), sy + Math.sin(an) * (r + 19), [255, 255, 255], .6, 1.5); }
     if (sp > .15) arc(sx, sy, r + 16, a0, a0 + TAU * sp * Math.sign(g.ang || 1), PH_CLS[3].c, .9, 3);
     label(`${C.n} γ`, sx, sy - r - 22 - z * 0, 14, C.c, .95, 800);
   },
@@ -1371,7 +1397,7 @@ const Particles = {
     }
     ring(sx, sy, R, FIELD_C, .35, 1.5, [6, 6]);
     ring(sx, sy, this.hr() * .42 * z + 3 * Math.sin(G.T * 10), GOLD, .8, 2);
-    for (const o of f.cap) { const [ox, oy] = W2S(o.x, o.y); line(ox, oy, sx, sy, GOLD, .55, 1.8); }
+    for (const o of f.cap) { const [ox, oy] = W2S(o.x, o.y); line(ox, oy, sx, sy, GOLD, .45 + .4 * f.q, 1.5 + 4 * f.q); }
     if (!f.cap.length) return;
     const Rg = r + 13, a0 = -Math.PI / 2;
     // рогатка взведена: стрелка — куда полетят кванты, если отпустить сейчас
@@ -1387,9 +1413,9 @@ const Particles = {
         ctx.lineTo(hx + Math.cos(an + 2.4) * 9, hy + Math.sin(an + 2.4) * 9); ctx.lineTo(hx + Math.cos(an - 2.4) * 9, hy + Math.sin(an - 2.4) * 9); ctx.fill();
       }
     }
-    if (f.cap.length < 2) { arc(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), FIELD_C, .6, 4); return; }
+    if (f.cap.length < 2) { wedge(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), 2, 2 + 12 * f.q, FIELD_C, .6); return; }
     const kinds = f.cap.map(o => o.sp).sort().join(''), bd = this.band(f), inH = !!bd && f.E > bd[0] && f.E < bd[1];
-    ring(sx, sy, Rg, [255, 255, 255], .15, 5);
+    wedge(sx, sy, Rg, a0, a0 + TAU, 2, 14, [255, 255, 255], .08); // сколько можно набрать
     // золотая полоса — резонанс: два глюона — H, частица + античастица — Z
     if (bd) {
       const q1 = this.qOf(bd[0]), q2 = this.qOf(bd[1]);
@@ -1419,7 +1445,8 @@ const Particles = {
         if (an - lastA > .22) { label(sym(sp), sx + c * (Rg + 17), sy + s * (Rg + 17), 11, sp === 'e' ? LEP_C[0] : [255, 255, 255], .9, 700); lastA = an; }
       }
     }
-    arc(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), inH ? GOLD : FIELD_C, .95, 5);
+    // энергия столкновения — клин: чем больше набрал, тем толще линия; нити к квантам тоже толстеют
+    wedge(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), 2, 2 + 12 * f.q, inH ? GOLD : FIELD_C, .95);
     label(`√s ${fmtGeV(this.rsOf(f))}`, sx, sy - Rg - 32, 12, inH ? GOLD : [142, 229, 255], .95, 700);
   },
   // Энергия детектора — дуга из делений под кругом; пустая и нужна — мигает красным
@@ -1453,9 +1480,10 @@ const Particles = {
         const S = this.spec, L = this.liveProf(), need = i => L.some(p => S.n[i] < p.tgt[i]);
         if (!this.perts) t = 'клик — возмути вакуум';
         else if (!L.length) t = null; // красный столбец говорит сам
-        else if (this.perts >= 2 && !this.gest.has(1) && !this.gest.has(2) && (need(1) || need(2))) t = 'а если зажать?';
-        else if (this.perts >= 4 && this.gest.has(1) && !this.gest.has(2) && need(2)) t = 'а если ещё дольше?';
-        else if (this.perts >= 4 && this.gest.has(2) && !this.gest.has(3) && need(3)) t = 'а если закрутить?';
+        else if (this.perts >= 2 && !this.gest.has(1) && !this.gest.has(2) && (need(1) || need(2))) t = 'зажми — фотон теплее';
+        else if (this.perts >= 4 && this.gest.has(1) && !this.gest.has(2) && need(2)) t = 'держи дольше — жёсткий';
+        else if (this.perts >= 4 && this.gest.has(2) && !this.gest.has(3) && need(3)) t = 'зажми и веди по кругу — сверхжёсткий';
+        else if (this.st.over && this.st.over < 3) t = 'передержал — отпускай раньше красного';
       }
     }
     else if (this.ep === 0 && this.lit && !this.rs.ph) t = this.bal() >= 10 ? `клавиша ${this.keyOf('ph')} — свет сам` : null;
