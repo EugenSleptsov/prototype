@@ -113,7 +113,7 @@ const Quarks = {
     return true;
   },
   detach(q) {
-    if (!q.g) return;
+    if (!q || !q.g) return; // X с клавиатуры зовёт без аргумента
     const grp = this.groups.get(q.g);
     grp.m = grp.m.filter(x => x !== q); q.g = 0; q.nb = .8;
     if (grp.m.length <= 1) { for (const x of grp.m) x.g = 0; this.groups.delete(grp.id); }

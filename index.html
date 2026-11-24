@@ -48,6 +48,19 @@
   .overlay h1{margin:0 0 6px;font-size:34px;letter-spacing:.03em}
   .overlay kbd{background:#ffffff22;padding:1px 6px;border-radius:4px}
   .overlay button{margin-top:14px;font-size:16px;padding:8px 20px;border-radius:8px;border:0;background:#8fd0ff;color:#012;cursor:pointer}
+  /* старт: обучение или сразу игра; впервые — обучение главной кнопкой */
+  #intro .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  #intro button.alt{background:transparent;color:#cfe6ff;border:1px solid #8fd0ff88}
+  #intro.fresh #tutgo{order:-1;background:#8fd0ff;color:#012;border:0}
+  #intro.fresh #go{background:transparent;color:#cfe6ff;border:1px solid #8fd0ff88}
+  #tutgo small,#go small{opacity:.7;font-size:12px;margin-left:6px}
+  /* обучение: пропустить можно в любой момент */
+  #tutskip{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(48px + env(safe-area-inset-bottom,0px));z-index:6;
+    font:inherit;font-size:13px;padding:7px 14px;border-radius:999px;border:1px solid #ffffff33;background:#0b0f1ccc;color:#dde3f0;cursor:pointer}
+  #tutskip:hover{border-color:#8fd0ff}
+  #tutskip kbd{background:#ffffff22;padding:0 5px;border-radius:4px;font-size:11px;margin-left:6px}
+  body.tut #tutskip{display:block}
+  body.touch #tutskip kbd{display:none}
   #end{display:none}
   #codex{position:fixed;right:16px;top:190px;font-size:12px;display:none;cursor:pointer;z-index:5;background:#0b0f1c99;border:1px solid #ffffff1a;border-radius:10px;padding:6px 7px}
   #codex:hover{border-color:#ffd27a88}
@@ -283,13 +296,17 @@
   <button id="t-x" data-key="KeyX" aria-label="отщепить атом">✂</button>
 </div>
 
+<button id="tutskip">Пропустить обучение<kbd>Esc</kbd></button>
 <div id="intro" class="overlay"><div>
   <h1>PROTO // TYPE</h1>
   <p>10⁻¹² секунды после Большого взрыва. Материи ещё нет — только энергия.<br>Ты — детектор. Сталкивай энергию и открывай частицы.</p>
   <p class="mo" style="opacity:.75">Мышь — вести · клик — снимок · зажать — притянуть кванты · отпустить — столкнуть · колесо — зум · M — звук</p>
   <p class="to" style="opacity:.75">Палец на экране — вести детектор · кнопка ◉: тап — снимок, держать — притянуть кванты, отпустить — столкнуть · два пальца — зум</p>
   <input id="pname" maxlength="16" placeholder="Имя для рекордов">
-  <button id="go">Начать</button>
+  <div class="row">
+    <button id="go">Начать</button>
+    <button id="tutgo" class="alt">Обучение<small>1–2 мин</small></button>
+  </div>
 </div></div>
 
 <div id="end" class="overlay"><div>
@@ -301,19 +318,19 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=82"></script>
-<script src="js/audio.js?v=82"></script>
-<script src="js/core.js?v=82"></script>
-<script src="js/universe.js?v=82"></script>
-<script src="js/codex.js?v=82"></script>
-<script src="js/sling.js?v=82"></script>
-<script src="js/s0_quarks.js?v=82"></script>
-<script src="js/s_particles.js?v=82"></script>
-<script src="js/s1_nuclei.js?v=82"></script>
-<script src="js/s_stars.js?v=82"></script>
-<script src="js/s2_atoms.js?v=82"></script>
-<script src="js/s3_molecules.js?v=82"></script>
-<script src="js/online.js?v=82"></script>
-<script src="js/main.js?v=82"></script>
+<script src="js/util.js?v=83"></script>
+<script src="js/audio.js?v=83"></script>
+<script src="js/core.js?v=83"></script>
+<script src="js/universe.js?v=83"></script>
+<script src="js/codex.js?v=83"></script>
+<script src="js/sling.js?v=83"></script>
+<script src="js/s0_quarks.js?v=83"></script>
+<script src="js/s_particles.js?v=83"></script>
+<script src="js/s1_nuclei.js?v=83"></script>
+<script src="js/s_stars.js?v=83"></script>
+<script src="js/s2_atoms.js?v=83"></script>
+<script src="js/s3_molecules.js?v=83"></script>
+<script src="js/online.js?v=83"></script>
+<script src="js/main.js?v=83"></script>
 </body>
 </html>

@@ -95,6 +95,7 @@ addEventListener('keydown', e => {
   if (Codex.isOpen) { if (e.code === 'KeyC' || e.code === 'Escape') Codex.close(); return; }
   if (e.code === 'KeyC' && G.started && document.activeElement !== pname) { Codex.open(); return; }
   if (!G.started) return;
+  if (e.code === 'Escape' && G.tutor) { endTut(false); return; }
   if (e.code === 'Space' && !G.paused) { e.preventDefault(); G.stage.dash && G.stage.dash(); }
   if (e.code === 'Enter' || e.code === 'NumpadEnter') G.stage.enterKey && G.stage.enterKey();
   if (e.code === 'KeyX') G.stage.detach && G.stage.detach();
@@ -110,10 +111,24 @@ addEventListener('keyup', e => keys.delete(e.code));
 // имя для таблицы рекордов запоминается в браузере
 const pname = document.getElementById('pname');
 try { pname.value = localStorage.getItem('proto.name') || ''; } catch (e) { /* без хранилища */ }
-document.getElementById('go').onclick = () => {
+function startRun() {
   try { localStorage.setItem('proto.name', pname.value.trim() || 'Игрок'); } catch (e) { /* без хранилища */ }
   document.getElementById('intro').style.display = 'none'; G.started = true; G.runT0 = Date.now();
-};
+}
+document.getElementById('go').onclick = startRun;
+// Обучение — короткий забег до игры (уровень частиц в режиме tut). Впервые — главная кнопка на старте.
+const tutSeen = () => { try { return !!localStorage.getItem('proto.tut'); } catch (e) { return true; } };
+if (!tutSeen()) document.getElementById('intro').classList.add('fresh');
+document.getElementById('tutgo').onclick = () => { startRun(); G.tutor = true; document.body.classList.add('tut'); G.stage.startTut(); };
+document.getElementById('tutskip').onclick = () => endTut(false);
+// Кончилось или пропущено — настоящий забег с начала: счёт, часы и кодекс забега обнуляются
+function endTut(done) {
+  if (!G.tutor) return;
+  G.tutor = false; document.body.classList.remove('tut');
+  try { localStorage.setItem('proto.tut', '1'); } catch (e) { /* без хранилища */ }
+  G.stage.enter(); G.score = 0; G.knOf = null; G.runT0 = Date.now(); G.fx = []; mouse.down = false;
+  msg(done ? 'Обучение пройдено — теперь по-настоящему' : 'Обучение пропущено — начинаем', 2.5);
+}
 
 // ---------- цикл ----------
 function update(dt) {
