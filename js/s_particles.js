@@ -1144,9 +1144,9 @@ const Particles = {
     for (const r of this.ripples) r.t += dt;
     this.ripples = this.ripples.filter(r => r.t < 1.8);
     if (!live || this.ep !== 1 || this.higT < 0 || (this.ripCd -= dt) > 0) return;
-    // всплески поля рождают H, только когда это исследовано; долго не выходит руками — Вселенная помогает
-    if (!Codex.auto.has('H') && !(this.epT > 40 && !Codex.has('H'))) return;
-    this.ripCd = Codex.has('H') ? 5 : 2.4;
+    // всплески поля рождают H, только когда это исследовано: Вселенная умеет лишь то, что игрок создал сам
+    if (!Codex.auto.has('H')) return;
+    this.ripCd = 5;
     const a = Math.random() * TAU, d = rnd(this.hr() + .8, viewRadius() * .5);
     const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
     this.ripples.push({ x, y, t: 0 });
@@ -1161,6 +1161,7 @@ const Particles = {
     this.epClock = 0; this.epKn0 = this.kn; this.doneAt = null;
     this.newEpochState(i);
     if (i === 1) this.higgsOn();
+    if (i === 2) this.need2 = this.reachNeed2();
     if (i === 3) {
       this.wave = { n: 0, cd: 8, dir: null, cur: null };
       let ng = 0; for (const o of this.p) if (o.sp === 'g' && ++ng > G_MAX4) o.fade = 1; // глюоны прошлых эпох уходят
@@ -1180,22 +1181,23 @@ const Particles = {
       this.stars, place, this.upPts ? `★ ${this.upPts} — улучши детектор в лавке внизу` : '');
     Sfx.play('segment');
   },
-  // Горячая точка: мерцающее кольцо, через 1,6 с там рождается нужная тяжёлая частица
-  // Первое ещё не открытое звено цепочки поколений к sp (что открыть, чтобы sp стал доступен)
-  /** @param {string} sp @returns {string | null} */
-  genFirst(sp) {
-    for (const k of genNeed(sp)) { if (genOpen(k)) return k; const r = this.genFirst(k); if (r) return r; }
-    return null;
+  // Цели эпохи распадов, которые ещё можно выполнить: не созданное игроком и слишком тяжёлое для поля на холодном
+  // конце эпохи (t: 173 ГэВ при T ≈ 3 ГэВ) Вселенная за него не родит — такую цель меняем на другое звено цепочек
+  /** @returns {string[]} */
+  reachNeed2() {
+    const ok = (/** @type {string} */ sp) => Codex.has(sp) || SM[sp].m <= EPOCHS[2].floor * this.up('pow');
+    const keep = this.need2.filter(ok), spare = CHAINS.flat().filter(sp => ok(sp) && !keep.includes(sp));
+    while (keep.length < this.need2.length && spare.length) keep.push(/** @type {string} */ (spare.shift()));
+    return keep.sort((a, b) => (SM[a].gen ?? 0) - (SM[b].gen ?? 0));
   },
+  // Горячая точка: мерцающее кольцо, через 1,6 с там рождается нужная тяжёлая частица
   hotTarget() {
-    if (this.ep === 1 && this.hig >= 1 && this.epT > 50 && !Codex.has('W') && !Codex.has('Z')) return 'W'; // подсказка, если Z долго не выходит
-    // эпоха 3: тяжёлое у горячей точки рождает Вселенная — если исследовано «X сам», если руками его уже
-    // не сделать (порог выше максимума поля) или если распад долго не выходит
-    // поколение ещё закрыто — Вселенная помогает открыть недостающее лёгкое (его надо снять самому)
+    // эпоха 3: тяжёлое у горячей точки рождает Вселенная — только то, что игрок уже создал сам (есть в кодексе):
+    // если исследовано «X сам», если руками его уже не сделать (порог выше максимума поля) или распад долго не выходит.
+    // Не созданное игроком Вселенная не рождает — даже закрытое поколение открывает только он.
     if (this.ep === 2) for (const sp of this.need2) {
-      if (this.decSeen.has(sp)) continue;
-      const c = genOpen(sp) ? sp : this.genFirst(sp);
-      if (c && (Codex.auto.has(c) || 2 * this.mThr(c) > this.Emax() || this.epT > 45)) return c;
+      if (this.decSeen.has(sp) || !genOpen(sp) || !Codex.has(sp)) continue;
+      if (Codex.auto.has(sp) || 2 * this.mThr(sp) > this.Emax() || this.epT > 45) return sp;
     }
     return null;
   },

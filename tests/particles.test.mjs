@@ -117,12 +117,41 @@ test('счётчик «Поймано γ» растёт при поглощен�
   assert.deepEqual(json(g, 'G.stage.caught'), [1, 2, 1, 0]);
 });
 
-test('регрессия: «Распады» с закрытым поколением не падают (genFirst)', () => {
+// Вселенная умеет только то, что игрок создал сам: без его ударов тяжёлое (и закрытые поколения) в мире не появляется
+const HEAVY = ['H', 'W', 'Z', 't', 'b', 'c', 's', 'mu', 'ta'];
+function worldKinds(g, secs) {
+  return json(g, `(() => { const seen = new Set(); for (let i = 0; i < 60 * ${secs}; i++) { update(1 / 60); for (const o of G.stage.p) if (!o.dead) seen.add(o.sp); } return [...seen]; })()`);
+}
+
+test('Хиггс: H, Z, W сами не рождаются, пока игрок их не создал', () => {
   const g = toField();
-  g.ev(`['e', 'u', 'd', 'g', 'H', 'W', 'Z'].forEach(k => Codex.see(k)); const S = G.stage; S.ep = 2; S.hig = 1; S.T = 40; S.epT = 50; S.need2 = ['c', 'ta', 't']; S.epDone = false;`);
-  assert.equal(g.ev(`G.stage.genFirst('ta')`), 'mu');
-  assert.equal(g.ev(`G.stage.genFirst('t')`), 'c');
-  g.step(60 * 20, true); // раньше — TypeError на каждом кадре
+  g.ev(`['e', 'u', 'd', 'g'].forEach(k => Codex.see(k)); const S = G.stage; S.rs.g = 1; S.gOn = true; S.rs.coll = 1;
+    S.ep = 1; S.newEpochState(1); S.hig = 1; S.higT = 5; S.T = EPOCHS[1].floor * 1.5; S.epT = 60; S.epDone = false;`);
+  const kinds = worldKinds(g, 40);
+  assert.deepEqual(HEAVY.filter(sp => kinds.includes(sp)), [], `в мире: ${kinds}`);
+});
+
+test('Распады: закрытое поколение и не созданное тяжёлое Вселенная за игрока не рождает (и не падает)', () => {
+  const g = toField();
+  g.ev(`['e', 'u', 'd', 'g', 'H', 'W', 'Z'].forEach(k => Codex.see(k)); const S = G.stage; S.rs.coll = 1; S.ep = 2; S.hig = 1; S.T = 40; S.epT = 50; S.need2 = ['c', 'ta', 't']; S.epDone = false;`);
+  assert.equal(g.ev('G.stage.hotTarget()'), null);
+  const kinds = worldKinds(g, 20);
+  assert.deepEqual(['t', 'c', 's', 'mu', 'ta', 'b'].filter(sp => kinds.includes(sp)), [], `в мире: ${kinds}`);
+});
+
+test('Распады: созданное игроком тяжёлое Вселенная повторяет у горячей точки', () => {
+  const g = toField();
+  g.ev(`['e', 'u', 'd', 'g', 'c', 's', 't'].forEach(k => Codex.see(k)); const S = G.stage; S.ep = 2; S.hig = 1; S.T = 10; S.epT = 5; S.need2 = ['t']; S.epDone = false;`);
+  assert.equal(g.ev('G.stage.hotTarget()'), 't'); // руками уже не родить: 2·173 ГэВ больше поля
+});
+
+test('Распады: цель t, которого игрок не создал, меняется на выполнимую', () => {
+  const g = toField();
+  g.ev(`G.stage.need2 = ['b', 'mu', 't']`);
+  const n = json(g, 'G.stage.reachNeed2()');
+  assert.equal(n.length, 3); assert.ok(!n.includes('t'), String(n));
+  g.ev(`Codex.see('t')`);
+  assert.ok(json(g, 'G.stage.reachNeed2()').includes('t'));
 });
 
 test('обучение: такт → снимок → сбор → три удара → обычный забег', () => {
