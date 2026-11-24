@@ -674,8 +674,8 @@ const Particles = {
   // Порядок — приоритет (в панели только первые RES_MAX): то, что нужно для задания эпохи, — раньше
   resList() {
     if (!this.lit) return [];
-    if (this.ep === 3) return baryonTrios(this.stockQ) >= HAND_CP || this.rs.cp ? [{ k: 'cp', ic: '⚖', name: 'Асимметрия', cost: RES_COST.cp, about: () => 'Вселенная сама сберегает вещество' }] : [];
-    const ph = { k: 'ph', ic: 'γ', name: 'Свет сам', cost: RES_COST.ph, about: l => `γ ${Math.round(PH_DENS[l] * 100)}% → ${Math.round(PH_DENS[l + 1] * 100)}%` };
+    if (this.ep === 3) return baryonTrios(this.stockQ) >= HAND_CP || this.rs.cp ? [{ k: 'cp', ic: '⚖', name: 'Асимметрия', cost: RES_COST.cp, about: () => 'вещества чуть больше, чем антивещества' }] : [];
+    const ph = { k: 'ph', ic: 'γ', name: 'Свет', cost: RES_COST.ph, about: l => `γ ${Math.round(PH_DENS[l] * 100)}% → ${Math.round(PH_DENS[l + 1] * 100)}%` };
     const L = [];
     if (!this.rs.ph) L.push(ph);
     if (this.phSeen.size >= 3) L.push({ k: 'g', ic: 'g', name: 'Глюоны', cost: RES_COST.g, about: () => 'Вселенная рождает g' });
@@ -683,7 +683,7 @@ const Particles = {
     const need = this.ep === 2 ? this.need2 : this.ep === 0 ? this.need0 : ['H', 'Z', 'W'];
     const all = [...Codex.run].filter(sp => sp === 'H' || this.rs.coll > 0 && ((FERMIONS.includes(sp) && SM[sp].kind !== 'nu') || sp === 'W' || sp === 'Z'));
     for (const sp of [...all.filter(sp => need.includes(sp)), ...all.filter(sp => !need.includes(sp))])
-      L.push({ k: sp, ic: SM[sp].sym, name: `${SM[sp].sym} сам`, cost: [resNew(this.value(sp))], about: () => sp === 'H' ? 'всплески поля рождают H' : `столкновения рождают ${SM[sp].sym}` });
+      L.push({ k: sp, ic: SM[sp].sym, name: `Рождение ${SM[sp].sym}`, cost: [resNew(this.value(sp))], about: () => sp === 'H' ? 'всплески поля рождают H' : `столкновения рождают ${SM[sp].sym}` });
     if (this.rs.ph && this.ep === 0) L.push(ph);
     return L;
   },
@@ -723,7 +723,7 @@ const Particles = {
     else if (k !== 'ph' && k !== 'coll') Codex.auto.add(k);
     Codex.dirty = true;
     fxRing(P.x, P.y, this.hr(), GOLD, this.hr() * 1.8, .7);
-    this.float(P.x, P.y - this.hr() - .3, `${r.ic} ${k === 'ph' ? `свет ×${l}` : k === 'g' ? 'глюоны в мире' : k === 'coll' ? 'кванты сталкиваются сами' : k === 'cp' ? 'Вселенная сберегает вещество' : k === 'H' ? 'Вселенная рождает сама' : 'столкновения рождают ' + SM[k].sym}`, GOLD, 16);
+    this.float(P.x, P.y - this.hr() - .3, `${r.ic} ${k === 'ph' ? `свет ×${l}` : k === 'g' ? 'глюоны в мире' : k === 'coll' ? 'кванты сталкиваются сами' : k === 'cp' ? 'Вселенная сберегает вещество' : k === 'H' ? 'H рождается в мире' : 'столкновения рождают ' + SM[k].sym}`, GOLD, 16);
   },
   renderShop(el) {
     this._pk = this.taskRes();
@@ -916,7 +916,7 @@ const Particles = {
   // Итоги уровня для ненавязчивого экрана между уровнями
   tally() {
     const hand = baryonTrios(this.stockQ), auto = this.safe.length;
-    return { name: 'Частицы', rows: [['⏱ уровень', fmtClock(this.t)], ['✦ добыто', Math.round(this.kn)], ['тройки — руками', hand], ['тройки — Вселенная сама', auto]], auto: [auto, hand + auto], stars: this.stars };
+    return { name: 'Частицы', rows: [['⏱ уровень', fmtClock(this.t)], ['✦ добыто', Math.round(this.kn)], ['тройки — руками', hand], ['тройки — Вселенная', auto]], auto: [auto, hand + auto], stars: this.stars };
   },
   // Эпоха 4: кварки почти остановились (упрощение), антикварки ищут вещество — свободное или в детекторе
   drift4(o, dt) {
@@ -1079,7 +1079,7 @@ const Particles = {
     switch (this.ep) {
       case 0: return [
         { t: 'Раскачай поле, как качели', h: 'зажатое поле толкает шарик влево: держи, пока он катится влево, отпускай на краю. Каждый проход дна — свет; выше размах — горячее Вселенная', s: `${this.inf.pick ? this.inf.pick.n : ''} разогрев · ${fmtGeV(this.T0)}`, d: this.lit },
-        { t: 'Исследуй свет', h: `${buy('ph')} — Вселенная начнёт рождать γ сама`, s: 'свет рождается сам', d: this.rs.ph > 0, res: 'ph' },
+        { t: 'Исследуй свет', h: `${buy('ph')} — Вселенная начнёт светить`, s: 'свет', d: this.rs.ph > 0, res: 'ph' },
         { t: 'Измерь спектр', h: 'лови фотоны кругом — пойманный измерен; найди 3 класса из 4', items: PH_CLS.map((c, i) => [c.n, this.phSeen.has(i)]), s: 'спектр измерен', d: this.phSeen.size >= 3 },
         { t: this.gOn ? 'Сними глюон' : 'Исследуй глюоны', h: this.gOn ? 'глюоны уже в мире — поймай один' : `${buy('g')} — и сними глюон`, s: 'глюон открыт', d: has('g'), res: this.gOn ? null : 'g' },
         { t: 'Столкни кванты', h: 'зажми рядом с двумя волнами и отпусти', s: 'первое столкновение', d: this.pairs > 0 },
@@ -1094,14 +1094,14 @@ const Particles = {
       ];
       case 2: return this.need2.map(sp => ({ t: `Сними распад ${sym(sp)}`, h: !genOpen(sp) ? `сначала открой ${genNeed(sp).map(sym).join(' и ')} — поколения открываются по порядку: столкни кванты и сними`
         : Codex.auto.has(sp) ? `жди вспышку и ${tap} по золотой вершине следа`
-        : `сделай ${sym(sp)} столкновением (выше риски ${sym(sp)}) и ${tap} по вершине распада — или исследуй «${sym(sp)} сам»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? sp : null }));
+        : `сделай ${sym(sp)} столкновением (выше риски ${sym(sp)}) и ${tap} по вершине распада — или исследуй «Рождение ${sym(sp)}»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? sp : null }));
       default: {
         const t = baryonTrios(this.stockQ);
         const a = this.safe.length;
         return [{ t: `Собери ${TRIO_GOAL} ${TRIO_W} R·G·B`, h: 'лови кварки недостающего цвета; глюон в золотом кольце перекрасит лишний — зажми рядом, щит его втянет', p: [Math.min(t, TRIO_GOAL), TRIO_GOAL], s: `${TRIO_GOAL} ${TRIO_W}`, d: t >= TRIO_GOAL },
-          { t: 'Научи Вселенную сберегать вещество', h: this.rs.cp ? 'вещества чуть больше, чем антивещества: Вселенная сама сберегает тройки — зелёные, вокруг детектора'
+          { t: 'Научи Вселенную сберегать вещество', h: this.rs.cp ? 'Вселенная сберегает тройки — они зелёные, вокруг детектора'
             : t < HAND_CP ? `сначала ${HAND_CP} тройки руками — потом исследуй «⚖ Асимметрия»` : `исследуй «⚖ Асимметрия» ${buy('cp')}`,
-            p: [Math.min(a, AUTO_TRIO), AUTO_TRIO], s: 'Вселенная сберегает сама', d: a >= AUTO_TRIO, res: 'cp' }];
+            p: [Math.min(a, AUTO_TRIO), AUTO_TRIO], s: 'вещество сбережено', d: a >= AUTO_TRIO, res: 'cp' }];
       }
     }
   },
@@ -1542,7 +1542,7 @@ const Particles = {
       else if (I.good < 2) t = 'держи, пока катится влево · отпусти на краю';
       else if (I.A > .8 && !I.snaps) t = 'у красной черты — толкай короче';
     }
-    else if (this.ep === 0 && this.lit && !this.rs.ph) t = this.bal() >= 10 ? `клавиша ${this.keyOf('ph')} — свет сам` : null;
+    else if (this.ep === 0 && this.lit && !this.rs.ph) t = this.bal() >= 10 ? `клавиша ${this.keyOf('ph')} — свет` : null;
     else if (this.ep === 0 && this.phSeen.size >= 3 && !this.gOn) t = this.keyOf('g') && this.bal() >= RES_COST.g[0] ? `клавиша ${this.keyOf('g')} — исследуй глюоны` : `лови фотоны — ✦ на глюоны: ${this.bal()}/${RES_COST.g[0]}`;
     else if (this.enOn() && this.phSeen.size < 3) t = 'лови фотоны кругом — измерить';
     else if (this.enOn() && (!this.full || this.en < E_SHOT + .5)) t = 'лови фотоны — энергия';
@@ -1580,13 +1580,13 @@ const Particles = {
     else left = done ? `⏳ ${fmtClock(this.T > .4 ? EPOCHS[3].tau / 4 * Math.log(this.T / .4) : 0)}` : fmtClock(this.epClock);
     hudClock(alpha, left, col, this.bal(), []);
     if (!this.advanced) hudTask(alpha, this.tk, !this.lit && !this.ep ? 'ПРОЛОГ' : `ЭПОХА ${this.ep + 1}`, this.steps(), this.stars,
-      this.ep === 3 ? 'Вселенная научилась сама — остывает; лови ещё кварки: больше барионов на следующем уровне' : 'Готово!');
+      this.ep === 3 ? 'Вселенная остывает — лови ещё кварки, больше барионов на следующем уровне' : 'Готово!');
   },
   // Заголовок эпохи: всплывает и гаснет, игру не останавливает
   drawBanner(alpha) {
     if (!this.lit && !this.ep) return hudBanner(this.banner, 'ПРОЛОГ · 10⁻³² с', 'Разогрев', 'Инфляция кончилась — раскачай поле, как качели: его энергия станет светом', alpha);
     const E = EPOCHS[this.ep];
-    hudBanner(this.banner, `ЭПОХА ${this.ep + 1} · ${E.when}`, E.name, this.ep ? E.line : `${this.inf.pick ? this.inf.pick.n[0].toUpperCase() + this.inf.pick.n.slice(1) : ''} разогрев: ${fmtGeV(this.T0)}, света ×${this.heat.toFixed(1)} — научи её светить самой`, alpha);
+    hudBanner(this.banner, `ЭПОХА ${this.ep + 1} · ${E.when}`, E.name, this.ep ? E.line : `${this.inf.pick ? this.inf.pick.n[0].toUpperCase() + this.inf.pick.n.slice(1) : ''} разогрев: ${fmtGeV(this.T0)}, света ×${this.heat.toFixed(1)}`, alpha);
   },
   // Шкала разогрева внизу: сколько света набрано; три зоны — холодный, тёплый, горячий; над ней — сколько живёт поле
   drawHeat(alpha) {

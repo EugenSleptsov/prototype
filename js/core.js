@@ -253,7 +253,7 @@ const Tally = {
     const row = ([k, v, c = 'tx']) => `<div class="${c}"><span>${k}</span><b>${v}</b></div>`;
     const el = document.getElementById('tally');
     el.innerHTML = `<div class="tk">${kick}</div><div class="tn">${name}</div>` +
-      (auto != null ? `<div class="ta"><i style="width:${Math.round(auto * 100)}%"></i><span>Вселенная сама — ${Math.round(auto * 100)} %</span></div>` : '') +
+      (auto != null ? `<div class="ta"><i style="width:${Math.round(auto * 100)}%"></i><span>Вселенная — ${Math.round(auto * 100)} %</span></div>` : '') +
       rows.map(row).join('') +
       (stars && stars.length ? `<div class="ts">${stars.map(s => `<em class="${s.st === 1 ? 'y' : 'n'}">${s.st === 1 ? '★' : '✗'} ${s.t}</em>`).join('')}</div>` : '') +
       (place === 0 ? '<div class="tr">🏆 рекорд</div>' : place != null ? `<div class="tr">#${place + 1} в таблице</div>` : '') +

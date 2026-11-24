@@ -69,7 +69,7 @@ document.getElementById('tbar').addEventListener('pointerdown', e => {
 function touchBar() {
   if (!isTouch()) return;
   const s = G.stage, on = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
-  const hold = s.key === 'particles' || s.key === 'quarks' || s.key === 'nuclei';
+  const hold = s.key === 'particles' || s.key === 'quarks';
   on('act', G.started && hold && !G.paused);
   actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держи' : s.ep === 3 ? 'держи — щит' : 'тап — снимок · держи — поле') : 'держи — поле';
   on('t-ff', G.started && s.enterKey); on('t-dash', G.started && s.dash);
@@ -209,6 +209,7 @@ function hud() {
   touchBar();
   const shop = document.getElementById('shop');
   if (G.stage.renderShop) G.stage.renderShop(shop); else shop.style.display = 'none';
+  if (shop.style.display !== 'none' && isTouch()) document.getElementById('controls').style.display = 'none'; // лавка внизу — подсказку управления не накладываем
   h.laws.forEach(([, w], i) => { const el = document.getElementById('law' + i); if (el) el.style.width = (clamp(w, 0, 1) * 100).toFixed(0) + '%'; });
 }
 

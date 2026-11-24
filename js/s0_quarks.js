@@ -307,7 +307,7 @@ const Quarks = {
     if (this.doneAt === null && this.steps().every(g => g.d) && !this.q.some(o => o.cap)) {
       this.doneAt = this.clock; this.endCd = 1.4; this.release(); this.holding = false; this.asm = null;
       this.tickStars(true);
-      this.float(P.x, P.y - this.hr - .5, 'Вселенная собирает барионы сама ✓', [140, 235, 170], 17);
+      this.float(P.x, P.y - this.hr - .5, 'конфайнмент повсюду ✓', [140, 235, 170], 17);
     }
     if (this.doneAt === null) this.tickStars(false);
     if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; advance(); }
@@ -358,7 +358,7 @@ const Quarks = {
   },
   // исследование — в лавке ✦ (как на уровне частиц)
   bal() { return Math.floor(this.kn - this.spent); },
-  shopItems() { return this.handN >= HAND_Q && !this.rs.conf ? [{ ic: '◬', name: 'Конфайнмент сам', about: 'Вселенная собирает барионы', c: CONF_COST }] : []; },
+  shopItems() { return this.handN >= HAND_Q && !this.rs.conf ? [{ ic: '◬', name: 'Конфайнмент', about: 'барионы собираются повсюду', c: CONF_COST }] : []; },
   keyOf() { return this.shopItems().length ? 1 : null; },
   buy(i) {
     const it = this.shopItems()[i];
@@ -366,7 +366,7 @@ const Quarks = {
     if (this.bal() < it.c) { this.float(P.x, P.y - this.hr - .2, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
     this.spent += it.c; this.rs.conf = 1; this.asmCd = .6; Sfx.play('upgrade');
     fxRing(P.x, P.y, this.hr, GOLD, Q_WR, 1.4);
-    this.float(P.x, P.y - this.hr - .3, '◬ Вселенная собирает сама', GOLD, 16);
+    this.float(P.x, P.y - this.hr - .3, '◬ Конфайнмент', GOLD, 16);
   },
   renderShop(el) {
     const items = this.shopItems();
@@ -380,7 +380,7 @@ const Quarks = {
   },
   tally() {
     const n = this.made.p + this.made.n, self = n - this.handN;
-    return { name: 'Адроны', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['p⁺ · n⁰', `${this.made.p} · ${this.made.n}`], ['барионы — полем', this.handN], ['барионы — Вселенная сама', self]], auto: [self, n], stars: this.stars || [] };
+    return { name: 'Адроны', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['p⁺ · n⁰', `${this.made.p} · ${this.made.n}`], ['барионы — полем', this.handN], ['барионы — Вселенная', self]], auto: [self, n], stars: this.stars || [] };
   },
 
   // ---------- задание и испытания ★ ----------
@@ -402,8 +402,8 @@ const Quarks = {
     return [
       { t: 'Жди конфайнмента', h: 'плазма остывает — кварки вот-вот начнут слипаться…', s: 'конфайнмент', d: this.conf > .5 },
       { t: 'Собери барионы полем', h: 'зажми возле трёх кварков разных цветов — R, G и B', p: [Math.min(this.handN, HAND_Q), HAND_Q], s: `${HAND_Q} бариона полем`, d: this.handN >= HAND_Q },
-      { t: 'Исследуй «Конфайнмент сам»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${CONF_COST} ✦ — Вселенная начнёт собирать барионы сама`, s: 'конфайнмент сам', d: this.rs.conf > 0 },
-      { t: 'Вселенная собирает сама', h: 'кварки со всей Вселенной слипаются в p⁺ и n⁰ без тебя — помогай полем, если хочешь', p: [Math.min(this.autoN, AUTO_Q), AUTO_Q], s: 'Вселенная умеет сама', d: this.autoN >= AUTO_Q },
+      { t: 'Исследуй «Конфайнмент»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${CONF_COST} ✦`, s: 'конфайнмент', d: this.rs.conf > 0 },
+      { t: 'Барионы по всей Вселенной', h: 'кварки слипаются в p⁺ и n⁰ повсюду — помогай полем', p: [Math.min(this.autoN, AUTO_Q), AUTO_Q], s: 'конфайнмент повсюду', d: this.autoN >= AUTO_Q },
     ];
   },
 
@@ -542,7 +542,7 @@ const Quarks = {
     const n = this.made.p + this.made.n, all = n + this.spare();
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > Q_PAR ? [190, 190, 205] : [255, 255, 255], this.bal(), []);
     if (this.stars) hudTask(al, this.tk, 'УРОВЕНЬ 2', this.steps(), this.stars, `Собрано: ${n} p⁺/n⁰`);
-    hudBanner(this.banner, 'УРОВЕНЬ 2 · 10⁻⁶ с', 'Адроны', this.nSaved ? `${this.nSaved} сбережённых кварков → протоны и нейтроны — научи Вселенную делать это сама` : 'собери из кварков протоны и нейтроны — и научи Вселенную делать это сама', al);
+    hudBanner(this.banner, 'УРОВЕНЬ 2 · 10⁻⁶ с', 'Адроны', this.nSaved ? `${this.nSaved} сбережённых кварков → протоны и нейтроны` : 'собери из кварков протоны и нейтроны', al);
     ctx.globalAlpha = 1;
   },
   viewR() { return 3.6 + this.hr * 1.4; },

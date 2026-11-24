@@ -48,7 +48,7 @@ const Codex = {
     }).join('');
     const gc = genCur(), head = [1, 2, 3].map(g => `<div class="gh ${g < gc ? 'done' : g === gc ? 'cur' : ''}">${g < gc ? '✓ ' : ''}${GEN_N[g]}</div>`).join('') + '<div></div><div></div>';
     el.innerHTML = `<b>Стандартная модель · ${n}/17</b><div class="cxg">${head}${cells}</div>` +
-      (gc < 4 ? `<div class="gn">поколение ${GEN_N[gc]}${gc > 1 ? '' : ' — с него всё начинается'}</div>` : '<div class="gn">все три поколения</div>');
+      (gc < 4 ? `<div class="gn">поколение ${GEN_N[gc]}</div>` : '<div class="gn">все три поколения</div>');
   },
 };
 Codex.load();
