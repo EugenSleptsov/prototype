@@ -9,7 +9,9 @@
    Игра — по всему полю, своего атома нет. Рогатка: зажми атом или молекулу, оттяни, отпусти;
    взятое само поворачивается свободной связью по ходу броска, у цели свободная связь доворачивается навстречу.
    Цель — открывать соединения (вода, аммиак, метан…), потом учить Вселенную их делать:
-   исследование «Синтез H₂O» — Вселенная сама сводит подходящие куски воды, и т. д. */
+   исследование «Синтез H₂O» — Вселенная сама сводит подходящие куски воды, и т. д.
+   Мир без края: атомы — твои с прошлого уровня, на своих местах. Масштаб тут в M_U раз крупнее — мир растягивается,
+   а камера отъезжает ровно настолько же (rescale), так что на экране ничего не прыгает. Вселенная приносит атомы из-за края кадра. */
 const CHEM = {
   H: { r: 5.4, c: [235, 235, 240], s: [0], m: 1 },
   He: { r: 6, c: [220, 255, 255], s: [], m: 4 },
@@ -24,7 +26,7 @@ const CHEM = {
 };
 const TOL = .42, BREAK_V = 30;
 const EA = (x, y) => (x === 'H' && y === 'H') ? 1 : 2;
-const M_WR = 70, M_POP = 34, M_COST = 20;
+const M_U = 5, M_VIEW = 78, M_DENS = .0012, M_CAP = 60, M_COST = 20;
 // соединения из одинарных связей (двойные модель не умеет) — {f: формула, n: название, c: состав}
 const COMP = [
   { f: 'H₂', n: 'водород', c: { H: 2 } }, { f: 'H₂O', n: 'вода', c: { H: 2, O: 1 } }, { f: 'NH₃', n: 'аммиак', c: { N: 1, H: 3 } },
@@ -45,15 +47,21 @@ const Mols = {
     this.kn = 0; this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
     this.st = { bonds: 0, broke: 0, auto: 0, hand: 0 };
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
-    this.C = { x: P.x, y: P.y };
-    // атомы с прошлого уровня — на своих местах (масштаб другой: там поле ~13, тут ~70)
-    if (prev && prev.atoms) for (const a of prev.atoms) {
-      if (!CHEM[a.el]) continue;
-      const m = this.newMol(a.el, this.C.x + (a.x - this.C.x) * 5, this.C.y + (a.y - this.C.y) * 5); m.age = 0;
+    // атомы с прошлого уровня — на своих местах: мир растягивается в M_U раз, камера — во столько же отъезжает
+    if (prev && prev.ions) {
+      rescale(M_U, P.x, P.y, []);
+      for (const io of prev.ions) {
+        const el = atSym(io.Z); if (!CHEM[el] || io.dead) continue;
+        const m = this.newMol(el, P.x + (io.x - P.x) * M_U, P.y + (io.y - P.y) * M_U);
+        m.vx = io.vx * M_U; m.vy = io.vy * M_U; m.age = 1; m.mine = true; m.src = io;
+      }
     }
-    for (const [el, n] of [['C', 3], ['N', 2], ['O', 3]]) // без углерода не будет ни метана, ни спиртов
-      for (let k = this.m.filter(m => m.atoms.length === 1 && m.atoms[0].el === el).length; k < n; k++) this.spawn(true, el);
-    while (this.m.length < M_POP) this.spawn(true);
+    // остальное — Вселенная за краем кадра (с нуля — и в кадре); без углерода не будет ни метана, ни спиртов
+    const z1 = zoomFor(this), want = popWant(M_DENS, M_CAP, z1);
+    for (let k = 0; this.m.length < want && k < want * 3; k++) {
+      const at = beyondPos(z1, 12, !prev); if (!at) continue;
+      const mol = this.newMol(this.needEl(), at[0], at[1]); mol.vx = randn() * 4; mol.vy = randn() * 4; mol.age = 1;
+    }
     this.stars = pickStars(this.starPool());
     this.sl = new Sling(this);
   },
@@ -112,14 +120,26 @@ const Mols = {
   },
   newMol(el, x, y) {
     const d = CHEM[el];
-    const mol = { atoms: [{ el, lx: 0, ly: 0, base: Math.random() * TAU, b: d.s.map(() => -1) }], bonds: [], x, y, a: 0, vx: 0, vy: 0, w: randn() * .5, m: 1, I: 1, R: d.r, age: 0, dead: false, wp: null, hand: 0, auto: 0 };
+    const mol = { atoms: [{ el, lx: 0, ly: 0, base: Math.random() * TAU, b: d.s.map(() => -1) }], bonds: [], x, y, a: 0, vx: 0, vy: 0, w: randn() * .5, m: 1, I: 1, R: d.r, age: 0, dead: false, wp: null, hand: 0, auto: 0, mine: false, src: null };
     this.recompute(mol); this.m.push(mol); return mol;
   },
-  spawn(any, el) {
-    const a = Math.random() * TAU, d = any ? M_WR * Math.sqrt(Math.random()) * .95 : M_WR * 1.05;
-    const r = Math.random(); el = el || (r < .6 ? 'H' : r < .75 ? 'O' : r < .88 ? 'C' : 'N'); // водорода больше всех: он нужен почти в каждом соединении
-    const mol = this.newMol(el, this.C.x + Math.cos(a) * d, this.C.y + Math.sin(a) * d);
-    mol.vx = randn() * 4 - (any ? 0 : Math.cos(a) * 6); mol.vy = randn() * 4 - (any ? 0 : Math.sin(a) * 6); mol.age = any ? 1 : 0;
+  // какой атом принести: чего из нужного в кадре нет — то и несёт; иначе водорода больше всех (он почти в каждом соединении)
+  needEl() {
+    const one = el => this.m.filter(m => m.atoms.length === 1 && m.atoms[0].el === el && inView(m.x, m.y, 20)).length;
+    const need = [['C', 2], ['N', 2], ['O', 3], ['H', 10]].find(([el, n]) => one(el) < n);
+    if (need) return need[0];
+    const r = Math.random(); return r < .6 ? 'H' : r < .75 ? 'O' : r < .88 ? 'C' : 'N';
+  },
+  // Вселенная вокруг: не хватает в кадре — одиночный атом из-за края; чужое вдали растворяется
+  tide(dt) {
+    for (const m of this.m) if (!m.mine && !m.held && !(m.hand > 0) && farOff(m, 1.6)) m.dead = true;
+    this.m = this.m.filter(m => !m.dead);
+    if (this.doneAt !== null) return;
+    const have = this.m.filter(m => inView(m.x, m.y, 10)).length;
+    if (have < popWant(M_DENS, M_CAP) && Math.random() < dt * 3) {
+      const r = rimPos(14), mol = this.newMol(this.needEl(), r.x, r.y), sp = rnd(4, 8);
+      mol.vx = r.nx * sp + randn() * 3; mol.vy = r.ny * sp + randn() * 3; mol.age = 0;
+    }
   },
   recompute(mol) {
     let M = 0, cx = 0, cy = 0;
@@ -150,7 +170,7 @@ const Mols = {
   // связь возникла: насыщенная молекула из каталога — открытие
   afterMerge(host, src, x, y) {
     host.hand = 0; host.auto = 0;
-    if (src === 'hand') { this.st.bonds++; addScore(40); if (this.st.bonds === 1) msg('Ковалентная связь: общая пара электронов'); }
+    if (src === 'hand') { host.mine = true; this.st.bonds++; addScore(40); if (this.st.bonds === 1) msg('Ковалентная связь: общая пара электронов'); }
     if (this.freeSlots(host)) return;
     const cp = COMP_BY[ckey(this.counts(host))];
     if (!cp) return;
@@ -217,7 +237,7 @@ const Mols = {
     const mK = new Map(idxK.map((o, n) => [o, n])), mO = new Map(idxO.map((o, n) => [o, n]));
     const remap = (a, mp) => ({ ...a, b: a.b.map(x => x < 0 ? -1 : mp.get(x)) });
     const other = { atoms: idxO.map(o => remap(mol.atoms[o], mO)), bonds: mol.bonds.filter(b => mO.has(b[0])).map(b => [mO.get(b[0]), mO.get(b[1]), b[2], b[3]]),
-      x: mol.x, y: mol.y, a: mol.a, vx: mol.vx, vy: mol.vy, w: mol.w, m: 1, I: 1, R: 1, age: 1, dead: false, wp: null, hand: 0, auto: 0 };
+      x: mol.x, y: mol.y, a: mol.a, vx: mol.vx, vy: mol.vy, w: mol.w, m: 1, I: 1, R: 1, age: 1, dead: false, wp: null, hand: 0, auto: 0, mine: mol.mine, src: null };
     mol.atoms = idxK.map(o => remap(mol.atoms[o], mK));
     mol.bonds = mol.bonds.filter(b => mK.has(b[0])).map(b => [mK.get(b[0]), mK.get(b[1]), b[2], b[3]]);
     this.recompute(mol); this.recompute(other);
@@ -314,7 +334,7 @@ const Mols = {
     if (!this.res.size || (this.autoCd -= dt) > 0) return;
     this.autoCd = 1.2;
     const goals = COMP.filter(x => this.res.has(x.f));
-    const f = this.m.filter(m => !m.dead && !m.held && m.age > 1 && !(m.hand > 0) && !(m.auto > 0) && this.freeSlots(m));
+    const f = this.m.filter(m => !m.dead && !m.held && m.age > 1 && !(m.hand > 0) && !(m.auto > 0) && this.freeSlots(m) && inView(m.x, m.y, -5));
     let best = null, bs = -Infinity;
     for (const g of goals) for (let i = 0; i < f.length; i++) {
       const ca = this.counts(f[i]); if (!fits(ca, g.c)) continue;
@@ -351,23 +371,17 @@ const Mols = {
       else {
         const j = 3.2 * Math.sqrt(dt); mol.vx += randn() * j; mol.vy += randn() * j; mol.w += randn() * .6 * Math.sqrt(dt);
         const dr = Math.exp(-dt * .3); mol.vx *= dr; mol.vy *= dr; mol.w *= dr;
-        const dx = mol.x - this.C.x, dy = mol.y - this.C.y, d = Math.hypot(dx, dy);
-        if (d > M_WR) { mol.vx -= dx / d * 20 * dt; mol.vy -= dy / d * 20 * dt; }
       }
       mol.x += mol.vx * dt; mol.y += mol.vy * dt; mol.a += mol.w * dt;
       mol.wp = mol.atoms.map((_, i) => this.wpos(mol, i));
+      if (mol.src && G.prev) { const [px, py] = toPrev(mol.x, mol.y); mol.src.x = px; mol.src.y = py; mol.src.vx = mol.src.vy = 0; } // атом прошлого уровня гаснет там же
     }
     if (act) this.magnet(dt);
     this.collide();
     if (!live) return;
     if (this.doneAt === null) {
       this.autoChem(dt);
-      // приток одиночных атомов, чтобы было из чего строить
-      const one = el => this.m.filter(m => m.atoms.length === 1 && m.atoms[0].el === el).length;
-      if (this.m.length < 50 && Math.random() < dt * 2) {
-        const need = [['C', 2], ['N', 2], ['O', 3], ['H', 12]].find(([el, n]) => one(el) < n);
-        if (need) this.spawn(false, need[0]);
-      }
+      this.tide(dt);
       this.tickStars(false);
       if (this.steps().every(s => s.d)) {
         this.doneAt = this.clock; this.tickStars(true);
@@ -470,6 +484,6 @@ const Mols = {
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },
-  viewR() { return M_WR + 8; },
+  viewR() { return M_VIEW; },
   hud() { return { title: '', sub: 'T ≈ 300 K', lines: [], goal: '', laws: [] }; },
 };

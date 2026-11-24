@@ -7,7 +7,7 @@ const TRANS_DUR = 3;
 function advance() {
   if (G.stageI >= STAGES.length - 1) return;
   Tally.show(G.stage);
-  G.prev = G.stage; G.stageI++; G.stage = STAGES[G.stageI]; G.trans = 0; Sfx.hum(0); Sfx.play('segment');
+  G.prev = G.stage; G.stageI++; G.stage = STAGES[G.stageI]; G.trans = 0; G.prevU = { s: 1, ox: 0, oy: 0 }; Sfx.hum(0); Sfx.play('segment');
   G.stage.enter(G.prev); G.stage.scoreAt = G.score;
 }
 function endGame(text) {
@@ -162,7 +162,7 @@ function update(dt) {
   tickCard(dt);
   for (const f of G.fx) f.t += dt;
   G.fx = G.fx.filter(f => f.t < f.dur);
-  const tz = Math.max(100, Math.min(G.W, G.H)) / 2 / G.stage.viewR() * (G.zoom || 1);
+  const tz = zoomFor(G.stage);
   cam.z = Math.exp(lerp(Math.log(cam.z), Math.log(tz), 1 - Math.exp(-dt * 1.8)));
   cam.x += (P.x - cam.x) * Math.min(1, dt * 4); cam.y += (P.y - cam.y) * Math.min(1, dt * 4);
   if (msgT > 0 && (msgT -= dt) <= 0) document.getElementById('msg').style.opacity = 0;
@@ -212,14 +212,15 @@ function render() {
   g.addColorStop(0, rgb(mixc(bg, [255, 255, 255], .06))); g.addColorStop(1, rgb(mixc(bg, [0, 0, 0], .6)));
   ctx.fillStyle = g; ctx.fillRect(0, 0, G.W, G.H);
   drawDust(bg);
-  if (G.prev) G.prev.draw(1 - k);
+  const pv = G.prev; // уходящий этап — в своих единицах (переход мог сменить масштаб)
+  if (pv) withPrevCam(() => pv.draw(1 - k));
   G.stage.draw(k);
   ctx.globalAlpha = 1;
-  if (G.prev) G.prev.drawPlayer(1 - k);
+  if (pv) withPrevCam(() => pv.drawPlayer(1 - k));
   G.stage.drawPlayer(k);
   ctx.globalAlpha = 1;
   drawFx();
-  if (G.prev && G.prev.overlay) G.prev.overlay(1 - k);
+  if (pv && pv.overlay) withPrevCam(() => pv.overlay && pv.overlay(1 - k));
   if (G.stage.overlay) G.stage.overlay(k);
   ctx.globalAlpha = 1;
   drawLadder(k);

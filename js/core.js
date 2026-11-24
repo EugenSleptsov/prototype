@@ -10,7 +10,9 @@ const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0,
   taskY: 0, taskAt: /** @type {number | undefined} */ (undefined),
   /** заводит main.js: масштаб щипком/колесом, начало забега, идёт обучение, ✦ уже обращённые в очки (у какого этапа), лестница */
   zoom: 1, runT0: 0, tutor: false, knOf: /** @type {Stage | null} */ (null), knSeen: 0,
-  ladP: /** @type {number | null} */ (null), ladT: /** @type {number | undefined} */ (undefined) };
+  ladP: /** @type {number | null} */ (null), ladT: /** @type {number | undefined} */ (undefined),
+  /** единицы уходящего этапа: x_prev = x·s + ox (на переходе со сменой масштаба, см. rescale) */
+  prevU: { s: 1, ox: 0, oy: 0 } };
 // Очки — только для счёта: копятся весь забег, не тратятся (✦ — валюта уровня, её тратят на исследования).
 // Каждый добытый ✦ приносит 10 очков (main.js следит за kn уровня); прочее — addScore.
 /** @param {number} n */
@@ -75,6 +77,58 @@ function tickPan(dt) {
 }
 // Полная резинка рогатки (px на экране): длиннее — точнее; на маленьком экране — сколько помещается
 const slingFullPx = () => clamp(Math.min(G.W, G.H) * .42, 170, 340);
+
+// ---------- бесконечный мир: Вселенная вокруг игрока ----------
+// У каждого этапа свой масштаб, но мир везде один и без края. Вещество Вселенной приходит из-за края кадра — оттуда,
+// где игрок его не видит, — а чужое далеко за краем растворяется. Своё (mine: твоё или выкованное тобой) не исчезает.
+/** половина кадра в мире при масштабе z @param {number} [z] @returns {[number, number]} */
+const halfView = (z = cam.z) => [G.W / 2 / z, G.H / 2 / z];
+/** масштаб, к которому камера тянется на этапе @param {Stage} st */
+const zoomFor = st => Math.max(100, Math.min(G.W, G.H)) / 2 / st.viewR() * (G.zoom || 1);
+/** точка в кадре (с запасом m мировых единиц) @param {number} x @param {number} y @param {number} [m] */
+const inView = (x, y, m = 0) => { const [hw, hh] = halfView(); return Math.abs(x - cam.x) < hw + m && Math.abs(y - cam.y) < hh + m; };
+/** сколько тел держать в кадре: плотность (на единицу площади) × площадь кадра, но не больше cap @param {number} dens @param {number} cap @param {number} [z] */
+const popWant = (dens, cap, z) => { const [hw, hh] = halfView(z); return Math.min(cap, Math.round(dens * 4 * hw * hh)); };
+/** далеко за краем — тут чужое растворяется @param {{ x: number, y: number }} o @param {number} [k] */
+const farOff = (o, k = 1.6) => Math.hypot(o.x - cam.x, o.y - cam.y) > viewRadius() * k;
+/** точка сразу за краем кадра (запас m; z — масштаб кадра, по умолчанию нынешний) и направление внутрь
+ * @param {number} m @param {number} [z] @returns {{ x: number, y: number, nx: number, ny: number }} */
+function rimPos(m, z) {
+  const [hw, hh] = halfView(z), s = Math.random() < .5 ? -1 : 1;
+  if (Math.random() * (hw + hh) < hw) return { x: cam.x + rnd(-hw, hw), y: cam.y + s * (hh + m), nx: 0, ny: -s };
+  return { x: cam.x + s * (hw + m), y: cam.y + rnd(-hh, hh), nx: -s, ny: 0 };
+}
+/** Точка в кадре будущего масштаба z1, но за краем нынешнего: туда Вселенная кладёт вещество заранее,
+ * и камера, отъезжая, его открывает. anywhere — и в нынешнем кадре (запуск этапа с нуля) @param {number} z1 @param {number} m @param {boolean} [anywhere] @returns {[number, number] | null} */
+function beyondPos(z1, m, anywhere) {
+  const [hw, hh] = halfView(z1);
+  for (let i = 0; i < 12; i++) {
+    const x = cam.x + rnd(-hw - m, hw + m), y = cam.y + rnd(-hh - m, hh + m);
+    if (anywhere || !inView(x, y, m)) return [x, y];
+  }
+  return null;
+}
+/** Чужое далеко за краем растворяется (dead), своё и занятое (keep) — нет @template {{ x: number, y: number, mine?: boolean, dead?: boolean }} T
+ * @param {T[]} arr @param {(o: T) => boolean} [keep] */
+function dissolveFar(arr, keep) { for (const o of arr) if (!o.mine && !o.dead && farOff(o) && !(keep && keep(o))) o.dead = true; }
+/** Смена масштаба: мир вокруг (cx, cy) растягивается в U раз, а камера — в 1/U, и на экране ничего не прыгает;
+ * дальше камера плавно едет к масштабу этапа. Уходящий этап рисуется в своих прежних единицах (G.prevU)
+ * @param {number} U @param {number} cx @param {number} cy @param {Array<Array<{ x: number, y: number, vx?: number, vy?: number }>>} lists */
+function rescale(U, cx, cy, lists) {
+  const f = (/** @type {{ x: number, y: number }} */ o) => { o.x = cx + (o.x - cx) * U; o.y = cy + (o.y - cy) * U; };
+  for (const arr of lists) for (const o of arr) { f(o); if (o.vx != null && o.vy != null) { o.vx *= U; o.vy *= U; } }
+  f(cam); f(P); cam.z /= U; P.vx *= U; P.vy *= U;
+  for (const fx of G.fx) { f(fx); fx.r0 *= U; fx.r1 *= U; }
+  const u = G.prevU; u.ox += cx * (1 - 1 / U) * u.s; u.oy += cy * (1 - 1 / U) * u.s; u.s /= U;
+}
+/** точка мира в единицах уходящего этапа @param {number} x @param {number} y @returns {[number, number]} */
+const toPrev = (x, y) => [x * G.prevU.s + G.prevU.ox, y * G.prevU.s + G.prevU.oy];
+/** нарисовать уходящий этап его же камерой (в его единицах) @param {() => void} fn */
+function withPrevCam(fn) {
+  const { s, ox, oy } = G.prevU, x = cam.x, y = cam.y, z = cam.z;
+  cam.x = x * s + ox; cam.y = y * s + oy; cam.z = z / s;
+  try { fn(); } finally { cam.x = x; cam.y = y; cam.z = z; }
+}
 
 // ---------- эффекты ----------
 /** @param {number} x @param {number} y @param {number} r0 @param {RGB} c @param {number} [r1] @param {number} [dur] */

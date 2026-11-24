@@ -16,13 +16,14 @@
    - свободный нейтрон распадается (n → p + e⁻ + ν̄) — у него видна дуга оставшейся жизни;
    - нейтроны сами липнут к ядрам (барьера нет), когда ты уже сделал первую реакцию;
    - исследование «Нуклеосинтез»: Вселенная бросает ядра — с тем же барьером и той же хрупкостью;
-   - окно синтеза ~2 минуты: Вселенная остывает, и реакции прекращаются. */
+   - окно синтеза ~2 минуты: Вселенная остывает, и реакции прекращаются.
+   Мир без края: Вселенная приносит протоны и нейтроны из-за края кадра, чужое вдали растворяется (core.js). */
 const ELEM = [['n', 'Нейтрон', 0], ['H', 'Водород', 1], ['He', 'Гелий', 0], ['Li', 'Литий', 1], ['Be', 'Бериллий', 2], ['B', 'Бор', 3],
   ['C', 'Углерод', 4], ['N', 'Азот', 3], ['O', 'Кислород', 2], ['F', 'Фтор', 1], ['Ne', 'Неон', 0], ['Na', 'Натрий', 1], ['Mg', 'Магний', 2]];
 const elemOf = Z => ELEM[clamp(Z, 0, ELEM.length - 1)];
 const NR = .8; // радиус нуклона в масштабе уровня атомов (части ядра передаются туда)
 // N_FLY — сколько летит брошенное (минимум), N_REACH — сколько оно пролетает самое меньшее: мягкий бросок летит дольше и долетает
-const NU_R = .42, N_WIN = 120, N_PAR = 75, N_WR = 7.5, N_POP = 24, N_FLY = 1.3, N_REACH = 11, N_VMAX = 15, SYN_COST = 30, Y_GOAL = .25;
+const NU_R = .42, N_WIN = 120, N_PAR = 75, N_VIEW = 9, N_DENS = .075, N_CAP = 60, N_FLY = 1.3, N_REACH = 11, N_VMAX = 15, SYN_COST = 30, Y_GOAL = .25;
 const NUC_NAME = {
   '1,0': ['p', 'протон'], '0,1': ['n', 'нейтрон'], '1,1': ['²H', 'дейтерий'], '1,2': ['³H', 'тритий'], '2,1': ['³He', 'гелий-3'],
   '2,2': ['⁴He', 'гелий-4'], '3,3': ['⁶Li', 'литий-6'], '3,4': ['⁷Li', 'литий-7'], '4,3': ['⁷Be', 'бериллий-7'],
@@ -45,23 +46,19 @@ const Nuclei = {
     this.hr = prev && prev.hr != null ? (typeof prev.hr === 'function' ? prev.hr() : prev.hr) : 1.4;
     P.vx = P.vy = 0;
     if (!prev) P.x = P.y = 0;
-    this.C = { x: P.x, y: P.y };
     // барионы уровня адронов становятся нуклонами там же, где были
     if (prev && prev.groups) for (const grp of prev.groups.values()) {
       if (grp.kind !== 'p' && grp.kind !== 'n') continue;
       const c = centroid(grp.m), v = grp.m.reduce((s, q) => [s[0] + q.vx / 3, s[1] + q.vy / 3], [0, 0]);
       const o = this.mk(grp.kind === 'p' ? 1 : 0, grp.kind === 'n' ? 1 : 0, c.x, c.y, v[0], v[1]); o.src = grp; o.mine = true;
     }
-    // остальная Вселенная — до N_POP нуклонов; нейтронов — четверть
-    const nWant = Math.round(N_POP / 4), need = Math.max(4, N_POP - this.o.length);
-    let nn = this.o.filter(o => o.N).length;
-    for (let i = 0; i < need; i++) {
-      const left = need - i, isN = nn < nWant && (left <= nWant - nn || Math.random() < .35);
-      if (isN) nn++;
-      const a = Math.random() * TAU, d = N_WR * Math.sqrt(Math.random()) * .95;
-      const o = this.mk(isN ? 0 : 1, isN ? 1 : 0, this.C.x + Math.cos(a) * d, this.C.y + Math.sin(a) * d, randn() * .4, randn() * .4);
-      o.age = -Math.random() * 1.5; // проявляются из тумана
+    // остальная Вселенная — за краем кадра: камера отъедет к масштабу ядер и откроет её (с нуля — она и в кадре, из тумана)
+    const z1 = zoomFor(this), want = popWant(N_DENS, N_CAP, z1);
+    for (let i = this.o.length, k = 0; i < want && k < want * 3; k++) {
+      const at = beyondPos(z1, .5, !prev); if (!at) continue;
+      const o = this.cosmic(at[0], at[1], randn() * .4, randn() * .4); o.age = prev ? 1 : -Math.random() * 1.5; i++;
     }
+    if (this.o.filter(o => o.N).length < 3) for (let i = 0; i < 3; i++) { const at = beyondPos(z1, .5, true); if (at) this.mk(0, 1, at[0], at[1]).age = prev ? 1 : -Math.random(); }
     this.nB = this.o.length; this.nN = this.o.filter(o => o.N).length;
     for (const o of this.o) if (o.N) o.life = rnd(70, 100);
     for (const o of this.o) { this.seen.add(nkey(o)); Codex.note('n:' + nkey(o)); }
@@ -69,6 +66,25 @@ const Nuclei = {
     this.sl = new Sling(this);
   },
   float(x, y, txt, c = [140, 220, 255], sz = 13) { this.floats.push({ x, y, t: 0, txt, c, sz }); },
+  // вещество Вселенной: на нейтрон — три протона (свободные нейтроны со временем распадаются, их всё меньше);
+  // после «Нуклеосинтеза» гелий рождается повсюду — и приходит уже с той же долей, что вокруг тебя
+  cosmic(x, y, vx, vy) {
+    if (this.rs.syn && Math.random() < this.Y()) return this.mk(2, 2, x, y, vx, vy);
+    const isN = Math.random() < .25 * Math.exp(-this.t / 150), o = this.mk(isN ? 0 : 1, isN ? 1 : 0, x, y, vx, vy);
+    if (isN) o.life = rnd(60, 100);
+    return o;
+  },
+  // Вселенная вокруг: не хватает в кадре — приходит из-за края; чужое далеко за краем растворяется
+  tide(dt) {
+    dissolveFar(this.o, o => o.held || o.fly > 0);
+    this.el = this.el.filter(e => !farOff(e));
+    if (this.doneAt !== null) return;
+    const have = this.o.filter(o => !o.dead && inView(o.x, o.y, 1)).length;
+    if (have < popWant(N_DENS, N_CAP) && Math.random() < dt * 6) {
+      const r = rimPos(.6), sp = rnd(1, 2.2);
+      const o = this.cosmic(r.x, r.y, r.nx * sp + randn() * .4, r.ny * sp + randn() * .4); o.age = 0;
+    }
+  },
   // ядро: Z протонов, N нейтронов; нуклоны уложены спиралью
   mk(Z, N, x, y, vx = 0, vy = 0) {
     const A = Z + N, parts = [];
@@ -171,7 +187,7 @@ const Nuclei = {
     r.out.forEach(([Z, N], i) => {
       const an = a0 + i * TAU / n, sp = n > 1 ? 2.4 : 0, off = n > 1 ? .3 : 0;
       const o = this.mk(Z, N, x + Math.cos(an) * off, y + Math.sin(an) * off, vx + Math.cos(an) * sp, vy + Math.sin(an) * sp);
-      o.age = 1; o.nb = .8; o.mine = a.mine || b.mine; if (Z === 0) o.life = Math.min(a.life, b.life, rnd(50, 70));
+      o.age = 1; o.nb = .8; o.mine = true; if (Z === 0) o.life = Math.min(a.life, b.life, rnd(50, 70));
       if (Z === 2 && N === 2) { if (src === 'hand') this.he.hand++; else this.he.auto++; }
       this.made(o, i);
     });
@@ -228,7 +244,7 @@ const Nuclei = {
   autoFuse(dt) {
     if (!this.rs.syn || this.doneAt !== null || (this.autoCd -= dt) > 0) return;
     this.autoCd = 1.8 / Math.max(.35, this.T());
-    const f = this.o.filter(o => this.free(o) && o.age > 1 && o.nb <= 0);
+    const f = this.o.filter(o => this.free(o) && o.age > 1 && o.nb <= 0 && inView(o.x, o.y, -1)); // на виду — чтобы было видно, как Вселенная куёт
     let best = null, bs = -Infinity;
     for (let i = 0; i < f.length; i++) for (let j = i + 1; j < f.length; j++) {
       const a = f[i], b = f[j], d = Math.hypot(a.x - b.x, a.y - b.y);
@@ -298,8 +314,6 @@ const Nuclei = {
       else {
         const j = (.25 + .45 * Tn) * Math.sqrt(dt); o.vx += randn() * j; o.vy += randn() * j;
         const k = Math.exp(-dt * .9); o.vx *= k; o.vy *= k;
-        const dx = o.x - this.C.x, dy = o.y - this.C.y, d = Math.hypot(dx, dy);
-        if (d > N_WR) { o.vx -= dx / d * 5 * dt; o.vy -= dy / d * 5 * dt; }
       }
       o.x += o.vx * dt; o.y += o.vy * dt;
       if (act && o.Z === 0 && o.N === 1 && (o.life -= dt) <= 0) this.decayN(o);
@@ -313,6 +327,7 @@ const Nuclei = {
         }
       }
       if (this.doneAt === null) { this.spontaneous(dt); this.autoFuse(dt); }
+      this.tide(dt);
     }
     this.o = this.o.filter(o => !o.dead);
     if (!live) return;
@@ -324,17 +339,17 @@ const Nuclei = {
       if (!goal) this.float(P.x, P.y - 2, this.t > N_WIN ? 'остыло — синтез окончен' : 'нейтронов больше нет — синтез окончен', [200, 210, 240], 16);
       this.tickStars(true);
     }
-    if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; addScore(this.Y() * 2000); this.handoff(); advance(); } // итоги — сбоку, без паузы
+    if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; addScore(this.Y() * 2000); advance(); } // звёздам — твои же ядра, на тех же местах // итоги — сбоку, без паузы
   },
   counts() {
     const c = { n: 0, mid: 0, he: 0, p: 0, he3: 0 };
     for (const o of this.o) { const k = nkey(o); if (k === '0,1') c.n++; else if (k === '1,0') c.p++; else if (k === '2,2') c.he++; else if (N_BIND[k]) { c.mid++; if (k === '2,1') c.he3++; } }
     return c;
   },
-  // гелию больше не из чего взяться: нет свободных нейтронов, ²H, ³H и пары ³He
-  stuck() { const c = this.counts(); return c.n === 0 && c.mid - c.he3 === 0 && c.he3 < 2; },
-  // доля массы в гелии-4 и всём, что из него выросло (³He не в счёт — он ещё «недостроен»)
-  Y() { let m = 0; for (const o of this.o) if (o.Z >= 2 && o.Z + o.N >= 4) m += o.Z + o.N; return m / Math.max(1, this.nB); },
+  // гелию больше не из чего взяться: нет свободных нейтронов, ²H, ³H и пары ³He — и Вселенная почти не приносит нейтронов
+  stuck() { const c = this.counts(); return .25 * Math.exp(-this.t / 150) < .05 && c.n === 0 && c.mid - c.he3 === 0 && c.he3 < 2; },
+  // доля массы в гелии-4 и всём, что из него выросло (³He не в счёт — он ещё «недостроен»), среди всех ядер вокруг
+  Y() { let m = 0, all = 0; for (const o of this.o) { all += o.Z + o.N; if (o.Z >= 2 && o.Z + o.N >= 4) m += o.Z + o.N; } return m / Math.max(1, all); },
 
   // ---------- исследование — в лавке ✦ ----------
   bal() { return Math.floor(this.kn - this.spent); },
@@ -345,7 +360,7 @@ const Nuclei = {
     if (!it || !G.started || G.paused) return;
     if (this.bal() < it.c) { this.float(P.x, P.y - 1.5, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
     this.spent += it.c; this.rs.syn = 1; this.autoCd = .5; Sfx.play('upgrade');
-    fxRing(P.x, P.y, 1, GOLD, N_WR, 1.4);
+    fxRing(P.x, P.y, 1, GOLD, viewRadius() * .8, 1.4);
     this.float(P.x, P.y - 1.5, '☀ Нуклеосинтез', GOLD, 16);
   },
   renderShop(el) {
@@ -387,15 +402,6 @@ const Nuclei = {
   tally() {
     const c = this.counts(), n = this.he.hand + this.he.auto;
     return { name: 'Ядра', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['гелий по массе', Math.round(this.Y() * 100) + ' %'], ['⁴He — рогаткой', this.he.hand], ['⁴He — Вселенная', this.he.auto], ['водород p', c.p]], auto: [this.he.auto, n], stars: this.stars };
-  },
-  // Атомам: твоё ядро — самое тяжёлое с химией (Li, Be), иначе водород; остальные ядра — ионы вокруг
-  handoff() {
-    const pick = [...this.o].filter(o => elemOf(o.Z)[2] > 0).sort((a, b) => b.Z - a.Z || b.N - a.N)[0];
-    const Z = pick ? pick.Z : 1, N = pick ? pick.N : 0, parts = [];
-    for (let k = 0; k < Z + N; k++) { const a = k * 2.4, r = .9 * Math.sqrt(k); parts.push({ t: k < Z ? 'p' : 'n', lx: Math.cos(a) * r, ly: Math.sin(a) * r }); }
-    this.nuc = { Z, N, parts };
-    this.e = this.o.filter(o => o !== pick && o.Z > 0).map(o => ({ type: o.Z === 1 ? 'p' : 'a', x: o.x, y: o.y, vx: o.vx, vy: o.vy }))
-      .concat(this.el.map(e => ({ type: 'e', x: e.x, y: e.y, vx: e.vx, vy: e.vy })));
   },
   cheat() {
     this.cheated = true;
@@ -476,6 +482,6 @@ const Nuclei = {
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },
-  viewR() { return N_WR + 1.5; },
+  viewR() { return N_VIEW; },
   hud() { return { title: '', sub: `T ≈ ${(this.T() * 1.2).toFixed(1)}·10⁹ K`, lines: [], goal: '', laws: [] }; },
 };

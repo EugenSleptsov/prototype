@@ -8,8 +8,10 @@
    - жёсткий свет выбивает электрон обратно, пока горячо.
    Глагол: проведи пальцем (или мышью с зажатой кнопкой) — за ним тормозящий след. Электрон, пересёкший след,
    отдаёт энергию фотоном и замедляется — ближайший ион его ловит. Играешь по всему полю.
-   Исследование «Рекомбинация»: электроны у ионов тормозят сами (излучают), Вселенная нейтрализуется без тебя. */
-const A_WR = 13, A_COST = 30, A_GOAL = .9, TR_LIFE = .8;
+   Исследование «Рекомбинация»: электроны у ионов тормозят сами (излучают), Вселенная нейтрализуется без тебя.
+   Мир без края: ионы — ядра твоей сверхновой там, куда их вынесло; Вселенная приносит ионы, электроны и свет из-за края кадра. */
+// обзор; ионы Вселенной: плотность и предел в кадре; электронов в кадре — не больше
+const A_VIEW = 14.5, A_DENS = .025, A_CAP = 40, A_ECAP = 30, A_COST = 30, A_GOAL = .9, TR_LIFE = .8;
 const AT_EL = { 1: ['H', [235, 235, 240]], 2: ['He', [200, 250, 255]], 3: ['Li', [200, 120, 255]], 6: ['C', [150, 150, 165]], 7: ['N', [110, 145, 255]], 8: ['O', [250, 95, 80]] };
 const atSym = Z => (AT_EL[Z] || [elemOf(Z)[0]])[0];
 const atCol = Z => (AT_EL[Z] || [0, [220, 220, 230]])[1];
@@ -31,26 +33,55 @@ const Atoms = {
     this.advanced = false; this.cheated = false; this.seenN = new Set(); this.phT = 0; this.was = false; this.stroke = 0;
     this.st = { brakes: 0, ionized: 0, best: 0 }; this.caps = { hand: 0, auto: 0 };
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
-    this.C = { x: P.x, y: P.y };
-    let list = prev && prev.ions && prev.ions.length ? prev.ions.map(i => i.Z) : [6, 6, 7, 8, 8, 2, 2, 2];
-    for (const Z of AT_NEED) if (!list.includes(Z)) list.push(Z); // каждого — хотя бы по одному
-    while (list.filter(Z => Z === 1).length < 14) list.push(1);
-    const cap = { 2: 5, 6: 2, 7: 2, 8: 2 }, had = {};
-    list = list.filter(Z => (had[Z] = (had[Z] || 0) + 1) <= (cap[Z] || 99)).slice(0, 26); // тяжёлых — по паре: им нужно много электронов
-    for (const Z of list) {
-      const a = Math.random() * TAU, d = A_WR * Math.sqrt(Math.random()) * .9;
-      this.ions.push({ Z, ne: 0, x: this.C.x + Math.cos(a) * d, y: this.C.y + Math.sin(a) * d, vx: randn() * .3, vy: randn() * .3, age: -Math.random(), rot: Math.random() * TAU });
+    this.fromStars = !!(prev && prev.o);
+    // ионы — ядра со «Звёзд», каждое там, куда его вынесла сверхновая, и с той же скоростью (структура ядра больше не видна — голый ион)
+    if (prev && prev.o) for (const o of prev.o) {
+      if (o.dead || o.Z < 1) continue;
+      this.ions.push({ Z: o.Z === 4 ? 2 : o.Z, ne: 0, x: o.x, y: o.y, vx: o.vx, vy: o.vy, age: 1, rot: Math.random() * TAU, mine: true, src: o }); // ⁸Be — уже два гелия
     }
+    // с нуля — набор по умолчанию в кадре
+    if (!prev) for (const Z of [6, 6, 7, 8, 8, 2, 2, 2, ...Array(14).fill(1)]) {
+      const at = beyondPos(zoomFor(this), 0, true); if (at) this.ions.push(this.ion(Z, at[0], at[1], -Math.random()));
+    }
+    // ионы Вселенной — за краем кадра; каждого нужного атома — хотя бы по одному
+    const z1 = zoomFor(this), want = popWant(A_DENS, A_CAP, z1);
+    for (let k = 0; this.ions.length < want && k < want * 3; k++) { const at = beyondPos(z1, 1, false); if (at) this.ions.push(this.ion(this.cosmicZ(), at[0], at[1], 1)); }
+    for (const Z of AT_NEED) if (!this.ions.some(i => i.Z === Z)) { const at = beyondPos(z1, 1, false) || [P.x + rnd(-8, 8), P.y + rnd(-8, 8)]; this.ions.push(this.ion(Z, at[0], at[1], 1)); }
     this.Zsum = this.ions.reduce((s, i) => s + i.Z, 0);
     for (let i = 0; i < 26; i++) this.spawnE(true);
     this.stars = pickStars(this.starPool());
   },
   float(x, y, txt, c = [140, 220, 255], sz = 13) { this.floats.push({ x, y, t: 0, txt, c, sz }); },
+  ion(Z, x, y, age) { return { Z, ne: 0, x, y, vx: randn() * .3, vy: randn() * .3, age, rot: Math.random() * TAU, mine: false, src: null }; },
+  // ион Вселенной: в основном водород и гелий; тяжёлые — только те, что уже выковали звёзды (или каких вокруг ещё нет)
+  cosmicZ() {
+    const r = Math.random();
+    if (r < .68) return 1;
+    if (r < .9) return 2;
+    const heavy = [6, 7, 8].filter(Z => !this.fromStars || Codex.has('n:' + Z + ',' + Z) || !this.ions.some(i => i.Z === Z));
+    return heavy.length ? pick(heavy) : 1;
+  },
   vth() { return 2.5 + 8 * this.Ta; },
+  // электрон: any — где угодно в кадре (начало), иначе — из-за края кадра, внутрь
   spawnE(any) {
-    const a = Math.random() * TAU, d = any ? A_WR * Math.sqrt(Math.random()) : A_WR * 1.15, v = this.vth();
-    const h = any ? Math.random() * TAU : a + Math.PI + randn() * .5;
-    this.el.push({ x: this.C.x + Math.cos(a) * d, y: this.C.y + Math.sin(a) * d, vx: Math.cos(h) * v, vy: Math.sin(h) * v, k: rnd(.8, 1.2), slow: 0, brk: 0, by: null, age: any ? 1 : 0 });
+    const v = this.vth();
+    let x, y, h;
+    if (any) { const at = beyondPos(cam.z, 0, true) || [P.x, P.y]; [x, y] = at; h = Math.random() * TAU; }
+    else { const r = rimPos(.5); x = r.x; y = r.y; h = Math.atan2(r.ny, r.nx) + randn() * .5; }
+    this.el.push({ x, y, vx: Math.cos(h) * v, vy: Math.sin(h) * v, k: rnd(.8, 1.2), slow: 0, brk: 0, by: null, age: any ? 1 : 0 });
+  },
+  // Вселенная вокруг: ионов в кадре не хватает — приходят из-за края (после «Рекомбинации» — часто уже нейтральными); чужое вдали растворяется
+  tide(dt) {
+    dissolveFar(this.ions);
+    this.ions = this.ions.filter(i => !i.dead);
+    if (this.doneAt !== null) return;
+    const have = this.ions.filter(i => inView(i.x, i.y, 1)).length;
+    if (have < popWant(A_DENS, A_CAP) && Math.random() < dt * 3) {
+      const r = rimPos(1), io = this.ion(this.cosmicZ(), r.x, r.y, 0), sp = rnd(.6, 1.4);
+      io.vx += r.nx * sp; io.vy += r.ny * sp;
+      if (this.rs.rec && Math.random() < this.neutral()) io.ne = io.Z;
+      this.ions.push(io);
+    }
   },
   neutral() { return this.ions.reduce((s, i) => s + Math.min(i.ne, i.Z), 0) / Math.max(1, this.Zsum); },
 
@@ -88,9 +119,8 @@ const Atoms = {
       io.age += dt; io.rot += dt * 2;
       const j = .25 * Math.sqrt(dt); io.vx += randn() * j; io.vy += randn() * j;
       const k = Math.exp(-dt * .6); io.vx *= k; io.vy *= k;
-      const dx = io.x - this.C.x, dy = io.y - this.C.y, d = Math.hypot(dx, dy);
-      if (d > A_WR) { io.vx -= dx / d * 3 * dt; io.vy -= dy / d * 3 * dt; }
       io.x += io.vx * dt; io.y += io.vy * dt;
+      if (io.src && G.prev) { const [px, py] = toPrev(io.x, io.y); io.src.x = px; io.src.y = py; io.src.vx = io.src.vy = 0; } // ядро гаснет там, где проявляется ион
     }
     for (const e of this.el) {
       if (e.dead) continue;
@@ -122,16 +152,15 @@ const Atoms = {
         const p = this.tr[i - 1], q = this.tr[i];
         if (segX(ox, oy, e.x, e.y, p.x, p.y, q.x, q.y)) { this.brake(e, 'hand'); break; }
       }
-      const dx = e.x - this.C.x, dy = e.y - this.C.y;
-      if (dx * dx + dy * dy > (A_WR * 1.4) ** 2) e.dead = true;
+      if (farOff(e)) e.dead = true;
     }
     // свет выбивает электроны, пока горячо
     if (act && this.doneAt === null) {
       this.phT += dt * 2.5 * this.Ta;
       while (this.phT > 1) {
         this.phT--;
-        const a = Math.random() * TAU, h = a + Math.PI + randn() * .35, R = A_WR * 1.3;
-        this.ph.push({ x: this.C.x + Math.cos(a) * R, y: this.C.y + Math.sin(a) * R, vx: Math.cos(h) * 22, vy: Math.sin(h) * 22, t: 0, hard: Math.random() < .45 * this.Ta - .12 });
+        const R = viewRadius(), a = Math.random() * TAU, h = a + Math.PI + randn() * .35;
+        this.ph.push({ x: P.x + Math.cos(a) * R * 1.05, y: P.y + Math.sin(a) * R * 1.05, vx: Math.cos(h) * 22, vy: Math.sin(h) * 22, t: 0, hard: Math.random() < .45 * this.Ta - .12 });
       }
     }
     for (const p of this.ph) {
@@ -141,17 +170,20 @@ const Atoms = {
     }
     this.ph = this.ph.filter(p => !p.dead && p.t < 2.4);
     this.el = this.el.filter(e => !e.dead);
+    if (act) this.tide(dt);
+    this.Zsum = this.ions.reduce((s, i) => s + i.Z, 0);
     if (!live) return;
-    // приток электронов из плазмы
-    const free = this.Zsum - this.ions.reduce((s, i) => s + i.ne, 0);
-    if (this.doneAt === null) for (let i = 0; i < 2 && this.el.length < Math.min(30, free + 8); i++) this.spawnE(false);
+    // приток электронов из плазмы — из-за края, сколько не хватает ионам в кадре
+    const vis = this.ions.filter(i => inView(i.x, i.y, 2)), free = vis.reduce((s, i) => s + Math.max(0, i.Z - i.ne), 0);
+    const nE = this.el.filter(e => inView(e.x, e.y, 2)).length;
+    if (this.doneAt === null) for (let i = 0; i < 2 && nE + i < Math.min(A_ECAP, free + 8); i++) this.spawnE(false);
     if (this.doneAt === null) this.tickStars(false);
     if (this.doneAt === null && this.steps().every(s => s.d)) {
       this.doneAt = this.clock; this.endCd = 2; this.tr = [];
       this.tickStars(true);
       msg('Вселенная стала нейтральной и прозрачной');
     }
-    if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; this.handoff(); advance(); }
+    if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; advance(); } // молекулам — эти же атомы, на своих местах
   },
   capture(io, e) {
     e.dead = true; io.ne++;
@@ -185,7 +217,7 @@ const Atoms = {
     if (!it || !G.started || G.paused) return;
     if (this.bal() < it.c) { this.float(P.x, P.y - 1, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
     this.spent += it.c; this.rs.rec = 1; Sfx.play('upgrade');
-    fxRing(P.x, P.y, 1, GOLD, A_WR, 1.4); this.float(P.x, P.y - 1, '◎ Рекомбинация', GOLD, 16);
+    fxRing(P.x, P.y, 1, GOLD, viewRadius() * .8, 1.4); this.float(P.x, P.y - 1, '◎ Рекомбинация', GOLD, 16);
   },
   renderShop: Nuclei.renderShop,
 
@@ -212,8 +244,6 @@ const Atoms = {
     const n = this.caps.hand + this.caps.auto, at = this.ions.filter(i => i.ne >= i.Z).length;
     return { name: 'Атомы', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['нейтральных атомов', `${at} из ${this.ions.length}`], ['электроны — следом', this.caps.hand], ['электроны — Вселенная', this.caps.auto]], auto: [this.caps.auto, n], stars: this.stars };
   },
-  // Молекулам: нейтральные атомы на своих местах
-  handoff() { this.atoms = this.ions.filter(i => i.ne >= i.Z).map(i => ({ el: atSym(i.Z), x: i.x, y: i.y })); },
   cheat() { this.cheated = true; for (const io of this.ions) { io.ne = io.Z; this.seenN.add(io.Z); } this.st.brakes++; this.rs.rec = 1; },
 
   // ---------- рисование ----------
@@ -271,6 +301,6 @@ const Atoms = {
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },
-  viewR() { return A_WR + 1.5; },
+  viewR() { return A_VIEW; },
   hud() { return { title: '', sub: `T ≈ ${Math.round(400 + 5000 * this.Ta)} K`, lines: [], goal: '', laws: [] }; },
 };

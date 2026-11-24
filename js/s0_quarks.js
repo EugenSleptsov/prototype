@@ -13,7 +13,7 @@
 const QCOL = [[255, 60, 90], [70, 235, 120], [80, 140, 255]];
 const QANTI = [[60, 230, 240], [240, 90, 240], [250, 225, 70]]; // анти-красный = голубой и т.д.
 const QR = .26, BIND = .62, D0 = .55, KSTR = 9, DBREAK = 2.6;
-const Q_PAR = 60, Q_WR = 7.5, Q_T0 = 4.6; // эталон времени, радиус области, стартовая T (10¹² K ≈ 400 МэВ)
+const Q_PAR = 60, Q_T0 = 4.6; // эталон времени, стартовая T (10¹² K ≈ 400 МэВ); мир без края — кварки приходят из-за края кадра
 const HAND_Q = 3, AUTO_Q = 5, CONF_COST = 25, FLOW_N = 9; // барионов руками, Вселенной, цена исследования, свободных кварков в притоке
 // FLOW_MAX — больше свободных не копится: лишние уходят за край; недостающий цвет приходит всегда (тупика без зелёных нет)
 const FLOW_MAX = 16, PAIR_CD = 3.2, ANTI_MAX = 3, MESON_T = 3.5, EXO_T = 3.2, EXO_PTS = 20;
@@ -48,8 +48,8 @@ const Quarks = {
     this.stars = null; // испытания ★ выбираются, когда известен материал
     // материал — только сбережённое; при запуске прямо с этого уровня кварки прилетают из-за края
     for (let i = this.q.length; i < (src.length ? 0 : 12); i++) {
-      const a = Math.random() * TAU, d = Q_WR * .9, q = this.mk(P.x + Math.cos(a) * d, P.y + Math.sin(a) * d, i % 3, false, i % 3 === 1 ? 'd' : 'u');
-      q.vx = -Math.cos(a) * 2.5; q.vy = -Math.sin(a) * 2.5; q.age = 0;
+      const r = rimPos(.5, zoomFor(this)), q = this.mk(r.x, r.y, i % 3, false, i % 3 === 1 ? 'd' : 'u'); // у края кадра этапа (камера ещё едет к нему)
+      q.vx = r.nx * 2.5 + randn() * .5; q.vy = r.ny * 2.5 + randn() * .5; q.age = 0;
     }
   },
   mk(x, y, col, anti, fl) {
@@ -394,9 +394,8 @@ const Quarks = {
       const j = jit * Math.sqrt(dt) * 2;
       q.vx += randn() * j; q.vy += randn() * j;
       const dr = Math.exp(-dt * 1.2); q.vx *= dr; q.vy *= dr;
-      // область плазмы ограничена: дальние кварки мягко возвращаются
-      const dx = q.x - this.C.x, dy = q.y - this.C.y, d = Math.hypot(dx, dy);
-      if (d > Q_WR) { q.vx -= dx / d * 6 * dt; q.vy -= dy / d * 6 * dt; }
+      // мир без края: свободный чужой кварк далеко за краем растворяется (его место займёт пришедший из-за края)
+      if (act && !q.g && !q.mine && farOff(q)) q.dead = true;
     }
     this.forces(dt); this.strings(dt); this.binding(); this.updGroups(dt);
     for (const q of this.q) {
@@ -453,8 +452,8 @@ const Quarks = {
       fxFlash(q.x, q.y, .35, QCOL[col], .35);
       return q;
     }
-    const a = Math.random() * TAU, d = Q_WR * .95, q = this.mk(this.C.x + Math.cos(a) * d, this.C.y + Math.sin(a) * d, col, false, fl);
-    q.vx = -Math.cos(a) * 2.5; q.vy = -Math.sin(a) * 2.5;
+    const r = rimPos(.5), q = this.mk(r.x, r.y, col, false, fl);
+    q.vx = r.nx * 2.5 + randn() * .5; q.vy = r.ny * 2.5 + randn() * .5;
     return q;
   },
   // вакуум кипит: время от времени рождается пара кварк + антикварк (из неё — мезоны π)
@@ -509,7 +508,7 @@ const Quarks = {
     if (!it || !G.started || G.paused || this.doneAt !== null) return;
     if (this.bal() < it.c) { this.float(P.x, P.y - this.hr - .2, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
     this.spent += it.c; this.rs.conf = 1; this.asmCd = .6; Sfx.play('upgrade');
-    fxRing(P.x, P.y, this.hr, GOLD, Q_WR, 1.4);
+    fxRing(P.x, P.y, this.hr, GOLD, viewRadius() * .8, 1.4);
     this.float(P.x, P.y - this.hr - .3, '◬ Конфайнмент', GOLD, 16);
   },
   renderShop(el) {
