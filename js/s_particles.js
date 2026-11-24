@@ -28,6 +28,9 @@ const UPG = [
 const UPG_COST = [20, 35, 55, 80]; // цена следующего уровня улучшения в ✦
 const NEED0 = [['e', 'mu', 'ta'], ['u', 'd', 's', 'c', 'b']]; // эпоха 1 загадывает лептон и два кварка
 const HIT_R = .42, H_WIN = 20, Z_WIN = 14; // радиус встречи; полуширина окна резонанса H (ГэВ)
+// Тепловая масса в плазме до перехода Хиггса: m ≈ g·T (сильное взаимодействие — кварки ≈ 0,5 T, топ ещё и юкавское ≈ 0,6 T;
+// электрослабое — лептоны ≈ 0,2 T). Поэтому и без поля Хиггса у рождения пары есть порог 2m.
+const TH_M = { quark: .5, t: .6, lepton: .2 };
 const THROW_V = 5, THROW_R = .6; // скорость детектора для броска; радиус попадания броском
 // Энергия детектора: появляется, когда открыт фотон; пополняется пойманными фотонами,
 // тратится на снимки и на разгон квантов полем
@@ -236,6 +239,8 @@ const Particles = {
     A.cd = B.cd = .4; return [A, B];
   },
   meff(o) { return SM[o.sp].m * this.hig; },
+  // Масса для порога рождения пары: тепловая (≈ g·T) до перехода Хиггса, масса покоя — после
+  mThr(sp) { const s = SM[sp], k = sp === 't' ? TH_M.t : TH_M[s.kind] || 0; return Math.hypot(s.m * this.hig, k * this.T * (1 - this.hig)); },
   speed(o) { if (o.v != null) return o.v; const m = this.meff(o); return m <= 0 ? C_LIGHT : C_LIGHT * o.p / Math.sqrt(o.p * o.p + m * m); },
   isQ(o) { return o.sp === 'ph' || o.sp === 'g'; },
   // Тяжесть в руке 0…1: растёт с массой (по логарифму — масса частиц различается в 10⁵ раз) и с полем Хиггса
@@ -354,7 +359,7 @@ const Particles = {
     }
     const two = f.cap.length === 2;
     if (f.cap.length && (two || this.isQ(f.cap[0]))) { // вещество разгоняется, только когда пара в поле
-      const bd = two && this.band(f), inB = bd && f.E > bd[0] && f.E < bd[1];
+      const bd = two && (this.band(f) || (this.leptonWin() && [2 * this.mThr('e'), 2 * this.mThr('u')])), inB = bd && f.E > bd[0] && f.E < bd[1];
       let dq = Math.min(dt / CHARGE_T * (inB ? .3 : 1), 1 - f.q); // на резонансе стрелка замедляется — успей отпустить
       if (this.enOn()) { dq = Math.min(dq, this.en / E_FIELD); this.en -= dq * E_FIELD; if (dq <= 0 && f.q < 1) this.noEnergy(); }
       f.q += dq; f.E = this.chargeE(f.q);
@@ -444,7 +449,7 @@ const Particles = {
   // Какие пары может родить столкновение двух квантов (веса ~ квадрат заряда × число цветов)
   channels(a, b, rs) {
     const ch = [], post = this.hig > .5, kinds = [a.sp, b.sp].sort().join('');
-    const ok = sp => rs >= 2 * SM[sp].m * this.hig;
+    const ok = sp => rs >= 2 * this.mThr(sp);
     for (const sp of ['u', 'c', 't', 'd', 's', 'b', 'e', 'mu', 'ta']) {
       const s = SM[sp], quark = s.kind === 'quark';
       if (!ok(sp)) continue;
@@ -452,7 +457,7 @@ const Particles = {
       if (kinds === 'phph') w = s.q * s.q * (quark ? 3 : 1);
       else if (kinds === 'gph') w = quark ? s.q * s.q * 3 : 0;
       else if (kinds === 'gg') w = quark ? 1 : 0;
-      if (this.ep === 0 && this.need0.includes(sp) && !Codex.has(sp)) w *= quark ? 5 : 8; // загаданное рождается охотнее
+      if (this.ep === 0 && this.need0.includes(sp) && !Codex.has(sp)) w *= quark ? 5 : 3; // загаданное рождается охотнее
       if (w > 0) ch.push([sp, w]);
     }
     if (post && kinds === 'phph' && rs >= 2 * SM.W.m) ch.push(['WW', 1.5]);
@@ -476,7 +481,7 @@ const Particles = {
     let made;
     if (c === 'H') { made = [this.mk('H', false, x, y, Math.random() * TAU, rs * .05)]; }
     else if (c === 'WW') { const pe = Math.sqrt(Math.max(.01, (rs / 2) ** 2 - SM.W.m ** 2)); made = this.pair('W', x, y, pe); }
-    else { const m = SM[c].m * this.hig, pe = Math.sqrt(Math.max(.0001, (rs / 2) ** 2 - m * m)); made = this.pair(c, x, y, pe, a.sp === 'g' ? a.col : undefined); }
+    else { const m = this.mThr(c), pe = Math.sqrt(Math.max(.0001, (rs / 2) ** 2 - m * m)); made = this.pair(c, x, y, pe, a.sp === 'g' ? a.col : undefined); }
     fxFlash(x, y, .7, [255, 250, 220], .35);
     for (let i = 0; i < 8; i++) { const an = i * TAU / 8; fxRing(x + Math.cos(an) * .25, y + Math.sin(an) * .25, .02, [255, 240, 200], .06, .35); }
     if (!spont) { this.pairs++; this.st.pairs++; }
@@ -919,7 +924,7 @@ const Particles = {
           { t: `Наполни энергию детектора: лови фотоны (${Math.min(E_CAP, Math.floor(this.en))}/${E_CAP}) — жёсткие дают больше`, s: 'энергия собрана', d: this.full },
           { t: 'Появились глюоны — сними глюон', s: 'глюон открыт', d: has('g') },
           { t: 'Столкни кванты: зажми рядом с двумя волнами и отпусти', s: 'первое столкновение', d: this.pairs > 0 },
-          { t: `Открой ${list} — сталкивай кванты и снимай, что родилось` + (this.need0.some(sp => SM[sp].kind === 'lepton' && !has(sp)) ? ' (лептоны — только из γ + γ: наведись на фотон)' : ''), s: 'частицы открыты', d: got === this.need0.length },
+          { t: `Открой ${list} — сталкивай кванты и снимай, что родилось` + (this.need0.some(sp => SM[sp].kind === 'lepton' && !has(sp)) ? ' (лептоны — из γ + γ: наведись на фотон и отпусти в синем окне, до риски q)' : ''), s: 'частицы открыты', d: got === this.need0.length },
         ];
       }
       case 1: return [
@@ -1286,21 +1291,28 @@ const Particles = {
         label(Codex.has(sym) ? sym : '?', sx + Math.cos(am) * (Rg + 17), sy + Math.sin(am) * (Rg + 17), 11, GOLD, .95, 800);
       }
     }
-    if (this.hig > .5 && this.isQ(f.cap[0])) {
-      // риски — пороги 2m рождения пар
-      const list = kinds === 'gg' ? ['c', 'b', 't'] : kinds === 'gph' ? ['c', 'b', 't'] : ['c', 'ta', 'b', 't'];
-      const th = list.map(sp => [sp, 2 * SM[sp].m * this.hig]);
-      if (kinds === 'phph') th.push(['W', 2 * SM.W.m * this.hig]);
+    if (this.isQ(f.cap[0])) {
+      // риски — пороги 2m рождения пар; до перехода Хиггса — тепловые массы: ℓ (лептоны) и q (кварки)
+      const pre = this.hig < .5, ph2 = kinds === 'phph';
+      const list = pre ? (ph2 ? ['e', 'u', 't'] : ['u', 't']) : kinds === 'gg' || kinds === 'gph' ? ['c', 'b', 't'] : ['c', 'ta', 'b', 't'];
+      const th = list.map(sp => [sp, 2 * this.mThr(sp)]);
+      if (ph2 && !pre) th.push(['W', 2 * SM.W.m * this.hig]);
+      const sym = sp => pre && sp === 'e' ? 'ℓ' : pre && sp === 'u' ? 'q' : Codex.has(sp) ? SM[sp].sym : '?';
+      // окно лептонов: γ + γ между порогами ℓ и q рождает только лептоны
+      if (pre && ph2) {
+        const q1 = this.qOf(th[0][1]), q2 = this.qOf(th[1][1]);
+        if (q2 > .02 && q1 < 1) arc(sx, sy, Rg, a0 + TAU * Math.max(0, q1), a0 + TAU * Math.min(1, q2), LEP_C[0], .4, 9);
+      }
       let lastA = -9;
       for (const [sp, E] of th.sort((x, y) => x[1] - y[1])) {
         const q = this.qOf(E); if (q < .02 || q > 1) continue;
         const an = a0 + TAU * q, c = Math.cos(an), s = Math.sin(an);
         line(sx + c * (Rg - 7), sy + s * (Rg - 7), sx + c * (Rg + 7), sy + s * (Rg + 7), [255, 255, 255], .9, 2);
-        if (an - lastA > .22) { label(Codex.has(sp) ? SM[sp].sym : '?', sx + c * (Rg + 17), sy + s * (Rg + 17), 11, [255, 255, 255], .85, 700); lastA = an; }
+        if (an - lastA > .22) { label(sym(sp), sx + c * (Rg + 17), sy + s * (Rg + 17), 11, sp === 'e' ? LEP_C[0] : [255, 255, 255], .9, 700); lastA = an; }
       }
     }
     arc(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), inH ? GOLD : FIELD_C, .95, 5);
-    label(`√s ${fmtGeV(this.rsOf(f))}`, sx, sy - Rg - 16, 12, inH ? GOLD : [142, 229, 255], .95, 700);
+    label(`√s ${fmtGeV(this.rsOf(f))}`, sx, sy - Rg - 32, 12, inH ? GOLD : [142, 229, 255], .95, 700);
   },
   // Энергия детектора — дуга из делений под кругом; пустая и нужна — мигает красным
   drawEnergy(sx, sy, r) {
@@ -1314,6 +1326,11 @@ const Particles = {
       if (fill > 0) { ctx.fillStyle = rgb(PH_C, .35 + .65 * fill); ctx.beginPath(); ctx.arc(x, y, 3.5 * Math.sqrt(fill), 0, TAU); ctx.fill(); }
     }
     label('⚡', sx, sy + R + 10, 11, this.en < E_SHOT ? [255, 140, 120] : PH_C, .9, 700);
+  },
+  // Держишь два фотона до перехода Хиггса, а загаданный лептон ещё не открыт — подсказка про синее окно
+  leptonWin() {
+    const f = this.focus;
+    return !!f && this.ep === 0 && this.hig < .5 && f.cap.length === 2 && f.cap.every(o => o.sp === 'ph') && this.need0.some(sp => SM[sp].kind === 'lepton' && !Codex.has(sp));
   },
   // Подсказка в одну строку — пока действие не освоено
   drawHint(sx, sy, r) {
@@ -1336,6 +1353,7 @@ const Particles = {
     else if (this.enOn() && (!this.full || this.en < E_SHOT + .5)) t = 'лови фотоны — энергия';
     else if (!this.learn.snap) t = 'клик — снимок';
     else if (this.focus && this.focus.cap.length === 2 && !this.learn.smash) t = 'отпусти — столкнуть';
+    else if (this.leptonWin()) t = this.focus.E < 2 * this.mThr('e') ? 'держи — мало энергии для ℓ' : this.focus.E < 2 * this.mThr('u') ? 'отпусти — синее окно: лептон' : 'выше q — уже в основном кварки';
     else if (this.focus && this.focus.cap.length === 1 && !this.isQ(this.focus.cap[0]) && !this.learn.ann) t = `тяжёлое тянется медленно — нужна античастица ${this.lab({ ...this.focus.cap[0], anti: !this.focus.cap[0].anti })}`;
     else if (this.focus && this.focus.cap.length === 2 && !this.isQ(this.focus.cap[0]) && !this.learn.ann) t = this.band(this.focus) ? 'отпусти в золотой полосе' : 'отпусти — аннигиляция';
     else if (this.ep === 1 && Codex.has('H') && !this.learn.heavy && this.hig >= 1) t = 'зажми возле частицы — с массой её можно удержать';
