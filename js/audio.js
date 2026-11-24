@@ -63,6 +63,7 @@ const Sfx = {
     decay() { this.tone('sine', 900, 480, .09, .05); },
     goal() { this.arp([784, 1047], .1, .2, .15); },
     star() { this.arp([988, 1319, 1568], .07, .18, .12); },
+    recolor() { this.tone('triangle', 440, 660, .12, .1); this.tone('triangle', 660, 990, .14, .08, .07); },
     upgrade() { this.arp([523, 659, 784, 1047], .065, .14, .12); },
     segment() { this.arp([392, 494, 587, 784], .08, .6, .1); },
     ignite() { this.tone('sawtooth', 80, 340, .8, .1); this.noise(.6, .12, 500, true); this.arp([523, 784, 1047], .15, .5, .07, 'sine'); },
