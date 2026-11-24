@@ -6,7 +6,7 @@ const TRANS_DUR = 3;
 // Переход: старый этап продолжает жить и гаснет, новый проявляется и забирает его частицы.
 function advance() {
   if (G.stageI >= STAGES.length - 1) return;
-  G.prev = G.stage; G.stageI++; G.stage = STAGES[G.stageI]; G.trans = 0;
+  G.prev = G.stage; G.stageI++; G.stage = STAGES[G.stageI]; G.trans = 0; Sfx.hum(0); Sfx.play('segment');
   G.stage.enter(G.prev);
 }
 function endGame(text) {
@@ -29,8 +29,11 @@ addEventListener('wheel', e => {
   if (e.shiftKey && G.stage.wheel) { G.stage.wheel(e.deltaY || e.deltaX); return; }
   G.zoom = clamp((G.zoom || 1) * Math.exp(-e.deltaY * .0015), ZOOM_MIN, ZOOM_MAX);
 }, { passive: true });
+// звук включается первым жестом игрока (так требует браузер)
+addEventListener('pointerdown', () => Sfx.unlock(), true);
 addEventListener('keydown', e => {
-  keys.add(e.code);
+  keys.add(e.code); Sfx.unlock();
+  if (e.code === 'KeyM' && document.activeElement !== pname) { const m = Sfx.toggle(); if (G.started) msg(m ? 'звук выкл. · M' : 'звук вкл. · M', 1.2); }
   if (!G.started) return;
   if (e.code === 'Space' && !G.paused) { e.preventDefault(); G.stage.dash && G.stage.dash(); }
   if (e.code === 'Enter' || e.code === 'NumpadEnter') G.stage.enterKey && G.stage.enterKey();
@@ -162,7 +165,7 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(.05, Math.max(0, (now - last) / 1000)); last = now;
   try {
-    if (!G.paused) update(dt);
+    if (!G.paused) update(dt); else Sfx.hum(0);
     if (!isFinite(P.x + P.y + cam.z)) recover();
     render(); hud();
   } catch (err) { recover(err); }

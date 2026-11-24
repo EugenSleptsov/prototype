@@ -127,9 +127,9 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   const ds = steps.map(s => !!s.d), ss = stars.map(s => s.st);
   if (tk.ds) {
     const j = ds.findIndex((d, k) => d && !tk.ds[k]);
-    if (j >= 0) tk.fl = { txt: '✓ ' + steps[j].s, c: [140, 235, 170], at: G.T };
+    if (j >= 0) { tk.fl = { txt: '✓ ' + steps[j].s, c: [140, 235, 170], at: G.T }; Sfx.play('goal'); }
     const w = ss.findIndex((v, k) => v === 1 && tk.ss[k] !== 1);
-    if (w >= 0) tk.fl = { txt: '★ ' + stars[w].t, c: [255, 215, 110], at: G.T };
+    if (w >= 0) { tk.fl = { txt: '★ ' + stars[w].t, c: [255, 215, 110], at: G.T }; Sfx.play('star'); }
   }
   tk.ds = ds; tk.ss = ss;
   const i = ds.indexOf(false), n = steps.length, cur = i < 0 ? null : steps[i];

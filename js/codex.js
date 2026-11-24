@@ -16,6 +16,7 @@ const Codex = {
     this.run.add(k); this.dirty = true;
     const first = !this.known.has(k);
     if (first) { this.known.add(k); this.save(); }
+    Sfx.play('fresh');
     showCard(k, first);
     return first ? 'new' : 'run';
   },

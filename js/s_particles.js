@@ -239,7 +239,7 @@ const Particles = {
   },
   // Спектр совпал — Вселенная разогрета до его температуры; света в ней до конца уровня ∝ T^1,5
   ignite(p = this.spec.prof[1]) {
-    this.lit = true; this.litT = 0; this.banner = 0; this.spec.pick = p; // одно событие — заголовок эпохи 1
+    this.lit = true; this.litT = 0; this.banner = 0; this.spec.pick = p; Sfx.play('ignite'); // одно событие — заголовок эпохи 1
     this.heat = p.heat;
     this.T = this.T0 = T_START * p.k;
     this.en = Math.max(this.en, E_START);
@@ -302,13 +302,13 @@ const Particles = {
     }
   },
   canShot() { return this.shotCd <= 0 && (!this.enOn() || this.en >= E_SHOT); },
-  noEnergy() { this.enFx = .6; this.st.dry++; },
+  noEnergy() { this.enFx = .6; this.st.dry++; Sfx.play('fizzle'); },
   // Детектор поглощает знакомый фотон, пролетевший через его центр
   // Пойманный фотон измерен: класс по энергии; ⚡ — по классу; новый класс и редкие дают ✦
   absorb(o) {
     const c = this.phClass(o), C = PH_CLS[c];
     o.dead = true; this.en = Math.min(E_CAP, this.en + C.e); this.learn.absorb = true; this.caught[c]++; this.caughtFx = c; this.caughtAt = G.T;
-    fxRing(o.x, o.y, .05, C.c, .5 + .3 * c, .35 + .1 * c);
+    fxRing(o.x, o.y, .05, C.c, .5 + .3 * c, .35 + .1 * c); Sfx.play('catch', c);
     if (!this.measure(c)) { this.kn += C.kn; if (c >= 2) {
       this.float(P.x, P.y - this.hr() - .2, `${C.r}! ${C.n} γ · +${C.kn} ✦`, [255, 215, 110], 15);
     } else this.float(P.x + .5, P.y + this.hr() * .3, `+${C.kn} ✦ +${C.e}⚡`, C.c, 12); }
@@ -318,7 +318,7 @@ const Particles = {
   measure(c) {
     if (this.phSeen.has(c)) return false;
     const C = PH_CLS[c];
-    this.phSeen.add(c); this.kn += C.k;
+    this.phSeen.add(c); this.kn += C.k; Sfx.play('fresh');
     fxRing(P.x, P.y, this.hr(), C.c, this.hr() * 1.6, .8);
     this.float(P.x, P.y - this.hr() - .2, `НОВЫЙ КЛАСС: ${C.n} γ · ${C.r} · +${C.k} ✦`, c >= 2 ? [255, 215, 110] : C.c, c >= 2 ? 17 : 15);
     return true;
@@ -337,7 +337,7 @@ const Particles = {
       if (!l || Math.hypot(P.x - l[0], P.y - l[1]) > .08) { g.path.push([P.x, P.y]); if (g.path.length > 90) g.path.shift(); }
       // порог жеста пройден — отклик: вспышка цвета нового класса
       const c = this.gestCls(g);
-      if (c > g.c) { g.c = c; const C = PH_CLS[c]; fxRing(P.x, P.y, this.hr() * .6, C.c, this.hr() * (1.2 + .3 * c), .5); if (c === 3) fxFlash(P.x, P.y, this.hr(), C.c, .4); }
+      if (c > g.c) { g.c = c; const C = PH_CLS[c]; Sfx.play('grab'); fxRing(P.x, P.y, this.hr() * .6, C.c, this.hr() * (1.2 + .3 * c), .5); if (c === 3) fxFlash(P.x, P.y, this.hr(), C.c, .4); }
       return;
     }
     this.pg = null; this.perturb(this.gestCls(g));
@@ -350,6 +350,7 @@ const Particles = {
     this.perts++; this.gest.add(c);
     fxRing(P.x, P.y, .1, C.c, this.hr() * (1.3 + .3 * c), .7); fxFlash(P.x, P.y, this.hr() * (1 + .3 * c), C.c, .3 + .1 * c);
     S.n[c]++; S.pulse[c] = 1; S.last = c;
+    Sfx.play(this.liveProf().length ? 'pert' : 'bad', c);
     if (!this.liveProf().length) this.float(P.x, P.y - this.hr() - .2, `лишний ${C.n}`, [255, 120, 110], 13);
     else { this.kn += 1; this.float(P.x, P.y - this.hr() - .2, `${C.n} γ +1 ✦`, C.c, 13); }
     const p = this.specDone(); if (p) this.ignite(p);
@@ -371,7 +372,7 @@ const Particles = {
   chargeE(q) { return this.Emax() * (.02 + .98 * q); },
   qOf(E) { return (E / this.Emax() - .02) / .98; },
   tickFocus(dt) {
-    const f = this.focus; if (!f || this.ep === 3) return;
+    const f = this.focus; Sfx.hum(f && f.cap.length && this.ep !== 3 ? .1 + .9 * f.q : 0); if (!f || this.ep === 3) return;
     f.t += dt;
     f.cap = f.cap.filter(o => !o.dead);
     if (f.cap.length < 2) {
@@ -385,7 +386,7 @@ const Particles = {
         const d = Math.hypot(o.x - P.x, o.y - P.y), sc = d + (f.cap.length && o.sp !== f.cap[0].sp ? this.fr() * .99 : 0);
         if (d < this.fr() && sc < bd) { bd = sc; best = o; }
       }
-      if (best) { best.cap = true; best.v = undefined; f.cap.push(best); if (!this.isQ(best)) { this.learn.heavy = true; if (best.trail) best.trail = []; } }
+      if (best) { best.cap = true; best.v = undefined; f.cap.push(best); Sfx.play('grab'); if (!this.isQ(best)) { this.learn.heavy = true; if (best.trail) best.trail = []; } }
     }
     const two = f.cap.length === 2;
     if (f.cap.length && (two || this.isQ(f.cap[0]))) { // вещество разгоняется, только когда пара в поле
@@ -431,7 +432,7 @@ const Particles = {
         o.dx = Math.cos(an); o.dy = Math.sin(an); o.p = f.E / 2; o.flung = 2.2; o.v = C_LIGHT * 2.4 / (1 + this.heavy(o));
         o.thrown = true; o.sib = c[1 - k] || null; o.mate = null;
       });
-      fxRing(P.x, P.y, this.hr() * .4, GOLD, this.hr() * .9, .35);
+      fxRing(P.x, P.y, this.hr() * .4, GOLD, this.hr() * .9, .35); Sfx.play('throw');
       this.learn.throw = true;
       return;
     }
@@ -503,7 +504,7 @@ const Particles = {
       // энергии мало: кванты разлетаются
       const t = a.dx; a.dx = b.dx; b.dx = t; const u = a.dy; a.dy = b.dy; b.dy = u;
       a.flung = b.flung = 0; a.v = b.v = undefined;
-      if (!spont) { fxRing(x, y, .1, [255, 160, 140], .6, .4); this.float(x, y, 'мало энергии', [255, 160, 140], 12); }
+      if (!spont) { fxRing(x, y, .1, [255, 160, 140], .6, .4); this.float(x, y, 'мало энергии', [255, 160, 140], 12); Sfx.play('fizzle'); }
       return;
     }
     const c = this.pickW(ch);
@@ -515,6 +516,7 @@ const Particles = {
     fxFlash(x, y, .7, [255, 250, 220], .35);
     for (let i = 0; i < 8; i++) { const an = i * TAU / 8; fxRing(x + Math.cos(an) * .25, y + Math.sin(an) * .25, .02, [255, 240, 200], .06, .35); }
     if (!spont) { this.pairs++; this.st.pairs++; }
+    Sfx.play(spont ? 'pop' : 'collide');
     this.event(made, x, y);
     return true;
   },
@@ -529,7 +531,7 @@ const Particles = {
       made = [this.mk(q, false, x, y, an, rs / 2), this.mk(q, false, x, y, an + Math.PI, rs / 2)];
       for (const m of made) m.cd = .5;
     }
-    fxFlash(x, y, .9, [255, 255, 255], .4);
+    fxFlash(x, y, .9, [255, 255, 255], .4); Sfx.play('annih');
     this.event(made, x, y);
   },
   // Распады — только когда у частиц есть масса (после перехода Хиггса)
@@ -567,6 +569,7 @@ const Particles = {
       q.cd = .4; q.born = .6; made.push(q);
     });
     fxRing(o.x, o.y, .1, this.dcol(o), .5, .5);
+    if (onScreen(...W2S(o.x, o.y), 0)) Sfx.play('decay');
     this.event(made, o.x, o.y, o);
   },
   // Событие оставляет СЛЕД: вершину с лучами осколков. Пока след не погас, его можно заснять.
@@ -583,7 +586,7 @@ const Particles = {
     const paid = this.enOn();
     if (paid && this.en < E_SHOT) { this.noEnergy(); this.shotCd = .25; this.float(P.x, P.y - this.hr(), 'нет энергии ⚡', [255, 150, 130], 13); return; }
     if (paid) this.en -= E_SHOT;
-    this.shotCd = this.up('sh'); this.learn.snap = true;
+    this.shotCd = this.up('sh'); this.learn.snap = true; Sfx.play('snap');
     const R0 = this.hr(), got = new Map(); // вид → где его видно (частица или след)
     for (const o of this.p) if (!o.dead && this.inHand(o) && !got.has(o.sp)) got.set(o.sp, { x: o.x, y: o.y });
     this.shotFx = .35;
@@ -593,7 +596,7 @@ const Particles = {
       if (tr.parent && !tr.rec) {
         tr.rec = true;
         if (!this.decSeen.has(tr.parent)) {
-          this.decSeen.add(tr.parent); this.kn += 5;
+          this.decSeen.add(tr.parent); this.kn += 5; Sfx.play('goal');
           this.float(tr.x, tr.y + .4, `${SM[tr.parent].sym}→ ✓ +5`, [255, 215, 110], 15, -.3);
           fxRing(tr.x, tr.y, .2, GOLD, .9, .6);
         }
@@ -657,13 +660,13 @@ const Particles = {
   buy(i) {
     const it = this.shopItems()[i];
     if (!it || !G.started || G.paused || this.stockOut) return;
-    if (this.bal() < it.c) { this.float(P.x, P.y - this.hr() - .2, `нужно ${it.c} ✦`, [255, 150, 130], 13); return; }
+    if (this.bal() < it.c) { this.float(P.x, P.y - this.hr() - .2, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
     this.spent += it.c; this.learn.buy = true;
     this.research(it.r);
   },
   // Исследовано — теперь это делает сама Вселенная
   research(r) {
-    const k = r.k, l = this.rs[k] = this.rLvl(k) + 1;
+    const k = r.k, l = this.rs[k] = this.rLvl(k) + 1; Sfx.play('upgrade');
     if (k === 'ph' && l === 1) { this.autoT = 0; Codex.auto.add('ph'); fxRing(P.x, P.y, .5, PH_C, this.wr(), 2.5); fxFlash(P.x, P.y, this.hr() * 2, [255, 240, 200], .5); }
     else if (k === 'g') { Codex.auto.add('g'); this.unlockGluons(); }
     else if (k !== 'ph' && k !== 'coll') Codex.auto.add(k);
@@ -848,7 +851,7 @@ const Particles = {
   // Поле Хиггса застывает: от детектора расходится золотая решётка (потом гаснет),
   // а всплески поля рождают бозоны Хиггса
   higgsOn() {
-    this.higT = 0; this.higC = { x: P.x, y: P.y }; this.ripCd = 1.5;
+    this.higT = 0; this.higC = { x: P.x, y: P.y }; this.ripCd = 1.5; Sfx.play('freeze');
     fxRing(P.x, P.y, .5, GOLD, this.wr() * 1.2, 4);
   },
   tickRipples(dt, live) {
@@ -888,7 +891,7 @@ const Particles = {
   pick(i) {
     const u = UPG[i], el = document.getElementById('upk');
     if (!u || !el || !this.res || this.res.final || this.maxed(u) || this.upPts < 1 || !this.avail(u)) return;
-    this.upPts--; this.lvl[u.key]++; el.innerHTML = this.upHtml();
+    this.upPts--; this.lvl[u.key]++; el.innerHTML = this.upHtml(); Sfx.unlock(); Sfx.play('upgrade');
   },
   closeCard() {
     const el = document.getElementById('epoch');
@@ -917,7 +920,7 @@ const Particles = {
     } else html += `<div class="up" id="upk">${this.upHtml()}</div><div class="er">✦ на счету: ${this.bal()} — их тратишь на исследования мира прямо в игре</div>`;
     html += `<button class="go">${final ? 'Дальше — кварки' : 'Дальше'}</button>`;
     this.res = { final };
-    G.paused = true;
+    G.paused = true; Sfx.hum(0); Sfx.play('segment');
     const el = document.getElementById('epoch');
     el.innerHTML = html; el.scrollTop = 0;
     el.querySelector('button.go').onclick = () => this.closeCard();
@@ -1516,10 +1519,44 @@ const Particles = {
     });
     ctx.globalAlpha = 1;
   },
+  // Шкала остывания (слева вверху): T в логарифме, слева горячо. Риски — где закрывается окно «сделать руками»:
+  // после Хиггса пару X поле родит, пока 2m ≤ 2·T·сила, т. е. до T = m / сила. Сила поля сдвигает окна вниз.
+  // Ромб — застывание поля Хиггса (160 ГэВ); пунктир — ниже этой T Вселенная не остынет, пока задание эпохи не выполнено.
+  drawGauge(alpha) {
+    if (!G.started || (!this.lit && this.ep === 0)) return;
+    const x0 = 16, x1 = 276, y = 56, lo = Math.log10(.1), hi = Math.log10(2000);
+    const X = T => lerp(x0, x1, clamp((hi - Math.log10(Math.max(T, .1))) / (hi - lo), 0, 1));
+    ctx.globalAlpha = alpha;
+    const gr = ctx.createLinearGradient(x0, 0, x1, 0);
+    gr.addColorStop(0, 'rgba(255,240,190,.9)'); gr.addColorStop(.35, 'rgba(255,140,60,.9)'); gr.addColorStop(.7, 'rgba(200,50,110,.85)'); gr.addColorStop(1, 'rgba(70,90,220,.85)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.roundRect(x0, y - 2, x1 - x0, 4, 2); ctx.fill();
+    ctx.font = '600 9px system-ui,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(220,225,240,.55)'; ctx.fillText('остывание →', x1 + 6, y);
+    // застывание поля Хиггса
+    const xh = X(160); ctx.fillStyle = rgb(GOLD, this.hig >= 1 ? .5 : .95);
+    ctx.beginPath(); ctx.moveTo(xh, y - 6); ctx.lineTo(xh + 3, y - 3); ctx.lineTo(xh, y); ctx.lineTo(xh - 3, y - 3); ctx.closePath(); ctx.fill();
+    // окна тяжёлых частиц
+    const need = this.ep === 2 ? this.need2 : this.ep === 0 ? this.need0 : [];
+    let lastX = -99, row = 0; // близкие подписи — в два ряда
+    for (const sp of ['t', 'Z', 'W', 'b', 'ta', 'c']) {
+      const Tc = SM[sp].m / this.up('pow'), x = X(Tc), shut = this.hig >= 1 && this.T < Tc, kn = Codex.has(sp);
+      row = x - lastX < 12 ? 1 - row : 0; lastX = x; const ly = y - 15 - row * 11;
+      const col = shut ? [120, 125, 140] : need.includes(sp) && !this.decSeen.has(sp) ? GOLD : kn ? this.color({ sp, anti: false, col: 0 }) : [210, 220, 240];
+      ctx.globalAlpha = alpha * (shut ? .55 : 1); ctx.fillStyle = rgb(col, 1); ctx.fillRect(x - .75, y - 9, 1.5, 7);
+      label(kn ? SM[sp].sym : '?', x, ly, 10, col, alpha * (shut ? .55 : 1), 700);
+      if (shut) { ctx.strokeStyle = rgb(col, .8); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - 5, ly + 4); ctx.lineTo(x + 5, ly - 4); ctx.stroke(); }
+    }
+    // предел эпохи: пока задание не выполнено, ниже Вселенная не остынет
+    const fl = EPOCHS[this.ep].floor;
+    if (fl > 0 && !this.epDone) { const xf = X(fl); ctx.globalAlpha = alpha * .8; ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.setLineDash([2, 2]); ctx.beginPath(); ctx.moveTo(xf, y - 6); ctx.lineTo(xf, y + 6); ctx.stroke(); ctx.setLineDash([]); }
+    // где сейчас Вселенная
+    const xt = X(this.T); ctx.globalAlpha = alpha; ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.moveTo(xt, y + 3); ctx.lineTo(xt + 5, y + 10); ctx.lineTo(xt - 5, y + 10); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+  },
   // Трекер: сколько поймано фотонов каждого класса (слева вверху); не найденный класс — «?»
   drawCaught(alpha) {
     if (!G.started || !this.enOn() || this.ep === 3) return;
-    const x = 16, y0 = 46;
+    const x = 16, y0 = 84;
     ctx.globalAlpha = alpha * .9; ctx.font = '600 10px system-ui,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(220,225,240,.6)'; ctx.fillText('ПОЙМАНО γ', x, y0);
     PH_CLS.forEach((C, i) => {
@@ -1532,7 +1569,7 @@ const Particles = {
     });
     ctx.globalAlpha = 1;
   },
-  overlay(alpha) { if (this.stockOut) return; this.drawSpec(alpha); this.drawCaught(alpha); this.drawClock(alpha); this.drawBanner(alpha); ctx.globalAlpha = 1; },
+  overlay(alpha) { if (this.stockOut) return; this.drawSpec(alpha); this.drawGauge(alpha); this.drawCaught(alpha); this.drawClock(alpha); this.drawBanner(alpha); ctx.globalAlpha = 1; },
   showCodex() { return this.lit || this.ep > 0; }, // в пустоте открывать ещё нечего
   viewR() { return 3.5 + this.hr() * 1.9; },
   hud() {
