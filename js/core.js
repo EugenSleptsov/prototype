@@ -58,6 +58,24 @@ function tryDash(o, power) {
   return true;
 }
 
+// ---------- карта на уровнях с рогаткой ----------
+// Там палец и мышь заняты жестом (рогатка, след, сгребание газа), поэтому карту двигают отдельно:
+// WASD / стрелки, правая (средняя) кнопка мыши, два пальца, а у рогатки — ещё и тяга по пустому месту.
+// Двигается «точка игрока» P — за ней камера; мир этапа остаётся на месте.
+const PAN_KEYS = { KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
+/** Сдвинуть карту вслед за пальцем: точка мира под пальцем остаётся под ним @param {number} dsx @param {number} dsy — сдвиг на экране, px */
+function panBy(dsx, dsy) { const dx = dsx / cam.z, dy = dsy / cam.z; P.x -= dx; P.y -= dy; cam.x -= dx; cam.y -= dy; }
+/** Клавиши карты; скорость — доля поля зрения в секунду, на любом масштабе одинаково @param {number} dt */
+function tickPan(dt) {
+  if (!G.started || G.paused || (document.activeElement && document.activeElement.tagName === 'INPUT')) return; // печатают имя — не карта
+  let x = 0, y = 0;
+  for (const k of keys) { const v = /** @type {Record<string, number[]>} */ (PAN_KEYS)[k]; if (v) { x += v[0]; y += v[1]; } }
+  const L = Math.hypot(x, y); if (!L) return;
+  const sp = viewRadius() * 1.1 * dt / L; P.x += x * sp; P.y += y * sp;
+}
+// Полная резинка рогатки (px на экране): длиннее — точнее; на маленьком экране — сколько помещается
+const slingFullPx = () => clamp(Math.min(G.W, G.H) * .42, 170, 340);
+
 // ---------- эффекты ----------
 /** @param {number} x @param {number} y @param {number} r0 @param {RGB} c @param {number} [r1] @param {number} [dur] */
 function fxRing(x, y, r0, c, r1 = r0 * 3, dur = .6) { G.fx.push({ x, y, r0, r1, t: 0, dur, c, kind: 'ring' }); }

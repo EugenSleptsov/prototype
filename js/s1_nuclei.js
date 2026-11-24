@@ -21,7 +21,8 @@ const ELEM = [['n', 'Нейтрон', 0], ['H', 'Водород', 1], ['He', 'Г
   ['C', 'Углерод', 4], ['N', 'Азот', 3], ['O', 'Кислород', 2], ['F', 'Фтор', 1], ['Ne', 'Неон', 0], ['Na', 'Натрий', 1], ['Mg', 'Магний', 2]];
 const elemOf = Z => ELEM[clamp(Z, 0, ELEM.length - 1)];
 const NR = .8; // радиус нуклона в масштабе уровня атомов (части ядра передаются туда)
-const NU_R = .42, N_WIN = 120, N_PAR = 75, N_WR = 7.5, N_POP = 24, N_FLY = 1.3, N_VMAX = 15, SYN_COST = 30, Y_GOAL = .25;
+// N_FLY — сколько летит брошенное (минимум), N_REACH — сколько оно пролетает самое меньшее: мягкий бросок летит дольше и долетает
+const NU_R = .42, N_WIN = 120, N_PAR = 75, N_WR = 7.5, N_POP = 24, N_FLY = 1.3, N_REACH = 11, N_VMAX = 15, SYN_COST = 30, Y_GOAL = .25;
 const NUC_NAME = {
   '1,0': ['p', 'протон'], '0,1': ['n', 'нейтрон'], '1,1': ['²H', 'дейтерий'], '1,2': ['³H', 'тритий'], '2,1': ['³He', 'гелий-3'],
   '2,2': ['⁴He', 'гелий-4'], '3,3': ['⁶Li', 'литий-6'], '3,4': ['⁷Li', 'литий-7'], '4,3': ['⁷Be', 'бериллий-7'],
@@ -82,17 +83,20 @@ const Nuclei = {
   // ---------- рогатка ----------
   bodies() { return G.prev || this.doneAt !== null ? [] : this.o.filter(o => this.free(o) && o.age > .3); },
   grabR(b) { return b.rad + 16 / cam.z; },
-  full() { return 150 / cam.z; },
+  full() { return slingFullPx() / cam.z; },
   vmax() { return N_VMAX; },
   hold(b) { b.held = true; b.vx = b.vy = 0; this.learn.grab = true; },
   launch(b, vx, vy) {
     b.held = false; b.vx = vx; b.vy = vy;
-    if (Math.hypot(vx, vy) > .5) { b.fly = N_FLY; b.thrown = 'hand'; this.learn.throw = true; }
+    const v = Math.hypot(vx, vy);
+    if (v > .5) { b.fly = this.flyT(v); b.thrown = 'hand'; this.learn.throw = true; }
   },
+  // время полёта броска со скоростью v: не меньше N_FLY и не короче N_REACH по пути (но не дольше 5 с)
+  flyT(v) { return clamp(N_REACH / Math.max(v, 1e-6), N_FLY, 5); },
   // путь броска (цели движутся по прямой) и вердикт у первой встречной
   predict(b, vx, vy) {
     const pts = [[b.x, b.y]], dt = 1 / 60, others = this.o.filter(q => q !== b && !q.dead && q.age > .3);
-    for (let n = 1; n <= N_FLY * 60; n++) {
+    for (let n = 1; n <= this.flyT(Math.hypot(vx, vy)) * 60; n++) {
       const t = n * dt, x = b.x + vx * t, y = b.y + vy * t;
       if (n % 4 === 0) pts.push([x, y]);
       for (const q of others) {

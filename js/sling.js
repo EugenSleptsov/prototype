@@ -5,14 +5,15 @@
    Уровень-хозяин даёт:
      bodies()            — что можно брать: [{x, y, vx, vy, dead}]
      grabR(b)            — радиус, в котором тело берётся (мир)
-     full(), vmax()      — длина полной резинки (мир) и скорость при ней
+     full(), vmax()      — длина полной резинки (мир; обычно slingFullPx() / cam.z) и скорость при ней (k^SLING_POW)
      carry(b)            — необязательно: скорость тела, которая сохраняется при броске (инерция), иначе 0
      hold(b)             — необязательно: тело взяли (заморозить, погасить вращение…)
      launch(b, vx, vy)   — бросить: задать скорость, пометить брошенным
      predict(b, vx, vy)  — {pts: [[x, y]…], x, y, label, c} — путь и вердикт у цели (или без цели) */
 const SLING_MIN = .12; // доля резинки, короче которой бросок отменяется
+const SLING_POW = 1.5; // скорость растёт быстрее длины: у слабых бросков больше хода резинки — мягкий удар легче отмерить
 class Sling {
-  constructor(host) { this.h = host; this.held = null; this.p0 = null; this.pull = [0, 0]; this.aim = null; this.shots = 0; this.was = false; }
+  constructor(host) { this.h = host; this.held = null; this.p0 = null; this.pull = [0, 0]; this.aim = null; this.shots = 0; this.was = false; this.pan = null; }
   pick(x, y) {
     let best = null, bd = Infinity;
     for (const b of this.h.bodies()) {
@@ -25,7 +26,7 @@ class Sling {
   kick() { // скорость броска при нынешней резинке
     const [dx, dy] = this.pull, L = Math.hypot(dx, dy), k = L / this.h.full();
     if (k < SLING_MIN) return null;
-    const v = k * this.h.vmax(), c = this.h.carry ? this.h.carry(this.held) : [0, 0];
+    const v = k ** SLING_POW * this.h.vmax(), c = this.h.carry ? this.h.carry(this.held) : [0, 0];
     return [c[0] - dx / L * v, c[1] - dy / L * v];
   }
   update() {
@@ -34,8 +35,10 @@ class Sling {
       mouse.clicked = false;
       this.held = this.pick(mx, my);
       if (this.held) { this.p0 = [mx, my]; this.h.hold && this.h.hold(this.held); Sfx.play('grab'); }
+      else this.pan = [mouse.x, mouse.y]; // мимо тела — тянем карту
     }
     this.was = down;
+    if (this.pan) { if (down) { panBy(mouse.x - this.pan[0], mouse.y - this.pan[1]); this.pan = [mouse.x, mouse.y]; } else this.pan = null; return; }
     if (this.held && this.held.dead) this.held = null;
     const b = this.held; this.aim = null;
     if (!b) return;

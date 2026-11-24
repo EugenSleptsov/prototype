@@ -21,7 +21,7 @@ const Stars = {
 
   // рогатка и броски — как на уровне ядер
   mk: Nuclei.mk, float: Nuclei.float, free: Nuclei.free, grabR: Nuclei.grabR, full: Nuclei.full, vmax: Nuclei.vmax,
-  hold: Nuclei.hold, launch: Nuclei.launch, predict: Nuclei.predict, judge: Nuclei.judge, bounce: Nuclei.bounce, drawNuc: Nuclei.drawNuc,
+  hold: Nuclei.hold, launch: Nuclei.launch, flyT: Nuclei.flyT, predict: Nuclei.predict, judge: Nuclei.judge, bounce: Nuclei.bounce, drawNuc: Nuclei.drawNuc,
 
   enter(prev) {
     this.o = []; this.floats = []; this.t = 0; this.clock = 0; this.doneAt = null; this.endCd = -1; this.advanced = false; this.cheated = false;

@@ -61,7 +61,7 @@ const Mols = {
   // ---------- рогатка ----------
   bodies() { return this.doneAt !== null ? [] : this.m.filter(m => !m.dead && m.age > .3); },
   grabR(b) { return b.R + 14 / cam.z; },
-  full() { return 150 / cam.z; },
+  full() { return slingFullPx() / cam.z; },
   vmax() { return 40; },
   hold(b) { b.held = true; b.vx = b.vy = 0; b.w = 0; },
   launch(b, vx, vy) { b.held = false; b.vx = vx; b.vy = vy; b.thrown = 0; if (Math.hypot(vx, vy) > 1) b.hand = 3; },

@@ -30,28 +30,39 @@ addEventListener('resize', resize); resize();
 // Сенсор — «два больших пальца»: палец на экране ведёт детектор (как курсор; отпустил — тормозит),
 // кнопка ◉ справа внизу — действие, два пальца на экране — щипок-зум. Кнопки сбоку заменяют клавиши.
 const ZOOM_MIN = .55, ZOOM_MAX = 2.2;
-const ptrs = new Map(); let steerId = null, pinch0 = null;
+const ptrs = new Map(); let steerId = null, pinch0 = null, mpan = null; // mpan — карту тянут правой кнопкой (уровни с рогаткой)
 const isTouch = () => document.body.classList.contains('touch');
 function touchMode() { if (!isTouch()) { document.body.classList.add('touch'); resize(); } }
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
 addEventListener('pointermove', e => {
-  if (e.pointerType === 'mouse') { mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; return; }
+  if (e.pointerType === 'mouse') {
+    if (mpan) { panBy(e.clientX - mpan.x, e.clientY - mpan.y); mpan = { x: e.clientX, y: e.clientY }; }
+    mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; return;
+  }
   if (!ptrs.has(e.pointerId)) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pinch0 && ptrs.size >= 2) { const [p, q] = [...ptrs.values()]; G.zoom = clamp(pinch0.z * Math.hypot(p.x - q.x, p.y - q.y) / pinch0.d, ZOOM_MIN, ZOOM_MAX); return; }
+  if (pinch0 && ptrs.size >= 2) {
+    const [p, q] = [...ptrs.values()], mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+    G.zoom = clamp(pinch0.z * Math.hypot(p.x - q.x, p.y - q.y) / pinch0.d, ZOOM_MIN, ZOOM_MAX);
+    if (G.stage.sling) panBy(mx - pinch0.mx, my - pinch0.my); // два пальца — ещё и сдвиг карты
+    pinch0.mx = mx; pinch0.my = my; return;
+  }
   if (e.pointerId === steerId) { mouse.x = e.clientX; mouse.y = e.clientY; }
 });
 addEventListener('pointerdown', e => {
   Sfx.unlock(); // звук включается первым жестом игрока (так требует браузер)
-  if (e.pointerType === 'mouse') { mouse.down = true; if (e.target === cv && G.started) mouse.clicked = true; return; }
+  if (e.pointerType === 'mouse') {
+    if (e.button !== 0 && G.stage.sling) { if (e.target === cv) mpan = { x: e.clientX, y: e.clientY }; return; } // правая/средняя — тянуть карту
+    mouse.down = true; if (e.target === cv && G.started) mouse.clicked = true; return;
+  }
   touchMode();
   if (e.target !== cv) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; if (G.stage.sling) mouse.down = true; } // рогатка: палец — сам жест
-  else if (ptrs.size === 2) { const [p, q] = [...ptrs.values()]; pinch0 = { d: Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)), z: G.zoom || 1 }; mouse.idle = true; if (G.stage.sling && mouse.down) { mouse.cancel = true; mouse.down = false; } }
+  else if (ptrs.size === 2) { const [p, q] = [...ptrs.values()]; pinch0 = { d: Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)), z: G.zoom || 1, mx: (p.x + q.x) / 2, my: (p.y + q.y) / 2 }; mouse.idle = true; if (G.stage.sling && mouse.down) { mouse.cancel = true; mouse.down = false; } }
 }, true);
 function ptrUp(e) {
-  if (e.pointerType === 'mouse') { mouse.down = false; return; }
+  if (e.pointerType === 'mouse') { if (mpan && e.button !== 0) { mpan = null; return; } mouse.down = false; return; }
   if (!ptrs.delete(e.pointerId)) return;
   if (ptrs.size < 2) pinch0 = null;
   if (e.pointerId === steerId) { steerId = null; mouse.idle = true; if (G.stage.sling) mouse.down = false; } // отпустил — детектор тормозит (рогатка — бросок)
@@ -96,6 +107,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyC' && G.started && document.activeElement !== pname) { Codex.open(); return; }
   if (!G.started) return;
   if (e.code === 'Escape' && G.tutor) { endTut(false); return; }
+  if (G.stage.sling && /^Arrow/.test(e.code)) e.preventDefault(); // стрелки двигают карту, а не страницу
   if (e.code === 'Space' && !G.paused) { e.preventDefault(); G.stage.dash && G.stage.dash(); }
   if (e.code === 'Enter' || e.code === 'NumpadEnter') G.stage.enterKey && G.stage.enterKey();
   if (e.code === 'KeyX') G.stage.detach && G.stage.detach();
@@ -140,6 +152,7 @@ function update(dt) {
     if (kn > G.knSeen) { addScore((kn - G.knSeen) * 10); G.knSeen = kn; }
   }
   Tally.tick(dt);
+  if (G.stage.sling) tickPan(dt);
   G.stage.update(dt, true);
   if (G.prev) {
     G.trans += dt / TRANS_DUR;
@@ -222,7 +235,8 @@ function hud() {
   put('title', h.title); put('sub', h.sub);
   put('lines', h.lines.map(([a, b]) => `<div class="k">${a}</div><div>${b}</div>`).join(''), true);
   put('goal', h.goal, true);
-  put('controls', G.stage.controls || '');
+  const S = G.stage, pan = !S.sling ? '' : isTouch() ? 'два пальца — сдвинуть карту' : 'WASD или правая кнопка — сдвинуть карту';
+  put('controls', [S.controls, pan].filter(Boolean).join(' · '));
   document.getElementById('laws').style.display = h.laws.length ? '' : 'none';
   document.getElementById('codex').style.top = h.laws.length ? '190px' : '12px';
   const key = G.stage.key;
