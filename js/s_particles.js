@@ -303,7 +303,11 @@ const Particles = {
     const [x, y] = this.randPos(!any);
     // пополнение держит фотоны и глюоны поровну: детектор ест фотоны на энергию, их не должно стать нечем ловить
     let ng = 0, nph = 0; for (const o of this.p) if (!o.dead) { if (o.sp === 'g') ng++; else if (o.sp === 'ph') nph++; }
-    const o = this.mk(this.gOn && (any ? Math.random() < .5 : ng < nph) ? 'g' : 'ph', false, x, y, Math.random() * TAU, this.thermalP(this.T));
+    const o = this.mk(this.ep === 3 ? (Math.random() < .75 ? 'g' : 'ph') : this.gOn && (any ? Math.random() < .5 : ng < nph) ? 'g' : 'ph', false, x, y, Math.random() * TAU, this.thermalP(this.T));
+    if (o.sp === 'g' && this.ep === 3 && this.stock > 0 && Math.random() < .6) {
+      const c = this.colCnt(), lo = c.indexOf(Math.min(...c)), hi = c.indexOf(Math.max(...c));
+      if (lo !== hi) { o.col = lo; o.col2 = hi; }
+    }
     if (any) o.born = 1;
     if (o.sp === 'ph') this.pingRare(o);
   },
@@ -475,9 +479,11 @@ const Particles = {
     if ((this.focus.t += dt) > 1) this.learn.shield = true;
     const R = this.fr();
     for (const o of this.p) {
-      if (o.dead || SM[o.sp].kind !== 'quark') continue;
+      if (o.dead) continue;
       const dx = P.x - o.x, dy = P.y - o.y, d = Math.hypot(dx, dy);
-      if (d > R || d < 1e-3) continue;
+      if (d > R * 1.3 || d < 1e-3) continue;
+      if (o.sp === 'g') { if (this.helpGlu(o)) { o.dx = dx / d; o.dy = dy / d; o.v = 2.2; o.pull = .15; } continue; } // полезный глюон — внутрь, перекрасить
+      if (SM[o.sp].kind !== 'quark' || d > R) continue;
       if (!o.anti) { o.dx = dx / d; o.dy = dy / d; o.v = 1.3; o.pull = .15; }
       else { o.dx = -dx / d; o.dy = -dy / d; o.v = 2; o.rep = 1.2; }
     }
@@ -682,15 +688,28 @@ const Particles = {
     return L;
   },
   rLvl(k) { return this.rs[k] || 0; },
+  // исследование, которое просит текущий шаг задания (крупно и первым в лавке)
+  // (кэш раз в кадр в renderShop: шаги сами спрашивают у лавки номер клавиши)
+  taskRes() { const c = this.steps().find(g => !g.d); return c && c.res; },
   shopItems() {
-    // ✦ — только на исследования мира; детектор улучшается очками ★ на карточке итогов
-    return this.resList().filter(r => this.rLvl(r.k) < r.cost.length).slice(0, RES_MAX).map(r => ({ r, c: r.cost[this.rLvl(r.k)] }));
+    // ✦ — исследования мира; ★ (за эпохи и испытания) — улучшения детектора
+    const pk = this._pk;
+    const res = this.resList().filter(r => this.rLvl(r.k) < r.cost.length).slice(0, RES_MAX).map(r => ({ r, c: r.cost[this.rLvl(r.k)], pri: r.k === pk }));
+    res.sort((a, b) => b.pri - a.pri);
+    const up = this.upPts > 0 ? UPG.filter(u => !this.maxed(u) && this.avail(u)).map(u => ({ up: u, c: 1 })) : [];
+    return [...res, ...up];
   },
   keyOf(k) { const i = this.shopItems().findIndex(x => x.r && x.r.k === k); return i < 0 ? null : i + 1; },
-  canBuy() { return this.shopItems().some(x => this.bal() >= x.c); },
+  canBuy() { return this.shopItems().some(x => x.up ? this.upPts > 0 : this.bal() >= x.c); },
   buy(i) {
     const it = this.shopItems()[i];
     if (!it || !G.started || G.paused || this.stockOut) return;
+    if (it.up) { // улучшение детектора за ★
+      const u = it.up; this.upPts--; this.lvl[u.key]++; Sfx.play('upgrade');
+      fxRing(P.x, P.y, this.hr(), [143, 208, 255], this.hr() * 1.6, .6);
+      this.float(P.x, P.y - this.hr() - .3, `${u.ic} ${u.name}: ${u.fmt(u.val[this.lvl[u.key]])}`, [143, 208, 255], 15);
+      return;
+    }
     if (this.bal() < it.c) { this.float(P.x, P.y - this.hr() - .2, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
     this.spent += it.c; this.learn.buy = true;
     this.research(it.r);
@@ -707,11 +726,21 @@ const Particles = {
     this.float(P.x, P.y - this.hr() - .3, `${r.ic} ${k === 'ph' ? `свет ×${l}` : k === 'g' ? 'глюоны в мире' : k === 'coll' ? 'кванты сталкиваются сами' : k === 'cp' ? 'Вселенная сберегает вещество' : k === 'H' ? 'Вселенная рождает сама' : 'столкновения рождают ' + SM[k].sym}`, GOLD, 16);
   },
   renderShop(el) {
-    if (!G.started || this.stockOut || !this.lit || !this.shopItems().length) { el.style.display = 'none'; return; } // в пустоте исследовать нечего
-    const b = this.bal();
-    const html = this.shopItems().map(({ r, c }, k) => `<button data-i="${k}" class="res ${b >= c ? 'ok' : 'no'}"><span class="k">${k + 1}</span>` +
-      `<span class="ic">${r.ic}</span><b>${r.name}</b><i>${r.about(this.rLvl(r.k))}</i><em>${c} ✦</em></button>`).join('');
-    if (el._h !== html) { el._h = html; el.innerHTML = html; el.classList.toggle('many', this.shopItems().length > 4); } // много пунктов — компактно
+    this._pk = this.taskRes();
+    const items = this.shopItems();
+    if (!G.started || this.stockOut || !this.lit || !items.length) { el.style.display = 'none'; return; } // в пустоте исследовать нечего
+    const b = this.bal(), anyPri = items.some(x => x.pri);
+    // иерархия: «для задания» — крупно; прочие исследования — компактно (если есть главное или их много); детектор — всегда компактно
+    const html = items.map((x, k) => {
+      if (x.up) {
+        const u = x.up, l = this.lvl[u.key];
+        return `<button data-i="${k}" class="det sec ok" title="${u.name}: ${u.fmt(u.val[l])} → ${u.fmt(u.val[l + 1])} · ${u.about}"><span class="k">${k + 1}</span><span class="ic">${u.ic}</span><b>${u.name}</b></button>`;
+      }
+      const { r, c } = x, sec = !x.pri && (anyPri || k > 0 && items.length > 2);
+      return `<button data-i="${k}" class="res ${b >= c ? 'ok' : 'no'}${x.pri ? ' pri' : sec ? ' sec' : ''}">${x.pri ? '<u>для задания</u>' : ''}<span class="k">${k + 1}</span>` +
+        `<span class="ic">${r.ic}</span><b>${r.name}</b><i>${r.about(this.rLvl(r.k))}</i><em>${c} ✦</em></button>`;
+    }).join('') + (this.upPts > 0 ? `<div class="sh-h">детектор · ★ ${this.upPts}</div>` : '');
+    if (el._h !== html) { el._h = html; el.innerHTML = html; }
     if (!el.onclick) el.onclick = e => { const bt = e.target.closest('button'); if (bt && G.stage.buy) G.stage.buy(+bt.dataset.i); };
     el.style.display = 'flex';
   },
@@ -814,8 +843,8 @@ const Particles = {
         const w = rnd(-.6, .6), c = Math.cos(w), s = Math.sin(w), x = o.dx; o.dx = x * c - o.dy * s; o.dy = x * s + o.dy * c; // не по той же линии
       }
       if (ep4 && !this.advanced && (o.sp === 'u' || o.sp === 'd') && d < this.hr() * (o.anti ? .55 : .75)) this.store(o);
-      if (o.sp === 'ph' && G.started && this.enOn() && !this.focus && d < this.hr() && !o.cap && !(o.flung > 0) && o.born > .5 && o.cd <= 0) this.absorb(o);
-      if (ep4 && o.sp === 'g' && !this.advanced && d < this.hr() * .75 && o.born > .5) this.recolor(o);
+      if (o.sp === 'ph' && this.ep !== 3 && G.started && this.enOn() && !this.focus && d < this.hr() && !o.cap && !(o.flung > 0) && o.born > .5 && o.cd <= 0) this.absorb(o);
+      if (ep4 && o.sp === 'g' && !this.advanced && d < this.hr() * .9 && o.born > .5) this.recolor(o);
     }
     if (act) {
       // сталкивает только поле: квант встречает своего напарника — или, брошенный рогаткой, любой встречный квант
@@ -937,56 +966,15 @@ const Particles = {
       for (let k = 0; k < 4; k++) { const [x, y] = this.randPos(false); this.mk(pick(['u', 'd']), false, x, y, Math.random() * TAU, rnd(.1, .4)); }
     }
   },
-  // Детектор на карточке итогов: очко ★ — уровень улучшения (клавиши 1–4)
-  upHtml() {
-    return `<div class="ek">Детектор · очков ★: ${this.upPts}</div><div class="ug">` + UPG.map((u, k) => {
-      const l = this.lvl[u.key], max = this.maxed(u), can = !max && this.upPts > 0 && this.avail(u);
-      return `<button data-u="${k}" class="${can ? 'ok' : 'no'}"><b>${k + 1} · ${u.ic} ${u.name}</b><i>${max ? u.fmt(u.val[l]) + ' · макс.' : u.fmt(u.val[l]) + ' → ' + u.fmt(u.val[l + 1])}</i><small>${u.about}</small></button>`;
-    }).join('') + '</div>';
-  },
-  pick(i) {
-    const u = UPG[i], el = document.getElementById('upk');
-    if (!u || !el || !this.res || this.res.final || this.maxed(u) || this.upPts < 1 || !this.avail(u)) return;
-    this.upPts--; this.lvl[u.key]++; el.innerHTML = this.upHtml(); Sfx.unlock(); Sfx.play('upgrade');
-  },
-  closeCard() {
-    const el = document.getElementById('epoch');
-    if (el.style.display !== 'flex') return;
-    const r = this.res;
-    el.style.display = 'none'; G.paused = false; this.res = null;
-    if (r && r.final) this.endLevel();
-  },
-  // Итоги эпохи: время, добытые ✦, бонус, испытания ★, итог и место в таблице рекордов
-  showResult(final) {
+  // Итоги эпохи — сбоку, игру не останавливают (Tally.note); очки ★ — на детектор прямо в лавке
+  showResult() {
     const i = this.ep, pts = Math.round(this.kn - this.epKn0), t = this.doneAt;
-    const trios = baryonTrios(this.stockQ), bonus = i === 3 ? trios * 30 : t === null ? 0 : Math.max(0, Math.round((PAR[i] - t) * 2));
-    const total = pts + bonus, won = starsWon(this.stars);
-    if (!final) this.upPts += (t === null ? 0 : 1) + won; // очки ★ на детектор: эпоха выполнена + испытания
-    this.lvlTotal += total;
-    const e = { n: LB.name(), s: total, p: pts, t: t === null ? null : Math.floor(t), d: Date.now() };
-    const table = (key, entry) => lbTable(key, entry, this.cheated);
-    let html = `<div class="ek">Эпоха ${i + 1}</div><div class="en">${EPOCHS[i].name}</div>` +
-      `<div class="rs"><div><span>⏱</span>${fmtClock(t)}</div><div><span>✦ добыто</span>${pts}</div>` +
-      `<div><span>${i === 3 ? `тройки ${trios} × 30` : `быстрее ${fmtClock(PAR[i])}`}</span>+${bonus}</div><div class="tot"><span>итог</span>${total}</div></div>` +
-      `<div class="st">${this.stars.map(s => `<b class="${s.st === 1 ? 'y' : 'n'}">${s.st === 1 ? '★' : '✗'} ${s.t}</b>`).join('')}<small>★ ${won}/${this.stars.length} · испытания в каждом забеге новые</small></div>` +
-      table('e' + i, e);
-    if (final) {
-      const le = { n: e.n, s: this.lvlTotal, p: Math.round(this.kn), t: Math.floor(this.t), d: e.d };
-      html += `<div class="ek" style="margin-top:18px">Уровень частиц · ${this.lvlTotal}</div>` + table('level', le);
-    } else html += `<div class="up" id="upk">${this.upHtml()}</div><div class="er">✦ на счету: ${this.bal()} — их тратишь на исследования мира прямо в игре</div>`;
-    html += `<button class="go">${final ? 'Дальше — кварки' : 'Дальше'}</button>`;
-    this.res = { final };
-    G.paused = true; Sfx.hum(0); Sfx.play('segment');
-    const el = document.getElementById('epoch');
-    el.innerHTML = html; el.scrollTop = 0;
-    el.querySelector('button.go').onclick = () => this.closeCard();
-    const up = el.querySelector('#upk'); if (up) up.onclick = e => { const b = e.target.closest('button'); if (b) this.pick(+b.dataset.u); };
-    el.style.display = 'flex';
-  },
-  // первое неоткрытое звено цепочки поколений перед sp, которое уже можно родить
-  genFirst(sp) {
-    for (const k of genNeed(sp)) { if (genOpen(k)) return k; const r = this.genFirst(k); if (r) return r; }
-    return null;
+    const bonus = t === null ? 0 : Math.max(0, Math.round((PAR[i] - t) * 2)), total = pts + bonus, won = starsWon(this.stars);
+    this.upPts += (t === null ? 0 : 1) + won; this.lvlTotal += total; addScore(bonus * 10);
+    const place = this.cheated ? null : LB.add('e' + i, { n: LB.name(), s: total, p: pts, t: t === null ? null : Math.floor(t), d: Date.now() }).place;
+    Tally.note(`ЭПОХА ${i + 1} · ВЫПОЛНЕНА`, EPOCHS[i].name, [['⏱ эпоха', fmtClock(t)], ['✦ добыто', pts], [`быстрее ${fmtClock(PAR[i])}`, '+' + bonus, 'tb'], ['итог', total, 'tl']],
+      this.stars, place, this.upPts ? `★ ${this.upPts} — улучши детектор в лавке внизу` : '');
+    Sfx.play('segment');
   },
   // Горячая точка: мерцающее кольцо, через 1,6 с там рождается нужная тяжёлая частица
   hotTarget() {
@@ -1091,9 +1079,9 @@ const Particles = {
     switch (this.ep) {
       case 0: return [
         { t: 'Раскачай поле, как качели', h: 'зажатое поле толкает шарик влево: держи, пока он катится влево, отпускай на краю. Каждый проход дна — свет; выше размах — горячее Вселенная', s: `${this.inf.pick ? this.inf.pick.n : ''} разогрев · ${fmtGeV(this.T0)}`, d: this.lit },
-        { t: 'Исследуй свет', h: `${buy('ph')} — Вселенная начнёт рождать γ сама`, s: 'свет рождается сам', d: this.rs.ph > 0 },
+        { t: 'Исследуй свет', h: `${buy('ph')} — Вселенная начнёт рождать γ сама`, s: 'свет рождается сам', d: this.rs.ph > 0, res: 'ph' },
         { t: 'Измерь спектр', h: 'лови фотоны кругом — пойманный измерен; найди 3 класса из 4', items: PH_CLS.map((c, i) => [c.n, this.phSeen.has(i)]), s: 'спектр измерен', d: this.phSeen.size >= 3 },
-        { t: this.gOn ? 'Сними глюон' : 'Исследуй глюоны', h: this.gOn ? 'глюоны уже в мире — поймай один' : `${buy('g')} — и сними глюон`, s: 'глюон открыт', d: has('g') },
+        { t: this.gOn ? 'Сними глюон' : 'Исследуй глюоны', h: this.gOn ? 'глюоны уже в мире — поймай один' : `${buy('g')} — и сними глюон`, s: 'глюон открыт', d: has('g'), res: this.gOn ? null : 'g' },
         { t: 'Столкни кванты', h: 'зажми рядом с двумя волнами и отпусти', s: 'первое столкновение', d: this.pairs > 0 },
         { t: 'Открой первое поколение', h: 'сталкивай кванты и снимай, что родилось. Тяжёлые поколения откроются следом' + (this.need0.some(sp => SM[sp].kind === 'lepton' && !has(sp)) ? '. Лептоны — из γ + γ: наведись на фотон и отпусти в синем окне, до риски q' : ''),
           items: this.need0.map(sp => [sym(sp), has(sp)]), s: 'частицы открыты', d: this.need0.every(has) },
@@ -1106,14 +1094,14 @@ const Particles = {
       ];
       case 2: return this.need2.map(sp => ({ t: `Сними распад ${sym(sp)}`, h: !genOpen(sp) ? `сначала открой ${genNeed(sp).map(sym).join(' и ')} — поколения открываются по порядку: столкни кванты и сними`
         : Codex.auto.has(sp) ? `жди вспышку и ${tap} по золотой вершине следа`
-        : `сделай ${sym(sp)} столкновением (выше риски ${sym(sp)}) и ${tap} по вершине распада — или исследуй «${sym(sp)} сам»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp) }));
+        : `сделай ${sym(sp)} столкновением (выше риски ${sym(sp)}) и ${tap} по вершине распада — или исследуй «${sym(sp)} сам»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? sp : null }));
       default: {
         const t = baryonTrios(this.stockQ);
         const a = this.safe.length;
-        return [{ t: `Собери ${TRIO_GOAL} ${TRIO_W} R·G·B`, h: 'лови кварки недостающего цвета или глюон, что перекрасит лишний; зажми — щит', p: [Math.min(t, TRIO_GOAL), TRIO_GOAL], s: `${TRIO_GOAL} ${TRIO_W}`, d: t >= TRIO_GOAL },
+        return [{ t: `Собери ${TRIO_GOAL} ${TRIO_W} R·G·B`, h: 'лови кварки недостающего цвета; глюон в золотом кольце перекрасит лишний — зажми рядом, щит его втянет', p: [Math.min(t, TRIO_GOAL), TRIO_GOAL], s: `${TRIO_GOAL} ${TRIO_W}`, d: t >= TRIO_GOAL },
           { t: 'Научи Вселенную сберегать вещество', h: this.rs.cp ? 'вещества чуть больше, чем антивещества: Вселенная сама сберегает тройки — зелёные, вокруг детектора'
             : t < HAND_CP ? `сначала ${HAND_CP} тройки руками — потом исследуй «⚖ Асимметрия»` : `исследуй «⚖ Асимметрия» ${buy('cp')}`,
-            p: [Math.min(a, AUTO_TRIO), AUTO_TRIO], s: 'Вселенная сберегает сама', d: a >= AUTO_TRIO }];
+            p: [Math.min(a, AUTO_TRIO), AUTO_TRIO], s: 'Вселенная сберегает сама', d: a >= AUTO_TRIO, res: 'cp' }];
       }
     }
   },
@@ -1137,7 +1125,7 @@ const Particles = {
     if (this.epDone || !this.steps().every(g => g.d)) return;
     this.epDone = true; this.epGap = 2.5; this.kn += 15; this.doneAt = this.epClock;
     this.release(); this.holding = false;
-    if (this.ep < EPOCHS.length - 1) { this.tickStars(true); this.showResult(false); }
+    if (this.ep < EPOCHS.length - 1) { this.tickStars(true); this.showResult(); }
     else this.float(P.x, P.y - this.hr() - .5, '✓ +15 ✦', [255, 215, 110], 17);
   },
   enterKey() { this.ff = this.ff > 1 ? 1 : 4; msg(this.ff > 1 ? '×4' : '×1', 1); },
@@ -1276,6 +1264,8 @@ const Particles = {
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [c], .6 * a, 1.6);
           ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,32,.85)'; ctx.beginPath(); ctx.arc(hx, hy, 7.5, 0, TAU); ctx.fill();
           ring(hx, hy, 7.5, [235, 245, 255], .9, 1.3); label('?', hx, hy + .5, 10, [255, 255, 255], 1, 800); ctx.globalAlpha = 1;
+        } else if (o.sp === 'ph' && this.ep === 3) { // аннигиляция: свет — фон, фокус на кварках и глюонах
+          waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [[220, 225, 240]], .18 * a, 1.2);
         } else if (o.sp === 'ph') {
           const cc = mixc([255, 200, 120], [220, 235, 255], hot);
           if (this.enOn() && (this.en < 3 || !this.full) && !o.cap) ring(hx, hy, 10 + 2 * Math.sin(G.T * 8 + o.ph), PH_C, .7 * a, 1.6);
@@ -1542,7 +1532,7 @@ const Particles = {
     if (!G.started || G.paused || this.advanced) return;
     let t = null;
     if (this.ep === 3) t = !this.learn.shield ? 'зажми — щит'
-      : !this.learn.recol && this.stock >= 2 && this.p.some(o => !o.dead && o.sp === 'g' && this.helpGlu(o) && onScreen(...W2S(o.x, o.y), 0)) ? 'поймай глюон в золотом кольце — он перекрасит кварк' : null;
+      : !this.learn.recol && this.stock >= 2 && this.p.some(o => !o.dead && o.sp === 'g' && this.helpGlu(o) && onScreen(...W2S(o.x, o.y), 0)) ? 'глюон в золотом кольце: подлети и зажми — щит втянет его и перекрасит лишний кварк' : null;
     else if (!this.lit && this.ep === 0) {
       const I = this.inf;
       if (I.hold) t = null;

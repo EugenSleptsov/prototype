@@ -163,12 +163,12 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   const ds = steps.map(s => !!s.d), ss = stars.map(s => s.st);
   if (tk.ds) {
     const j = ds.findIndex((d, k) => d && !tk.ds[k]);
-    if (j >= 0) { tk.fl = { txt: '✓ ' + steps[j].s, c: [140, 235, 170], at: G.T }; Sfx.play('goal'); }
+    if (j >= 0) { tk.fl = { txt: '✓ ' + steps[j].s, c: [140, 235, 170], at: G.T }; tk.doneAt = G.T; Sfx.play('goal'); }
     const w = ss.findIndex((v, k) => v === 1 && tk.ss[k] !== 1);
     if (w >= 0) { tk.fl = { txt: '★ ' + stars[w].t, c: [255, 215, 110], at: G.T }; Sfx.play('star'); }
   }
   tk.ds = ds; tk.ss = ss;
-  const i = ds.indexOf(false), n = steps.length, cur = i < 0 ? null : steps[i], a = alpha;
+  const i = ds.indexOf(false), n = steps.length, cur = i < 0 ? null : steps[i], a = alpha, small = G.H < 720 || G.W < 520;
   const W = Math.min(400, G.W - 24), x0 = (G.W - W) / 2, pad = 12, GOLD = [255, 210, 122], GREEN = [150, 240, 185];
   let y = 46;
   ctx.globalAlpha = 1;
@@ -187,11 +187,12 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   };
   // выполненные — свёрнуты
   const doneIdx = ds.map((d, k) => d ? k : -1).filter(k => k >= 0 && (i < 0 || k < i));
-  for (const k of doneIdx.slice(-2)) slim('✓  ' + steps[k].s, rgb([77, 232, 155], .16 * a), GREEN, .95);
+  for (const k of doneIdx.slice(small ? -1 : -2)) if (!small || G.T - (tk.doneAt || -9) < 4) slim('✓  ' + steps[k].s, rgb([77, 232, 155], .16 * a), GREEN, .95);
   // текущий — раскрыт
   const iw = W - pad * 2 - 30, tx = x0 + pad + 30;
   const title = wrapText(cur ? cur.t : after || 'Задание выполнено', 16, 800, iw);
-  const hint = cur && cur.h ? wrapText(cur.h, 13, 500, iw) : [];
+  let hint = cur && cur.h ? wrapText(cur.h, 13, 500, iw) : [];
+  if (small && hint.length > 2) { hint = hint.slice(0, 2); hint[1] = hint[1].replace(/[\s,.;:—-]*\S*$/, '') + '…'; }
   const items = cur && cur.items ? cur.items.map(([t, d]) => [(d ? '✓ ' : '') + t, d ? [[77, 232, 155], .28] : [[255, 255, 255], .09], d ? [170, 245, 205] : [235, 235, 245]]) : [];
   const ih = chipRows(items, tx, 0, iw, 12, false, a);
   const hasP = cur && cur.p;
@@ -214,7 +215,7 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   }
   y += h + 5;
   // следующий — свёрнут, тускло
-  if (cur && i + 1 < n && !ds[i + 1]) slim(`${i + 2}.  ${steps[i + 1].t}`, rgb([10, 9, 18], .5 * a), [215, 220, 235], .55);
+  if (!small && cur && i + 1 < n && !ds[i + 1]) slim(`${i + 2}.  ${steps[i + 1].t}`, rgb([10, 9, 18], .5 * a), [215, 220, 235], .55);
   // испытания ★
   if (stars.length) {
     const st = stars.map(s => s.st === 1 ? ['★ ' + s.t, [[255, 215, 110], .26], [255, 225, 140]]
@@ -235,31 +236,47 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
 const TALLY_T = 8, LVL_BONUS = 500, AUTO_BONUS = 1000;
 const Tally = {
   t: 0,
+  // итоги пройденного уровня (из advance)
   show(st) {
     const d = st.tally ? st.tally() : { name: st.name, rows: [] };
     const auto = d.auto && d.auto[1] > 0 ? clamp(d.auto[0] / d.auto[1], 0, 1) : null;
     addScore(LVL_BONUS); if (auto !== null) addScore(AUTO_BONUS * auto);
-    const lvl = Math.round(G.score - (st.scoreAt || 0)), stars = d.stars || [];
+    const lvl = Math.round(G.score - (st.scoreAt || 0));
     let place = null;
-    if (!st.cheated) { const r = LB.add('run.' + st.key, { n: LB.name(), s: lvl, t: Math.floor(st.clock ?? st.t ?? 0), d: Date.now() }); place = r.place; }
-    const row = (k, v, c = '') => `<div class="${c}"><span>${k}</span><b>${v}</b></div>`;
+    if (!st.cheated) place = LB.add('run.' + st.key, { n: LB.name(), s: lvl, t: Math.floor(st.clock ?? st.t ?? 0), d: Date.now() }).place;
+    this.note(`УРОВЕНЬ ${G.stageI + 1} · ПРОЙДЕН`, d.name, [...d.rows, ['уровень пройден', '+' + LVL_BONUS, 'tb'],
+      ...(auto !== null ? [['отдано Вселенной', '+' + Math.round(AUTO_BONUS * auto), 'tb']] : []),
+      ['очки за уровень', fmtScore(lvl), 'tl'], ['всего', fmtScore(G.score), 'tt']], d.stars || [], place, '', auto);
+  },
+  // любая сводка сбоку: шапка, имя, строки [подпись, значение, класс], ★, место в таблице, сноска, доля Вселенной
+  note(kick, name, rows, stars, place, foot, auto) {
+    const row = ([k, v, c = 'tx']) => `<div class="${c}"><span>${k}</span><b>${v}</b></div>`;
     const el = document.getElementById('tally');
-    el.innerHTML = `<div class="tk">УРОВЕНЬ ${G.stageI + 1} · ПРОЙДЕН</div><div class="tn">${d.name}</div>` +
-      (auto !== null ? `<div class="ta"><i style="width:${Math.round(auto * 100)}%"></i><span>Вселенная сама — ${Math.round(auto * 100)} %</span></div>` : '') +
-      d.rows.map(([k, v]) => row(k, v, 'tx')).join('') +
-      (stars.length ? `<div class="ts">${stars.map(s => s.st === 1 ? '★' : '☆').join('')}</div>` : '') +
-      row('уровень пройден', '+' + LVL_BONUS, 'tb') + (auto !== null ? row('отдано Вселенной', '+' + Math.round(AUTO_BONUS * auto), 'tb') : '') +
-      row('очки за уровень', fmtScore(lvl), 'tl') + row('всего', fmtScore(G.score), 'tt') +
-      (place === 0 ? '<div class="tr">🏆 рекорд уровня</div>' : place !== null ? `<div class="tr">#${place + 1} в таблице уровня</div>` : '');
+    el.innerHTML = `<div class="tk">${kick}</div><div class="tn">${name}</div>` +
+      (auto != null ? `<div class="ta"><i style="width:${Math.round(auto * 100)}%"></i><span>Вселенная сама — ${Math.round(auto * 100)} %</span></div>` : '') +
+      rows.map(row).join('') +
+      (stars && stars.length ? `<div class="ts">${stars.map(s => `<em class="${s.st === 1 ? 'y' : 'n'}">${s.st === 1 ? '★' : '✗'} ${s.t}</em>`).join('')}</div>` : '') +
+      (place === 0 ? '<div class="tr">🏆 рекорд</div>' : place != null ? `<div class="tr">#${place + 1} в таблице</div>` : '') +
+      (foot ? `<div class="tf">${foot}</div>` : '');
     el.classList.add('on'); this.t = TALLY_T;
   },
-  tick(dt) { if (this.t > 0 && (this.t -= dt) <= 0) document.getElementById('tally').classList.remove('on'); },
+  tick(dt) {
+    if (this.t <= 0) return;
+    const el = document.getElementById('tally');
+    if ((this.t -= dt) <= 0) { el.classList.remove('on'); return; }
+    // на узком экране — компактно под панелью задания (и под карточкой открытия, если она видна)
+    if (G.W <= 700) {
+      const cd = document.getElementById('card'), cv = +cd.style.opacity > 0 && !cd.classList.contains('side');
+      el.style.top = Math.max(60, (G.taskY || 0) + 10 + (cv ? cd.offsetHeight + 8 : 0)) + 'px';
+    } else el.style.top = '';
+  },
 };
 
 let msgT = 0, lastMsg = '';
 function msg(t, dur = 3.8) {
   const el = document.getElementById('msg');
   el.textContent = t; el.style.opacity = 1; msgT = dur; lastMsg = t;
+  el.style.top = Math.max(G.H * .2, (G.taskY || 0) + 14) + 'px'; // под панелью задания, не поверх
 }
 
 // ---------- фон: масштабно-инвариантная «пыль» ----------
