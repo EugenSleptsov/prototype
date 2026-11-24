@@ -1,6 +1,6 @@
 "use strict";
 const STAGES = [Particles, Quarks, Nuclei, Atoms, Mols];
-const LADDER = ['Частицы', 'Кварки', 'Ядра', 'Атомы', 'Молекулы', 'Органика', 'Протоклетки', 'Клетки', 'Организмы'];
+const LADDER = ['Частицы', 'Адроны', 'Ядра', 'Атомы', 'Молекулы', 'Органика', 'Протоклетки', 'Клетки', 'Организмы'];
 const TRANS_DUR = 3;
 
 // Переход: старый этап продолжает жить и гаснет, новый проявляется и забирает его частицы.
@@ -123,7 +123,7 @@ function hud() {
   document.getElementById('codex').style.top = h.laws.length ? '190px' : '12px';
   const key = G.stage.key;
   if (key !== lawsKey) { lawsKey = key; barsEl.innerHTML = h.laws.map(([n], i) => `<div>${n}</div><div class="bar"><i id="law${i}"></i></div>`).join(''); }
-  Codex.render(true);
+  Codex.render(G.stage.showCodex ? G.stage.showCodex() : true);
   const upg = document.getElementById('upg');
   if (G.stage.renderUpg) G.stage.renderUpg(upg); else upg.style.display = 'none';
   const shop = document.getElementById('shop');
