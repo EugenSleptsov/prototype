@@ -2,11 +2,33 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PROTO // TYPE</title>
+<meta name="description" content="Эволюция от частиц после Большого взрыва: ты — детектор, сталкивай энергию и открывай частицы.">
+<meta name="theme-color" content="#05030a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PROTO//TYPE">
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#05030a;font-family:system-ui,"Segoe UI",sans-serif;color:#dde3f0}
-  canvas{display:block;cursor:crosshair}
+  canvas{display:block;cursor:crosshair;touch-action:none}
+  body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+  #pname{-webkit-user-select:text;user-select:text}
+  /* сенсор: кнопка действия справа внизу, кнопки вместо клавиш над ней */
+  #act,#tbar{display:none}
+  body.touch #act{display:flex;position:fixed;right:max(16px,env(safe-area-inset-right));bottom:56px;width:96px;height:96px;border-radius:50%;border:2px solid #8fd0ffaa;background:#0b1a2acc;color:#dde3f0;z-index:6;flex-direction:column;align-items:center;justify-content:center;gap:3px;touch-action:none;font:inherit;padding:0;box-shadow:0 0 18px #8fd0ff33}
+  #act span{font-size:32px;line-height:1;color:#8fd0ff}
+  #act small{font-size:10px;opacity:.75;text-align:center;line-height:1.2;max-width:80px}
+  #act.on{background:#8fd0ff40;border-color:#ffd27a;transform:scale(.95)}
+  body.touch #tbar{display:flex;flex-direction:column;gap:8px;position:fixed;right:max(16px,env(safe-area-inset-right));bottom:166px;z-index:6}
+  #tbar button{width:56px;height:44px;border-radius:12px;border:1px solid #ffffff33;background:#0b0f1ccc;color:#dde3f0;font:inherit;font-size:15px;touch-action:none;padding:0}
+  body.touch #shop{left:12px;transform:none;max-width:calc(100vw - 136px);justify-content:flex-start}
+  body.touch .mo{display:none}
+  body:not(.touch) .to{display:none}
   .shadow{text-shadow:0 1px 3px #000,0 0 8px #0008}
   #hud{position:fixed;left:16px;top:12px;pointer-events:none;max-width:min(440px,60vw)}
   #title{font-size:22px;font-weight:650;letter-spacing:.02em}
@@ -127,11 +149,21 @@
 <div id="upg" class="shadow"></div>
 <div id="shop"></div>
 <div id="epoch"></div>
+<button id="act" aria-label="действие: снимок или поле"><span>◉</span><small></small></button>
+<div id="tbar">
+  <button id="t-mute" data-key="KeyM" aria-label="звук">🔊</button>
+  <button id="t-ff" data-key="Enter" aria-label="ускорить время">×4</button>
+  <button id="t-dash" data-key="Space" aria-label="рывок">⇢</button>
+  <button id="t-rl" data-hold="KeyQ" aria-label="вращать влево">⟲</button>
+  <button id="t-rr" data-hold="KeyE" aria-label="вращать вправо">⟳</button>
+  <button id="t-x" data-key="KeyX" aria-label="отщепить атом">✂</button>
+</div>
 
 <div id="intro" class="overlay"><div>
   <h1>PROTO // TYPE</h1>
   <p>10⁻¹² секунды после Большого взрыва. Материи ещё нет — только энергия.<br>Ты — детектор. Сталкивай энергию и открывай частицы.</p>
-  <p style="opacity:.75">Мышь — вести · клик — снимок · зажать — притянуть кванты · отпустить — столкнуть · колесо — зум · M — звук</p>
+  <p class="mo" style="opacity:.75">Мышь — вести · клик — снимок · зажать — притянуть кванты · отпустить — столкнуть · колесо — зум · M — звук</p>
+  <p class="to" style="opacity:.75">Палец на экране — вести детектор · кнопка ◉: тап — снимок, держать — притянуть кванты, отпустить — столкнуть · два пальца — зум</p>
   <input id="pname" maxlength="16" placeholder="Имя для рекордов">
   <button id="go">Начать</button>
 </div></div>
@@ -140,19 +172,20 @@
   <h1>Пока всё</h1>
   <p id="endtext"></p>
   <p>Следующий этап — органика: полимеры и самокопирование. Он ещё в разработке.</p>
-  <p style="opacity:.75"><kbd>R</kbd> — начать заново</p>
+  <p class="mo" style="opacity:.75"><kbd>R</kbd> — начать заново</p>
+  <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=66"></script>
-<script src="js/audio.js?v=66"></script>
-<script src="js/core.js?v=66"></script>
-<script src="js/universe.js?v=66"></script>
-<script src="js/codex.js?v=66"></script>
-<script src="js/s0_quarks.js?v=66"></script>
-<script src="js/s_particles.js?v=66"></script>
-<script src="js/s1_nuclei.js?v=66"></script>
-<script src="js/s2_atoms.js?v=66"></script>
-<script src="js/s3_molecules.js?v=66"></script>
-<script src="js/main.js?v=66"></script>
+<script src="js/util.js?v=68"></script>
+<script src="js/audio.js?v=68"></script>
+<script src="js/core.js?v=68"></script>
+<script src="js/universe.js?v=68"></script>
+<script src="js/codex.js?v=68"></script>
+<script src="js/s0_quarks.js?v=68"></script>
+<script src="js/s_particles.js?v=68"></script>
+<script src="js/s1_nuclei.js?v=68"></script>
+<script src="js/s2_atoms.js?v=68"></script>
+<script src="js/s3_molecules.js?v=68"></script>
+<script src="js/main.js?v=68"></script>
 </body>
 </html>

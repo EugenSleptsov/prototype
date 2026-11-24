@@ -2,7 +2,8 @@
 // Общее состояние, камера, ввод, эффекты.
 const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0, stage: null, prev: null, trans: 1, started: false, ended: false, fx: [] };
 const cam = { x: 0, y: 0, z: 40 };
-const mouse = { x: 0, y: 0, has: false, down: false };
+// idle — палец отпущен: цели нет, тело плавно тормозит (мышь остаётся на месте и ведёт дальше)
+const mouse = { x: 0, y: 0, has: false, down: false, idle: false };
 const keys = new Set();
 // P — «точка игрока» в мире. Активный этап держит её в актуальном состоянии.
 const P = { x: 0, y: 0, vx: 0, vy: 0, dashCd: 0, dashT: 0 };
@@ -21,7 +22,7 @@ const viewRadius = () => Math.hypot(G.W, G.H) / 2 / cam.z;
 // Плавное управление: тело тянется к курсору. resp — «вязкость» отклика.
 function steer(o, maxSp, resp, dt) {
   if (!G.started || !mouse.has || P.dashT > 0) return;
-  const [mx, my] = S2W(mouse.x, mouse.y);
+  const [mx, my] = mouse.idle ? [o.x, o.y] : S2W(mouse.x, mouse.y);
   const dx = mx - o.x, dy = my - o.y, d = Math.hypot(dx, dy) || 1e-9;
   const sp = maxSp * Math.min(1, d / (maxSp * .6));
   const k = Math.min(1, dt * resp);
@@ -29,7 +30,7 @@ function steer(o, maxSp, resp, dt) {
 }
 function tryDash(o, power) {
   if (!G.started || P.dashCd > 0 || !mouse.has) return false;
-  const [mx, my] = S2W(mouse.x, mouse.y);
+  const [mx, my] = mouse.idle ? [o.x + o.vx, o.y + o.vy] : S2W(mouse.x, mouse.y); // палец отпущен — рывок по ходу
   const dx = mx - o.x, dy = my - o.y, d = Math.hypot(dx, dy) || 1e-9;
   o.vx += dx / d * power; o.vy += dy / d * power;
   P.dashCd = 1.0; P.dashT = .35;
@@ -70,10 +71,10 @@ function hudClock(alpha, left, leftCol, pts, chips) {
 // Заголовок: всплывает и гаснет, игру не останавливает (b — секунды с начала)
 function hudBanner(b, kicker, name, sub, alpha) {
   if (!G.started || b > 4.2) return;
-  const a = smooth(0, .4, b) * (1 - smooth(3, 4.2, b)) * alpha, y = G.H * .3;
+  const a = smooth(0, .4, b) * (1 - smooth(3, 4.2, b)) * alpha, y = Math.max(G.H * .3, (G.T - (G.taskAt ?? -9) < .2 ? G.taskY : 0) + 62); // не на карточках задания
   label(kicker, G.W / 2, y - 36, 12, [255, 210, 122], .85 * a, 700);
   label(name, G.W / 2, y, 40, [255, 255, 255], a, 800);
-  label(sub, G.W / 2, y + 36, 15, [220, 225, 240], .8 * a, 500);
+  wrapText(sub, 15, 500, Math.min(640, G.W - 40)).forEach((l, k) => label(l, G.W / 2, y + 36 + k * 20, 15, [220, 225, 240], .8 * a, 500));
 }
 // Стрелки у края экрана к целям за кадром: pts = [[x, y, подпись или цвет]]; не больше n ближайших
 function edgeArrows(pts, n) {
@@ -119,8 +120,37 @@ function tickStars(stars, end, onWin) {
   }
 }
 const starsWon = stars => stars.filter(s => s.st === 1).length;
-// Панель задания под часами: крупно — первый невыполненный шаг {t: что сделать, s: коротко, d: сделано},
-// ниже — испытания ★. Шаг выполнен — по центру вспыхивает «✓ коротко»; испытание — «★ …».
+// Текст слева (или справа) и обрезка с «…» по ширине
+function labelL(t, x, y, px, c, a = 1, weight = 600, align = 'left') {
+  ctx.fillStyle = rgb(c, a); ctx.font = `${weight} ${px}px system-ui,sans-serif`;
+  ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y);
+}
+function fitText(t, px, weight, maxW) {
+  ctx.font = `${weight} ${px}px system-ui,sans-serif`;
+  if (ctx.measureText(t).width <= maxW) return t;
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+  return t.trimEnd() + '…';
+}
+// Фишки в строку с переносом: [[текст, цвет фона, цвет текста, зачёркнуто]] → высота; draw=false — только мерить
+function chipRows(list, x0, y, maxW, px, draw, alpha) {
+  ctx.font = `700 ${px}px system-ui,sans-serif`;
+  const h = px + 9, gap = 6; let x = x0, rows = list.length ? 1 : 0;
+  for (const [t, bg, fg, strike] of list) {
+    const w = ctx.measureText(t).width + 16;
+    if (x > x0 && x + w > x0 + maxW) { x = x0; y += h + gap; rows++; }
+    if (draw) {
+      ctx.fillStyle = rgb(bg[0], bg[1] * alpha); ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fill();
+      label(t, x + w / 2, y + h / 2 + .5, px, fg, .95 * alpha, 700);
+      if (strike) { ctx.fillStyle = rgb(fg, .6 * alpha); ctx.fillRect(x + 8, y + h / 2, w - 16, 1); }
+      ctx.font = `700 ${px}px system-ui,sans-serif`;
+    }
+    x += w + gap;
+  }
+  return rows ? rows * h + (rows - 1) * gap : 0;
+}
+// Задание — список карточек под часами. Шаг: {t: что сделать (коротко), h: как (мелко), items: [[метка, есть]],
+// p: [сколько, из], s: коротко — вспыхивает «✓ s», d: сделано}. Видно: два последних выполненных (свёрнуты, ✓),
+// текущий (раскрыт), следующий (свёрнут, тускло); в шапке — полоска шагов; испытания ★ — фишками под карточками.
 // tk — состояние панели у этапа (сбрасывать на новой эпохе), after — текст, когда все шаги сделаны.
 function hudTask(alpha, tk, kicker, steps, stars, after) {
   if (!G.started) return;
@@ -132,30 +162,63 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
     if (w >= 0) { tk.fl = { txt: '★ ' + stars[w].t, c: [255, 215, 110], at: G.T }; Sfx.play('star'); }
   }
   tk.ds = ds; tk.ss = ss;
-  const i = ds.indexOf(false), n = steps.length, cur = i < 0 ? null : steps[i];
-  const x = G.W / 2, maxW = Math.min(560, G.W - 40) - 28;
-  const lines = wrapText(cur ? cur.t : after || 'Задание выполнено', 19, 700, maxW);
-  const kick = cur ? `${kicker} · ЗАДАНИЕ ${i + 1}/${n}` : `${kicker} · ✓ ВЫПОЛНЕНО`;
-  ctx.font = '600 13px system-ui,sans-serif';
-  const st = stars.map(s => `${s.st === 1 ? '★' : s.st < 0 ? '✗' : '☆'} ${s.t}`);
-  const sw = st.map(t => ctx.measureText(t).width), gap = 22, rowW = sw.reduce((a, b) => a + b, 0) + gap * Math.max(0, st.length - 1);
-  const stack = rowW > maxW, rows = st.length ? (stack ? st.length : 1) : 0;
-  ctx.font = '700 19px system-ui,sans-serif';
-  const w = Math.max(260, ...lines.map(l => ctx.measureText(l).width), stack ? Math.max(...sw) : rowW) + 28;
-  const y0 = 48, h = 12 + 16 + lines.length * 24 + rows * 20 + 10;
-  ctx.globalAlpha = alpha; ctx.fillStyle = 'rgba(10,9,18,.62)';
-  ctx.beginPath(); ctx.roundRect(x - w / 2, y0, w, h, 12); ctx.fill();
-  label(kick, x, y0 + 18, 11, cur ? [255, 210, 122] : [140, 235, 170], .9 * alpha, 700);
-  lines.forEach((l, k) => label(l, x, y0 + 40 + k * 24, 19, [255, 255, 255], alpha, 700));
-  let sy = y0 + 40 + lines.length * 24 + 2, sx = x - rowW / 2;
-  st.forEach((t, k) => {
-    const c = stars[k].st === 1 ? [255, 215, 110] : stars[k].st < 0 ? [150, 150, 165] : [215, 220, 235];
-    if (stack) label(t, x, sy + k * 20, 13, c, .95 * alpha, 600);
-    else { label(t, sx + sw[k] / 2, sy, 13, c, .95 * alpha, 600); sx += sw[k] + gap; }
-  });
+  const i = ds.indexOf(false), n = steps.length, cur = i < 0 ? null : steps[i], a = alpha;
+  const W = Math.min(400, G.W - 24), x0 = (G.W - W) / 2, pad = 12, GOLD = [255, 210, 122], GREEN = [150, 240, 185];
+  let y = 46;
+  ctx.globalAlpha = 1;
+  // шапка: эпоха и полоска шагов
+  labelL(cur ? `${kicker} · ЗАДАНИЕ ${i + 1}/${n}` : `${kicker} · ✓ ВЫПОЛНЕНО`, x0 + 4, y + 8, 11, cur ? GOLD : GREEN, .9 * a, 800);
+  const sw = Math.min(18, (W * .4) / n - 3);
+  for (let k = 0; k < n; k++) {
+    ctx.fillStyle = ds[k] ? rgb([77, 232, 155], .85 * a) : k === i ? rgb(GOLD, .95 * a) : rgb([255, 255, 255], .18 * a);
+    ctx.beginPath(); ctx.roundRect(x0 + W - (n - k) * (sw + 3) + 3, y + 6, sw, 4, 2); ctx.fill();
+  }
+  y += 20;
+  const slim = (txt, bg, fg, fa) => {
+    ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(x0, y, W, 26, 9); ctx.fill();
+    labelL(fitText(txt, 12, 700, W - pad * 2), x0 + pad, y + 13.5, 12, fg, fa * a, 700);
+    y += 31;
+  };
+  // выполненные — свёрнуты
+  const doneIdx = ds.map((d, k) => d ? k : -1).filter(k => k >= 0 && (i < 0 || k < i));
+  for (const k of doneIdx.slice(-2)) slim('✓  ' + steps[k].s, rgb([77, 232, 155], .16 * a), GREEN, .95);
+  // текущий — раскрыт
+  const iw = W - pad * 2 - 30, tx = x0 + pad + 30;
+  const title = wrapText(cur ? cur.t : after || 'Задание выполнено', 16, 800, iw);
+  const hint = cur && cur.h ? wrapText(cur.h, 13, 500, iw) : [];
+  const items = cur && cur.items ? cur.items.map(([t, d]) => [(d ? '✓ ' : '') + t, d ? [[77, 232, 155], .28] : [[255, 255, 255], .09], d ? [170, 245, 205] : [235, 235, 245]]) : [];
+  const ih = chipRows(items, tx, 0, iw, 12, false, a);
+  const hasP = cur && cur.p;
+  const h = 12 + title.length * 21 + (hint.length ? 3 + hint.length * 17 : 0) + (ih ? 8 + ih : 0) + (hasP ? 16 : 0) + 10;
+  ctx.fillStyle = rgb([14, 12, 26], .84 * a); ctx.beginPath(); ctx.roundRect(x0, y, W, h, 12); ctx.fill();
+  ctx.strokeStyle = rgb(cur ? GOLD : GREEN, .35 * a); ctx.lineWidth = 1; ctx.stroke();
+  // номер шага в кружке
+  ctx.fillStyle = rgb(cur ? GOLD : [77, 232, 155], .95 * a); ctx.beginPath(); ctx.arc(x0 + pad + 11, y + 12 + 10.5, 11, 0, TAU); ctx.fill();
+  label(cur ? String(i + 1) : '✓', x0 + pad + 11, y + 12 + 11, 13, [20, 16, 30], a, 800);
+  let cy = y + 12 + 10.5;
+  title.forEach(l => { labelL(l, tx, cy, 16, [255, 255, 255], a, 800); cy += 21; });
+  cy -= 10.5;
+  if (hint.length) { cy += 3; hint.forEach(l => { labelL(l, tx, cy + 8.5, 13, [200, 206, 228], .88 * a, 500); cy += 17; }); }
+  if (ih) { cy += 8; chipRows(items, tx, cy, iw, 12, true, a); cy += ih; }
+  if (hasP) {
+    const [v, of] = cur.p, k = of > 0 ? Math.min(1, v / of) : 0, bw = iw - 46;
+    ctx.fillStyle = rgb([255, 255, 255], .12 * a); ctx.beginPath(); ctx.roundRect(tx, cy + 7, bw, 5, 2.5); ctx.fill();
+    if (k > 0) { ctx.fillStyle = rgb(GOLD, .95 * a); ctx.beginPath(); ctx.roundRect(tx, cy + 7, Math.max(5, bw * k), 5, 2.5); ctx.fill(); }
+    labelL(`${v}/${of}`, tx + iw, cy + 9.5, 12, GOLD, .95 * a, 800, 'right');
+  }
+  y += h + 5;
+  // следующий — свёрнут, тускло
+  if (cur && i + 1 < n && !ds[i + 1]) slim(`${i + 2}.  ${steps[i + 1].t}`, rgb([10, 9, 18], .5 * a), [215, 220, 235], .55);
+  // испытания ★
+  if (stars.length) {
+    const st = stars.map(s => s.st === 1 ? ['★ ' + s.t, [[255, 215, 110], .26], [255, 225, 140]]
+      : s.st < 0 ? ['✗ ' + s.t, [[255, 255, 255], .05], [150, 150, 165], true] : ['☆ ' + s.t, [[10, 9, 18], .62], [225, 228, 240]]);
+    y += chipRows(st, x0, y + 1, W, 12, true, a) + 6;
+  }
+  G.taskY = y; G.taskAt = G.T; // низ панели — заголовок эпохи встаёт ниже
   if (tk.fl) {
     const k = (G.T - tk.fl.at) / 1.8;
-    if (k < 1) label(tk.fl.txt, x, G.H * .4 - 20 * k, 26, tk.fl.c, alpha * (1 - smooth(.6, 1, k)) * smooth(0, .08, k), 800);
+    if (k < 1) label(tk.fl.txt, G.W / 2, G.H * .4 - 20 * k, 26, tk.fl.c, a * (1 - smooth(.6, 1, k)) * smooth(0, .08, k), 800);
   }
   ctx.globalAlpha = 1;
 }

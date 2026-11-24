@@ -18,19 +18,69 @@ function endGame(text) {
 
 // ---------- ввод ----------
 addEventListener('resize', resize); resize();
-addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; });
-addEventListener('mousedown', e => { mouse.down = true; if (e.target === cv && G.started) mouse.clicked = true; });
-addEventListener('mouseup', () => { mouse.down = false; });
-addEventListener('touchmove', e => { const t = e.touches[0]; mouse.x = t.clientX; mouse.y = t.clientY; mouse.has = true; }, { passive: true });
-// Колесо — зум: вглубь до ×2,2, наружу до ×0,55 от обзора этапа. Shift + колесо — действие этапа (вращение молекулы).
+// Мышь, палец и перо — одни Pointer Events.
+// Мышь: ведёт курсором, кнопка — действие (клик — снимок, зажать — поле).
+// Сенсор — «два больших пальца»: палец на экране ведёт детектор (как курсор; отпустил — тормозит),
+// кнопка ◉ справа внизу — действие, два пальца на экране — щипок-зум. Кнопки сбоку заменяют клавиши.
 const ZOOM_MIN = .55, ZOOM_MAX = 2.2;
+const ptrs = new Map(); let steerId = null, pinch0 = null;
+const isTouch = () => document.body.classList.contains('touch');
+function touchMode() { if (!isTouch()) { document.body.classList.add('touch'); resize(); } }
+if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
+addEventListener('pointermove', e => {
+  if (e.pointerType === 'mouse') { mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; return; }
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch0 && ptrs.size >= 2) { const [p, q] = [...ptrs.values()]; G.zoom = clamp(pinch0.z * Math.hypot(p.x - q.x, p.y - q.y) / pinch0.d, ZOOM_MIN, ZOOM_MAX); return; }
+  if (e.pointerId === steerId) { mouse.x = e.clientX; mouse.y = e.clientY; }
+});
+addEventListener('pointerdown', e => {
+  Sfx.unlock(); // звук включается первым жестом игрока (так требует браузер)
+  if (e.pointerType === 'mouse') { mouse.down = true; if (e.target === cv && G.started) mouse.clicked = true; return; }
+  touchMode();
+  if (e.target !== cv) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; }
+  else if (ptrs.size === 2) { const [p, q] = [...ptrs.values()]; pinch0 = { d: Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)), z: G.zoom || 1 }; mouse.idle = true; }
+}, true);
+function ptrUp(e) {
+  if (e.pointerType === 'mouse') { mouse.down = false; return; }
+  if (!ptrs.delete(e.pointerId)) return;
+  if (ptrs.size < 2) pinch0 = null;
+  if (e.pointerId === steerId) { steerId = null; mouse.idle = true; } // отпустил — детектор тормозит
+}
+addEventListener('pointerup', ptrUp); addEventListener('pointercancel', ptrUp);
+cv.addEventListener('contextmenu', e => e.preventDefault());
+// Кнопка действия: тап — как клик, удержание — как зажатая кнопка мыши
+const actBtn = document.getElementById('act');
+actBtn.addEventListener('pointerdown', e => { e.preventDefault(); try { actBtn.setPointerCapture(e.pointerId); } catch (err) { /* без захвата */ } mouse.down = true; if (G.started) mouse.clicked = true; actBtn.classList.add('on'); });
+const actUp = () => { mouse.down = false; actBtn.classList.remove('on'); };
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => actBtn.addEventListener(ev, actUp));
+actBtn.addEventListener('contextmenu', e => e.preventDefault());
+// Кнопки вместо клавиш: тап — нажатие; ⟲ ⟳ держатся, пока держишь
+const fakeKey = code => dispatchEvent(new KeyboardEvent('keydown', { code }));
+document.getElementById('tbar').addEventListener('pointerdown', e => {
+  const b = e.target.closest('button'); if (!b) return; e.preventDefault();
+  if (b.dataset.hold) { keys.add(b.dataset.hold); const up = () => { keys.delete(b.dataset.hold); b.removeEventListener('pointerup', up); }; b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up); }
+  else fakeKey(b.dataset.key);
+});
+// какие кнопки нужны этому этапу
+function touchBar() {
+  if (!isTouch()) return;
+  const s = G.stage, on = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
+  const hold = s.key === 'particles' || s.key === 'quarks' || s.key === 'nuclei';
+  on('act', G.started && hold && !G.paused);
+  actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держи' : s.ep === 3 ? 'держи — щит' : 'тап — снимок · держи — поле') : 'держи — поле';
+  on('t-ff', G.started && s.enterKey); on('t-dash', G.started && s.dash);
+  on('t-rl', G.started && s.key === 'molecules'); on('t-rr', G.started && s.key === 'molecules'); on('t-x', G.started && s.key === 'molecules');
+  document.getElementById('t-mute').textContent = Sfx.muted ? '🔇' : '🔊';
+}
+// Колесо — зум: вглубь до ×2,2, наружу до ×0,55 от обзора этапа. Shift + колесо — действие этапа (вращение молекулы).
 addEventListener('wheel', e => {
   if (e.target !== cv) return;
   if (e.shiftKey && G.stage.wheel) { G.stage.wheel(e.deltaY || e.deltaX); return; }
   G.zoom = clamp((G.zoom || 1) * Math.exp(-e.deltaY * .0015), ZOOM_MIN, ZOOM_MAX);
 }, { passive: true });
-// звук включается первым жестом игрока (так требует браузер)
-addEventListener('pointerdown', () => Sfx.unlock(), true);
 addEventListener('keydown', e => {
   keys.add(e.code); Sfx.unlock();
   if (e.code === 'KeyM' && document.activeElement !== pname) { const m = Sfx.toggle(); if (G.started) msg(m ? 'звук выкл. · M' : 'звук вкл. · M', 1.2); }
@@ -44,6 +94,8 @@ addEventListener('keydown', e => {
   if (e.code === 'BracketRight') G.stage.cheat && G.stage.cheat();
   if (e.code === 'KeyR' && G.ended) location.reload();
 });
+// PWA: игра ставится как приложение и работает без сети (только с http/https, не из файла)
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { /* без офлайна */ }));
 addEventListener('keyup', e => keys.delete(e.code));
 // имя для таблицы рекордов запоминается в браузере
 const pname = document.getElementById('pname');
@@ -93,8 +145,9 @@ function drawLadder(k) {
   LADDER.forEach((name, i) => {
     const x = lerp(x0, x1, i / n), active = i < STAGES.length, near = 1 - Math.min(1, Math.abs(pos - i) / 2);
     ctx.fillStyle = `rgba(255,255,255,${active ? .3 + .6 * near : .15})`; ctx.fillRect(x - 1, y - 5, 2, 10);
-    if (!narrow || Math.abs(pos - i) < 1.5) {
-      ctx.font = '11px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    // на узком экране — только ближайшая ступень (у краёв — прижата к краю)
+    if (!narrow || i === Math.min(n, Math.round(pos))) {
+      ctx.font = '11px system-ui,sans-serif'; ctx.textAlign = narrow && i === 0 ? 'left' : narrow && i === n ? 'right' : 'center'; ctx.textBaseline = 'bottom';
       ctx.fillStyle = `rgba(255,255,255,${active ? .35 + .55 * near : .2})`;
       ctx.fillText(active ? name : name + ' · скоро', x, y - 8);
     }
@@ -145,6 +198,7 @@ function hud() {
   Codex.render(G.stage.showCodex ? G.stage.showCodex() : true);
   const upg = document.getElementById('upg');
   if (G.stage.renderUpg) G.stage.renderUpg(upg); else upg.style.display = 'none';
+  touchBar();
   const shop = document.getElementById('shop');
   if (G.stage.renderShop) G.stage.renderShop(shop); else shop.style.display = 'none';
   h.laws.forEach(([, w], i) => { const el = document.getElementById('law' + i); if (el) el.style.width = (clamp(w, 0, 1) * 100).toFixed(0) + '%'; });

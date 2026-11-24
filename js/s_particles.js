@@ -1045,30 +1045,29 @@ const Particles = {
   // ---------- задание эпохи: шаги крупно под часами ----------
   // Цели меняются от забега к забегу: в эпохе 1 — какие частицы открыть, в эпохе 3 — чьи распады снять.
   steps() {
-    const has = sp => Codex.has(sp), sym = sp => SM[sp].sym;
+    const has = sp => Codex.has(sp), sym = sp => SM[sp].sym, touch = isTouch();
+    const buy = sp => touch ? 'в лавке за ✦' : `за ✦, клавиша ${this.keyOf(sp) || '?'}`, tap = touch ? 'коснись' : 'кликни';
     switch (this.ep) {
-      case 0: {
-        const got = this.need0.filter(has).length, list = this.need0.map(sp => sym(sp) + (has(sp) ? ' ✓' : '')).join(' · ');
-        return [
-          { t: 'Раскачай поле: зажимай, пока кольцо сжимается, отпускай у золотого круга. Сильнее размах — горячее Вселенная', s: `${this.inf.pick ? this.inf.pick.n : ''} разогрев · ${fmtGeV(this.T0)}`, d: this.lit },
-          { t: `Исследуй свет за ✦ (клавиша ${this.keyOf('ph') || 1}) — пусть Вселенная рождает γ сама`, s: 'свет рождается сам', d: this.rs.ph > 0 },
-          { t: `Лови фотоны кругом — пойманный измерен. Найди 3 класса: ${PH_CLS.map((c, i) => c.n + (this.phSeen.has(i) ? ' ✓' : '')).join(' · ')}`, s: 'спектр измерен', d: this.phSeen.size >= 3 },
-          { t: this.gOn ? 'Глюоны в мире — сними глюон' : `Исследуй глюоны за ✦ (клавиша ${this.keyOf('g') || '?'}) и сними глюон`, s: 'глюон открыт', d: has('g') },
-          { t: 'Столкни кванты: зажми рядом с двумя волнами и отпусти', s: 'первое столкновение', d: this.pairs > 0 },
-          { t: `Открой ${list} — сталкивай кванты и снимай, что родилось` + (this.need0.some(sp => SM[sp].kind === 'lepton' && !has(sp)) ? ' (лептоны — из γ + γ: наведись на фотон и отпусти в синем окне, до риски q)' : ''), s: 'частицы открыты', d: got === this.need0.length },
-        ];
-      }
-      case 1: return [
-        { t: 'Поле Хиггса застывает — частицы тяжелеют и замедляются…', s: 'у частиц есть масса', d: this.hig >= 1 },
-        { t: 'Роди бозон H руками: два глюона в поле, отпусти в золотой полосе (≈125 ГэВ) — и сними', s: 'бозон Хиггса', d: has('H') },
-        { t: 'С массой вещество можно удержать: сделай пару столкновением и поймай полем частицу и её античастицу', s: 'вещество в поле', d: this.learn.pair2 || has('W') || has('Z') },
-        { t: 'Столкни их, когда шкала в золотой полосе (≈91 ГэВ), и сними Z', s: 'Z открыт', d: has('W') || has('Z') },
+      case 0: return [
+        { t: 'Раскачай поле', h: 'зажимай, пока кольцо сжимается, отпускай у золотого круга. Сильнее размах — горячее Вселенная', s: `${this.inf.pick ? this.inf.pick.n : ''} разогрев · ${fmtGeV(this.T0)}`, d: this.lit },
+        { t: 'Исследуй свет', h: `${buy('ph')} — Вселенная начнёт рождать γ сама`, s: 'свет рождается сам', d: this.rs.ph > 0 },
+        { t: 'Измерь спектр', h: 'лови фотоны кругом — пойманный измерен; найди 3 класса из 4', items: PH_CLS.map((c, i) => [c.n, this.phSeen.has(i)]), s: 'спектр измерен', d: this.phSeen.size >= 3 },
+        { t: this.gOn ? 'Сними глюон' : 'Исследуй глюоны', h: this.gOn ? 'глюоны уже в мире — поймай один' : `${buy('g')} — и сними глюон`, s: 'глюон открыт', d: has('g') },
+        { t: 'Столкни кванты', h: 'зажми рядом с двумя волнами и отпусти', s: 'первое столкновение', d: this.pairs > 0 },
+        { t: 'Открой частицы', h: 'сталкивай кванты и снимай, что родилось' + (this.need0.some(sp => SM[sp].kind === 'lepton' && !has(sp)) ? '. Лептоны — из γ + γ: наведись на фотон и отпусти в синем окне, до риски q' : ''),
+          items: this.need0.map(sp => [sym(sp), has(sp)]), s: 'частицы открыты', d: this.need0.every(has) },
       ];
-      case 2: return this.need2.map(sp => ({ t: Codex.auto.has(sp) ? `Сними распад ${sym(sp)}: жди вспышку и кликни по золотой вершине следа`
-        : `Сними распад ${sym(sp)}: сделай ${sym(sp)} столкновением (выше риски ${sym(sp)}) и кликни по вершине распада — или исследуй «${sym(sp)} сам»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp) }));
+      case 1: return [
+        { t: 'Жди: поле Хиггса застывает', h: 'частицы тяжелеют и замедляются…', s: 'у частиц есть масса', d: this.hig >= 1 },
+        { t: 'Роди бозон H', h: 'два глюона в поле, отпусти в золотой полосе (≈125 ГэВ) — и сними', s: 'бозон Хиггса', d: has('H') },
+        { t: 'Удержи вещество', h: 'с массой его можно поймать: сделай пару столкновением и возьми полем частицу и её античастицу', s: 'вещество в поле', d: this.learn.pair2 || has('W') || has('Z') },
+        { t: 'Открой Z', h: 'столкни пару, когда шкала в золотой полосе (≈91 ГэВ), и сними', s: 'Z открыт', d: has('W') || has('Z') },
+      ];
+      case 2: return this.need2.map(sp => ({ t: `Сними распад ${sym(sp)}`, h: Codex.auto.has(sp) ? `жди вспышку и ${tap} по золотой вершине следа`
+        : `сделай ${sym(sp)} столкновением (выше риски ${sym(sp)}) и ${tap} по вершине распада — или исследуй «${sym(sp)} сам»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp) }));
       default: {
         const t = baryonTrios(this.stockQ);
-        return [{ t: `Собери ${TRIO_GOAL} ${TRIO_W} R·G·B (${Math.min(t, TRIO_GOAL)}/${TRIO_GOAL}): лови кварки недостающего цвета или глюон, что перекрасит лишний; зажми — щит`, s: `${TRIO_GOAL} ${TRIO_W}`, d: t >= TRIO_GOAL }];
+        return [{ t: `Собери ${TRIO_GOAL} ${TRIO_W} R·G·B`, h: 'лови кварки недостающего цвета или глюон, что перекрасит лишний; зажми — щит', p: [Math.min(t, TRIO_GOAL), TRIO_GOAL], s: `${TRIO_GOAL} ${TRIO_W}`, d: t >= TRIO_GOAL }];
       }
     }
   },
@@ -1542,13 +1541,14 @@ const Particles = {
   drawHeat(alpha) {
     const fade = this.lit ? 1 - smooth(1, 2.5, this.litT) : 1, a = alpha * fade;
     if (a <= .01 || this.ep || !G.started) return;
-    const I = this.inf, W = Math.min(440, G.W - 120), x0 = G.W / 2 - W / 2, y = G.H - 96, h = 14, cur = this.inf.pick || this.profOf(I.H);
+    const pad = document.body.classList.contains('touch') ? 124 : 0; // справа — кнопка действия
+    const I = this.inf, W = Math.min(440, G.W - (pad ? 48 : 120) - pad), narrow = W < 330, cx = (G.W - pad) / 2, x0 = cx - W / 2, y = G.H - 96, h = 14, cur = this.inf.pick || this.profOf(I.H);
     ctx.globalAlpha = a; ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.roundRect(x0 - 14, y - 34, W + 28, 72, 10); ctx.fill();
     PROF.forEach((p, i) => {
       const hi = i < 2 ? PROF[i + 1].h : 1, xa = x0 + W * p.h, xb = x0 + W * hi, on = cur.i === i, mid = ((p.k[0] + p.k[1]) / 2) ** 1.5;
       ctx.fillStyle = rgb(p.c, on ? .25 : .1); ctx.fillRect(xa, y, xb - xa, h);
       if (i) line(xa, y - 3, xa, y + h + 3, [255, 255, 255], .5, 1);
-      label(`${p.n} · свет ×${mid.toFixed(1)}`, (xa + xb) / 2, y + h + 13, 11, on ? p.c : [190, 195, 210], on ? 1 : .6, on ? 800 : 600);
+      label(narrow ? p.n : `${p.n} · свет ×${mid.toFixed(1)}`, (xa + xb) / 2, y + h + 13, narrow ? 10 : 11, on ? p.c : [190, 195, 210], on ? 1 : .6, on ? 800 : 600);
     });
     const fw = W * Math.min(1, I.H), gr = ctx.createLinearGradient(x0, 0, x0 + W, 0);
     PROF.forEach(p => gr.addColorStop(Math.min(1, p.h + .12), rgb(p.c, .95)));
@@ -1558,7 +1558,7 @@ const Particles = {
     // сколько ещё живёт поле
     const left = I.go ? Math.max(0, INF.life - I.t) : INF.life;
     ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(x0, y - 8, W * left / INF.life, 2);
-    label(I.go ? `РАЗОГРЕВ · поле распадётся через ${Math.ceil(left)} с` : 'РАЗОГРЕВ · поле ещё не раскачано', G.W / 2, y - 20, 11, [235, 240, 250], .85, 700);
+    label(narrow ? (I.go ? `РАЗОГРЕВ · поле живёт ${Math.ceil(left)} с` : 'РАЗОГРЕВ · поле не раскачано') : I.go ? `РАЗОГРЕВ · поле распадётся через ${Math.ceil(left)} с` : 'РАЗОГРЕВ · поле ещё не раскачано', cx, y - 20, 11, [235, 240, 250], .85, 700);
     ctx.globalAlpha = 1;
   },
   // Шкала остывания (слева вверху): T в логарифме, слева горячо. Риски — где закрывается окно «сделать руками»:
@@ -1566,7 +1566,7 @@ const Particles = {
   // Ромб — застывание поля Хиггса (160 ГэВ); пунктир — ниже этой T Вселенная не остынет, пока задание эпохи не выполнено.
   drawGauge(alpha) {
     if (!G.started || (!this.lit && this.ep === 0)) return;
-    const x0 = 16, x1 = 276, y = 56, lo = Math.log10(.1), hi = Math.log10(2000);
+    const x0 = 16, x1 = 276, y = 56 + this.leftTop(), lo = Math.log10(.1), hi = Math.log10(2000);
     const X = T => lerp(x0, x1, clamp((hi - Math.log10(Math.max(T, .1))) / (hi - lo), 0, 1));
     ctx.globalAlpha = alpha;
     const gr = ctx.createLinearGradient(x0, 0, x1, 0);
@@ -1598,7 +1598,7 @@ const Particles = {
   // Трекер: сколько поймано фотонов каждого класса (слева вверху); не найденный класс — «?»
   drawCaught(alpha) {
     if (!G.started || !this.enOn() || this.ep === 3) return;
-    const x = 16, y0 = 84;
+    const x = 16, y0 = 84 + this.leftTop();
     ctx.globalAlpha = alpha * .9; ctx.font = '600 10px system-ui,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(220,225,240,.6)'; ctx.fillText('ПОЙМАНО γ', x, y0);
     PH_CLS.forEach((C, i) => {
@@ -1611,7 +1611,12 @@ const Particles = {
     });
     ctx.globalAlpha = 1;
   },
-  overlay(alpha) { if (this.stockOut) return; this.drawHeat(alpha); this.drawGauge(alpha); this.drawCaught(alpha); this.drawClock(alpha); this.drawBanner(alpha); ctx.globalAlpha = 1; },
+  overlay(alpha) { if (this.stockOut) return; this.drawHeat(alpha); this.drawClock(alpha); this.drawGauge(alpha); this.drawCaught(alpha); this.drawBanner(alpha); ctx.globalAlpha = 1; },
+  // Шкала остывания и трекер γ — слева вверху; если там карточки задания (узкий экран) — под ними
+  leftTop() {
+    const cx0 = (G.W - Math.min(400, G.W - 24)) / 2;
+    return cx0 < 345 && G.T - (G.taskAt ?? -9) < .2 ? Math.max(0, G.taskY - 26) : 0;
+  },
   showCodex() { return this.lit || this.ep > 0; }, // в пустоте открывать ещё нечего
   viewR() { return 3.5 + this.hr() * 1.9; },
   hud() {
