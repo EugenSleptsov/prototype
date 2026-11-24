@@ -34,7 +34,7 @@ const Sfx = {
   },
   arp(notes, step, dur, vol, type = 'triangle') { notes.forEach((f, i) => this.tone(type, f, f, dur, vol, i * step)); },
   // минимальный интервал между одинаковыми звуками — чтобы поток событий не превращался в треск
-  GAP: { catch: .06, decay: .12, pop: .15, fizzle: .25, pert: .03, grab: .08 },
+  GAP: { catch: .06, decay: .12, pop: .15, fizzle: .25, pert: .03, grab: .08, annih: .1 },
   play(name, v = 0) {
     if (!this.ctx || this.muted) return;
     const now = this.ctx.currentTime;

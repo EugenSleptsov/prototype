@@ -486,9 +486,10 @@ const Particles = {
     return Math.sqrt(Math.max(0, (Ea + Eb) ** 2 - px * px - py * py));
   },
   // Какие пары может родить столкновение двух квантов (веса ~ квадрат заряда × число цветов)
-  channels(a, b, rs) {
+  // spont — столкнула сама Вселенная: рождает только то, что исследовано «X сам» (руками — всё, на что хватает энергии)
+  channels(a, b, rs, spont) {
     const ch = [], post = this.hig > .5, kinds = [a.sp, b.sp].sort().join('');
-    const ok = sp => rs >= 2 * this.mThr(sp);
+    const ok = sp => rs >= 2 * this.mThr(sp) && (!spont || Codex.auto.has(sp));
     for (const sp of ['u', 'c', 't', 'd', 's', 'b', 'e', 'mu', 'ta']) {
       const s = SM[sp], quark = s.kind === 'quark';
       if (!ok(sp)) continue;
@@ -499,19 +500,20 @@ const Particles = {
       if (this.ep === 0 && this.need0.includes(sp) && !Codex.has(sp)) w *= quark ? 5 : 3; // загаданное рождается охотнее
       if (w > 0) ch.push([sp, w]);
     }
-    if (post && kinds === 'phph' && rs >= 2 * SM.W.m) ch.push(['WW', 1.5]);
-    if (post && kinds === 'gg' && Math.abs(rs - SM.H.m) < H_WIN) ch.push(['H', 10]);
+    if (post && kinds === 'phph' && rs >= 2 * SM.W.m && (!spont || Codex.auto.has('W'))) ch.push(['WW', 1.5]);
+    if (post && kinds === 'gg' && Math.abs(rs - SM.H.m) < H_WIN && (!spont || Codex.auto.has('H'))) ch.push(['H', 10]);
     return ch;
   },
   pickW(ch) { let s = 0; for (const c of ch) s += c[1]; let r = Math.random() * s; for (const c of ch) if ((r -= c[1]) <= 0) return c[0]; return ch[ch.length - 1][0]; },
   collide(a, b, spont) {
     const rs = this.sqrtS(a, b), x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
     a.cd = b.cd = .5; a.mate = b.mate = null; a.thrown = b.thrown = false;
-    const ch = this.channels(a, b, rs);
+    const ch = this.channels(a, b, rs, spont);
     if (!ch.length) {
-      // энергии мало: кванты разлетаются
+      // энергии мало (или Вселенной нечего рождать — не исследовано): кванты разлетаются
       const t = a.dx; a.dx = b.dx; b.dx = t; const u = a.dy; a.dy = b.dy; b.dy = u;
       a.flung = b.flung = 0; a.v = b.v = undefined;
+      if (spont && this.channels(a, b, rs).length && onScreen(...W2S(x, y), 0)) fxRing(x, y, .05, [255, 240, 200], .35, .3); // искра: могло бы родить, но не исследовано
       if (!spont) { fxRing(x, y, .1, [255, 160, 140], .6, .4); this.float(x, y, 'мало энергии', [255, 160, 140], 12); Sfx.play('fizzle'); }
       return;
     }
@@ -529,18 +531,33 @@ const Particles = {
     return true;
   },
   // Аннигиляция частицы и своей античастицы → кванты (или Z на резонансе)
-  annihilate(a, b) {
+  // spont — встретились сами: Z — только если исследован «Z сам»
+  annihilate(a, b, spont) {
     const rs = this.sqrtS(a, b), x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
     a.dead = b.dead = true;
     let made;
-    if (this.hig > .5 && Math.abs(rs - SM.Z.m) < Z_WIN && SM[a.sp].kind !== 'nu') { made = [this.mk('Z', false, x, y, Math.random() * TAU, rs * .05)]; fxRing(x, y, .2, BOS_C.Z, 1.6, .7); }
+    if (this.hig > .5 && Math.abs(rs - SM.Z.m) < Z_WIN && (!spont || Codex.auto.has('Z')) && SM[a.sp].kind !== 'nu') { made = [this.mk('Z', false, x, y, Math.random() * TAU, rs * .05)]; fxRing(x, y, .2, BOS_C.Z, 1.6, .7); }
     else {
       const q = SM[a.sp].kind === 'quark' ? 'g' : 'ph', an = Math.random() * TAU;
       made = [this.mk(q, false, x, y, an, rs / 2), this.mk(q, false, x, y, an + Math.PI, rs / 2)];
       for (const m of made) m.cd = .5;
     }
-    fxFlash(x, y, .9, [255, 255, 255], .4); Sfx.play('annih');
+    fxFlash(x, y, .9, [255, 255, 255], spont ? .25 : .4); if (!spont || onScreen(...W2S(x, y), 0)) Sfx.play('annih');
     this.event(made, x, y);
+  },
+  // Эпохи 1–3: частица и её античастица, сблизившись, аннигилируют сами (не в поле и не брошенные).
+  // Только сходящиеся: только что рождённая пара разлетается и друг друга не трогает; вернуть их друг к другу
+  // может магнитное поле камеры (заряды закручиваются в разные стороны) или край мира.
+  annihilateMet() {
+    const f = this.p.filter(o => !o.dead && !this.isQ(o) && !o.cap && !(o.flung > 0) && o.cd <= 0 && o.born > .5 && SM[o.sp].kind !== 'nu' && SM[o.sp].kind !== 'boson');
+    for (let i = 0; i < f.length; i++) for (let j = i + 1; j < f.length; j++) {
+      const a = f[i], b = f[j];
+      if (a.dead || b.dead || a.sp !== b.sp || a.anti === b.anti) continue;
+      const dx = b.x - a.x, dy = b.y - a.y; if (dx * dx + dy * dy > .16) continue;
+      const va = this.speed(a), vb = this.speed(b);
+      if (dx * (a.dx * va - b.dx * vb) + dy * (a.dy * va - b.dy * vb) <= 0) continue; // расходятся
+      this.annihilate(a, b, true); this.st.ann = (this.st.ann || 0) + 1;
+    }
   },
   // Распады — только когда у частиц есть масса (после перехода Хиггса)
   decayProducts(o) {
@@ -650,11 +667,11 @@ const Particles = {
     const L = [];
     if (!this.rs.ph) L.push(ph);
     if (this.phSeen.size >= 3) L.push({ k: 'g', ic: 'g', name: 'Глюоны', cost: RES_COST.g, about: () => 'Вселенная рождает g' });
-    if (this.pairs > 0) L.push({ k: 'coll', ic: '✸', name: 'Столкновения', cost: RES_COST.coll, about: () => 'кванты сталкиваются сами' });
+    if (this.pairs > 0) L.push({ k: 'coll', ic: '✸', name: 'Столкновения', cost: RES_COST.coll, about: () => 'кванты сталкиваются сами — рождают исследованное' });
     const need = this.ep === 2 ? this.need2 : this.ep === 0 ? this.need0 : ['H', 'Z', 'W'];
-    const all = [...Codex.run].filter(sp => (FERMIONS.includes(sp) && SM[sp].kind !== 'nu') || sp === 'H' || sp === 'W' || sp === 'Z');
+    const all = [...Codex.run].filter(sp => sp === 'H' || this.rs.coll > 0 && ((FERMIONS.includes(sp) && SM[sp].kind !== 'nu') || sp === 'W' || sp === 'Z'));
     for (const sp of [...all.filter(sp => need.includes(sp)), ...all.filter(sp => !need.includes(sp))])
-      L.push({ k: sp, ic: SM[sp].sym, name: `${SM[sp].sym} сам`, cost: [resNew(this.value(sp))], about: () => sp === 'H' ? 'всплески поля рождают H' : 'Вселенная рождает сама' });
+      L.push({ k: sp, ic: SM[sp].sym, name: `${SM[sp].sym} сам`, cost: [resNew(this.value(sp))], about: () => sp === 'H' ? 'всплески поля рождают H' : `столкновения рождают ${SM[sp].sym}` });
     if (this.rs.ph && this.ep === 0) L.push(ph);
     return L;
   },
@@ -680,7 +697,7 @@ const Particles = {
     else if (k !== 'ph' && k !== 'coll') Codex.auto.add(k);
     Codex.dirty = true;
     fxRing(P.x, P.y, this.hr(), GOLD, this.hr() * 1.8, .7);
-    this.float(P.x, P.y - this.hr() - .3, `${r.ic} ${k === 'ph' ? `свет ×${l}` : k === 'g' ? 'глюоны в мире' : k === 'coll' ? 'кванты сталкиваются сами' : 'Вселенная рождает сама'}`, GOLD, 16);
+    this.float(P.x, P.y - this.hr() - .3, `${r.ic} ${k === 'ph' ? `свет ×${l}` : k === 'g' ? 'глюоны в мире' : k === 'coll' ? 'кванты сталкиваются сами' : k === 'H' ? 'Вселенная рождает сама' : 'столкновения рождают ' + SM[k].sym}`, GOLD, 16);
   },
   renderShop(el) {
     if (!G.started || this.stockOut || !this.lit || !this.shopItems().length) { el.style.display = 'none'; return; } // в пустоте исследовать нечего
@@ -700,7 +717,7 @@ const Particles = {
     // лишнее (осколки распадов) уходит у всех видов — исследованные или нет
     for (const sp of this.ep === 3 ? [] : this.ep === 0 ? FERMIONS.filter(sp => Codex.auto.has(sp)) : [...FERMIONS, 'W', 'Z', 'H']) {
       const s = SM[sp], base = s.kind === 'quark' || s.kind === 'lepton' ? .6 : .4, target = base * this.weight(sp);
-      const have = cnt[sp] || 0, auto = Codex.has(sp) && Codex.auto.has(sp);
+      const have = cnt[sp] || 0, auto = Codex.has(sp) && Codex.auto.has(sp) && (sp === 'H' || this.rs.coll > 0); // вещество — из столкновений
       if (auto && Math.random() < dt * .25 * (have === 0 ? Math.min(1, target * 1.5) : have < target - .5 ? 1 : 0)) {
         const [x, y] = this.randPos(true), pp = this.thermalP(this.T);
         if (s.kind === 'boson' && sp !== 'W') this.mk(sp, false, x, y, Math.random() * TAU, pp);
@@ -808,7 +825,7 @@ const Particles = {
       }
       if (!this.full && this.enOn() && this.en >= E_CAP) this.full = true;
       this.spontaneous(dt);
-      if (this.ep === 3 && !this.advanced) this.annihilateAll();
+      if (this.ep === 3 && !this.advanced) this.annihilateAll(); else if (this.ep < 3) this.annihilateMet();
       if (!this.advanced) this.populate(dt);
       this.checkGoals();
       if (!this.epDone || this.ep === 3) this.tickStars(false);
@@ -989,7 +1006,7 @@ const Particles = {
     for (let i = 0; i < f.length; i++) for (let j = i + 1; j < f.length; j++) {
       const a = f[i], b = f[j];
       if (a.dead || b.dead || a.sp !== b.sp || a.anti === b.anti) continue;
-      if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 < .3) { this.annihilate(a, b); this.annN = (this.annN || 0) + 1; }
+      if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 < .3) { this.annihilate(a, b, true); this.annN = (this.annN || 0) + 1; }
     }
   },
   // Эпоха 4: глюон в детекторе перекрашивает кварк — антицвет глюона гасит цвет кварка, кварк получает цвет глюона
