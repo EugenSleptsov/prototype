@@ -68,10 +68,24 @@ function update(dt) {
   if (msgT > 0 && (msgT -= dt) <= 0) document.getElementById('msg').style.opacity = 0;
 }
 
+// Сколько пройдено в текущем уровне: свой progress() у уровня или доля выполненных шагов задания
+function stageProgress(s) {
+  if (s.progress) return clamp(s.progress(), 0, 1);
+  if (s.steps && G.started) { const st = s.steps(); return st.length ? st.filter(g => g.d).length / st.length : 0; }
+  return 0;
+}
+// Шкала эволюции внизу — прогресс-бар всей игры: заполнена до места, где ты сейчас
 function drawLadder(k) {
   const x0 = 24, x1 = G.W - 24, y = G.H - 22, n = LADDER.length - 1;
   line(x0, y, x1, y, [255, 255, 255], .22, 2);
-  const pos = G.prev ? G.stageI - 1 + k : G.stageI;
+  const tgt = G.prev ? G.stageI : G.stageI + stageProgress(G.stage);
+  const ldt = clamp(G.T - (G.ladT ?? G.T), 0, .05); G.ladT = G.T;
+  G.ladP = G.ladP == null || tgt < G.ladP - .5 ? tgt : G.ladP + (tgt - G.ladP) * Math.min(1, ldt * 3);
+  const pos = G.ladP, mx = lerp(x0, x1, pos / n);
+  ctx.globalAlpha = 1;
+  const gr = ctx.createLinearGradient(x0, 0, Math.max(x0 + 1, mx), 0);
+  gr.addColorStop(0, 'rgba(90,150,255,.35)'); gr.addColorStop(1, 'rgba(160,230,255,.95)');
+  ctx.strokeStyle = gr; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(mx, y); ctx.stroke();
   const narrow = G.W < 700;
   LADDER.forEach((name, i) => {
     const x = lerp(x0, x1, i / n), active = i < STAGES.length, near = 1 - Math.min(1, Math.abs(pos - i) / 2);
@@ -82,8 +96,10 @@ function drawLadder(k) {
       ctx.fillText(active ? name : name + ' · скоро', x, y - 8);
     }
   });
-  const mx = lerp(x0, x1, pos / n);
   glow(mx, y, 12, [140, 220, 255], .8); ball(mx, y, 4, [200, 240, 255]);
+  // доля текущего уровня — над бегунком
+  const pct = Math.round(stageProgress(G.stage) * 100);
+  if (G.started && !G.prev) { ctx.font = '600 10px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = 'rgba(190,235,255,.85)'; ctx.fillText(pct + ' %', mx, y + 6); }
 }
 
 function render() {
