@@ -15,6 +15,16 @@ const QANTI = [[60, 230, 240], [240, 90, 240], [250, 225, 70]]; // анти-кр
 const QR = .26, BIND = .62, D0 = .55, KSTR = 9, DBREAK = 2.6;
 const Q_PAR = 60, Q_WR = 7.5, Q_T0 = 4.6; // эталон времени, радиус области, стартовая T (10¹² K ≈ 400 МэВ)
 const HAND_Q = 3, AUTO_Q = 5, CONF_COST = 25, FLOW_N = 9; // барионов руками, Вселенной, цена исследования, свободных кварков в притоке
+// FLOW_MAX — больше свободных не копится: лишние уходят за край; недостающий цвет приходит всегда (тупика без зелёных нет)
+const FLOW_MAX = 16, PAIR_CD = 3.2, ANTI_MAX = 3, MESON_T = 3.5, EXO_T = 3.2, EXO_PTS = 20;
+// «Адронный зоопарк» — ключи кодекса 'h:…'. Экзотику собирают полем из двух адронов: зажми на адроне — возьмёшь целиком.
+const HADRON = {
+  p: ['p⁺', 'протон', 'uud'], n: ['n⁰', 'нейтрон', 'udd'], delta: ['Δ', 'дельта-барион', 'uuu или ddd'], meson: ['π', 'пион', 'кварк + антикварк'],
+  qq: ['qq', 'дикварк', 'два кварка разных цветов'], tetra: ['qqq̄q̄', 'тетракварк', 'два мезона вместе'],
+  penta: ['qqqqq̄', 'пентакварк', 'барион + мезон'], hexa: ['6q', 'гексакварк', 'два бариона вместе'],
+};
+const EXO = { tetra: 1, penta: 1, hexa: 1 };
+const HOLDABLE = { p: 1, n: 1, meson: 1 };
 
 const Quarks = {
   key: 'quarks', name: 'Адроны', bg: [34, 6, 26], controls: '',
@@ -25,7 +35,8 @@ const Quarks = {
     this.focus = null; this.holding = false; this.hold = 0; this.learn = {}; this.floats = [];
     this.kn = 0; this.clock = 0; this.doneAt = null; this.endCd = -1; this.banner = -1.5; this.made = { p: 0, n: 0 }; this.mine = 0;
     this.st = { passive: 0, delta: 0 }; this.tk = {};
-    this.spent = 0; this.rs = { conf: 0 }; this.handN = 0; this.autoN = 0; this.flowCd = 1; this.asm = null; this.asmCd = 0;
+    this.spent = 0; this.rs = { conf: 0 }; this.handN = 0; this.autoN = 0; this.flowCd = 1; this.asm = null; this.asmCd = 0; this.pairCd = 2;
+    this.st.exo = 0; this.hover = null;
     this.hr = prev && prev.hr ? prev.hr() : 1.4;
     const src = prev && prev.handoff || [];
     // сбережённые кварки вырываются из детектора там же, где кружили, оставляя треки, и растут до размера кварка
@@ -69,11 +80,11 @@ const Quarks = {
   },
   classify(grp) {
     const m = grp.m;
-    if (m.length === 2 && m[0].anti !== m[1].anti) { grp.kind = 'meson'; grp.t = 2.2; }
+    if (m.length === 2 && m[0].anti !== m[1].anti) { grp.kind = 'meson'; grp.t = MESON_T; const c = centroid(m); this.zoo('meson', c.x, c.y); }
     else if (m.length === 3) {
       const u = m.filter(x => x.fl === 'u').length;
       grp.kind = u === 2 ? 'p' : u === 1 ? 'n' : 'delta';
-      if (grp.kind === 'delta') { grp.t = 1.4; this.st.delta++; }
+      if (grp.kind === 'delta') { grp.t = 1.4; this.st.delta++; const c = centroid(m); this.zoo('delta', c.x, c.y); }
       if (m[0].anti) grp.kind = 'anti';
     } else grp.kind = 'forming';
   },
@@ -81,13 +92,25 @@ const Quarks = {
   onBaryon(grp) {
     const c = centroid(grp.m), hand = grp.m.some(x => x.cap || x.hand > 0);
     const pts = hand ? 10 : 4; if (!hand) this.st.passive++;
-    if (hand) this.handN++; else if (this.rs.conf) this.autoN++;
+    if (hand) this.handN++;
+    if (this.rs.conf) this.autoN++; // после исследования в шаг «по всей Вселенной» идут все барионы — и твои тоже
     this.kn += pts; this.made[grp.kind]++;
     if (!this.mine && hand) this.mine = grp.id;
     for (const x of grp.m) { x.cap = false; x.hand = 0; }
     fxRing(c.x, c.y, .4, [255, 255, 255], 2.5, .9);
     this.float(c.x, c.y, `${grp.kind === 'p' ? 'p⁺' : 'n⁰'} ✓ +${pts}`, hand ? [255, 215, 110] : [200, 220, 240], hand ? 16 : 13);
     if (hand) this.learn.bar = true;
+    this.zoo(grp.kind, c.x, c.y - .5);
+  },
+  // новое в «зоопарке» адронов: в кодекс; экзотика ещё и приносит ✦
+  zoo(k, x, y) {
+    const key = 'h:' + k; if (Codex.has(key)) return false;
+    Codex.note(key);
+    const [sym, name] = HADRON[k], pts = EXO[k] ? EXO_PTS : 0;
+    this.kn += pts;
+    this.float(x, y - .6, `${sym} ${name} — в кодексе${pts ? ` +${pts} ✦` : ''}`, EXO[k] ? GOLD : [200, 230, 255], EXO[k] ? 16 : 13);
+    Sfx.play('fresh');
+    return true;
   },
   detach(q) {
     if (!q.g) return;
@@ -114,7 +137,14 @@ const Quarks = {
   input(dt) {
     if (mouse.clicked) { mouse.clicked = false; this.holding = true; this.hold = 0; }
     if (this.holding && !mouse.down) { this.holding = false; this.release(); }
-    if (this.holding) { this.hold += dt; if (this.hold > .12 && !this.focus) this.focus = { cap: [], ang: Math.random() * TAU, t: 0, tog: 0 }; }
+    if (this.holding) {
+      this.hold += dt;
+      if (this.hold > .12 && !this.focus) {
+        this.focus = { cap: [], had: [], ang: Math.random() * TAU, t: 0, tog: 0, tog2: 0 };
+        // зажал прямо на адроне (и рядом нет свободных кварков) — поле берёт его целиком
+        const h = this.hadronAt(); if (h && !this.q.some(o => this.canCap(o, []) && Math.hypot(o.x - P.x, o.y - P.y) < this.fr())) this.grabHadron(h);
+      }
+    }
   },
   // кого поле может взять: кварк вещества (одиночку или недособранную пару целиком), чьих цветов в поле ещё нет
   // (пару, которая не помещается, поле разнимает и берёт один кварк)
@@ -134,6 +164,8 @@ const Quarks = {
   tickFocus(dt) {
     const f = this.focus; if (!f) return;
     f.t += dt; f.cap = f.cap.filter(o => !o.dead && o.cap);
+    f.had = f.had.filter(g => this.groups.get(g.id) === g);
+    if (f.had.length) { this.holdHadrons(f, dt); return; }
     if (f.cap.length < 3) {
       let best = null, bd = this.fr();
       for (const o of this.q) {
@@ -143,7 +175,7 @@ const Quarks = {
       if (best) {
         const set = this.capSet(best, f.cap);
         for (const x of set) { if (set.length === 1 && x.g) this.detach(x); x.cap = true; f.cap.push(x); }
-        if (f.cap.length >= 2) this.learn.hold = true;
+        if (f.cap.length >= 2) { this.learn.hold = true; this.zoo('qq', P.x, P.y - this.hr * .6); }
       }
     }
     f.ang += dt * 1.6;
@@ -171,6 +203,78 @@ const Quarks = {
   release() {
     const f = this.focus; this.focus = null; if (!f) return;
     for (const o of f.cap) { o.cap = false; o.hand = 2; o.vx = P.vx + randn() * .3; o.vy = P.vy + randn() * .3; }
+    for (const g of f.had) for (const o of g.m) { o.cap = false; o.hand = 1; o.vx = P.vx; o.vy = P.vy; }
+  },
+  // ---------- зоопарк: поле держит адроны целиком и сжимает два в экзотический ----------
+  // адрон под курсором (или под детектором): готовый p⁺/n⁰ или мезон
+  hadronAt(R = .9) {
+    const pts = [[P.x, P.y]]; if (mouse.has && !mouse.idle) pts.push(S2W(mouse.x, mouse.y));
+    let best = null, bd = R;
+    for (const g of this.groups.values()) {
+      if (!HOLDABLE[g.kind] || g.m.some(x => x.cap || x.hand > 0)) continue;
+      const c = centroid(g.m);
+      for (const [x, y] of pts) { const d = Math.hypot(c.x - x, c.y - y); if (d < bd) { bd = d; best = g; } }
+    }
+    return best;
+  },
+  grabHadron(g) {
+    const f = this.focus; if (!f || f.had.includes(g) || f.had.length >= 2) return;
+    f.had.push(g); f.tog2 = 0;
+    for (const o of g.m) o.cap = true;
+    this.learn.had = true; Sfx.play('grab');
+  },
+  holdHadrons(f, dt) {
+    // второй адрон — любой готовый в радиусе поля
+    if (f.had.length < 2) {
+      let best = null, bd = this.fr();
+      for (const g of this.groups.values()) {
+        if (!HOLDABLE[g.kind] || f.had.includes(g) || g.m.some(x => x.cap || x.hand > 0)) continue;
+        const c = centroid(g.m), d = Math.hypot(c.x - P.x, c.y - P.y); if (d < bd) { bd = d; best = g; }
+      }
+      if (best) this.grabHadron(best);
+    }
+    f.ang += dt * 1.2;
+    const two = f.had.length === 2, pv = Math.hypot(P.vx, P.vy);
+    // двое сближаются к центру поля — сжатие
+    f.tog2 = two ? f.tog2 + dt : 0;
+    const sep = two ? Math.max(.12, .9 - f.tog2 * 1.1) : 0;
+    let ok = true;
+    f.had.forEach((g, k) => {
+      const c = centroid(g.m), a = f.ang + k * Math.PI;
+      const tx = P.x + Math.cos(a) * sep, ty = P.y + Math.sin(a) * sep;
+      const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy), step = (3 + pv) * dt;
+      const mx = d > step ? dx / d * step : dx, my = d > step ? dy / d * step : dy;
+      if (d > .25) ok = false;
+      for (const o of g.m) { o.x += mx; o.y += my; o.vx = P.vx; o.vy = P.vy; }
+    });
+    if (two && ok && f.tog2 > .8) this.fuse(f);
+  },
+  fuse(f) {
+    const [g1, g2] = f.had, nm = (g1.kind === 'meson') + (g2.kind === 'meson');
+    const kind = nm === 2 ? 'tetra' : nm === 1 ? 'penta' : 'hexa';
+    this.groups.delete(g1.id); this.groups.delete(g2.id);
+    const id = this.gid++, grp = { id, m: [...g1.m, ...g2.m], kind, t: EXO_T, parts: [{ m: g1.m, kind: g1.kind }, { m: g2.m, kind: g2.kind }] };
+    for (const o of grp.m) { o.g = id; o.cap = false; o.hand = 2; o.vx = P.vx; o.vy = P.vy; }
+    this.groups.set(id, grp); f.had = []; this.st.exo++;
+    const c = centroid(grp.m);
+    fxFlash(c.x, c.y, 1.4, GOLD, .6); fxRing(c.x, c.y, .5, GOLD, 3, 1);
+    if (!this.zoo(kind, c.x, c.y)) { this.kn += 5; this.float(c.x, c.y - .6, `${HADRON[kind][1]} +5 ✦`, GOLD, 14); }
+    Sfx.play('upgrade');
+  },
+  // экзотика живёт мгновения и распадается обратно на те же адроны (барионы не пропадают)
+  unfuse(grp) {
+    this.groups.delete(grp.id);
+    const c = centroid(grp.m);
+    for (const p of grp.parts) {
+      const m = p.m.filter(o => !o.dead); if (!m.length) continue;
+      const id = this.gid++, g = { id, m, kind: p.kind, t: p.kind === 'meson' ? MESON_T : 0 };
+      for (const o of m) o.g = id;
+      this.groups.set(id, g);
+      const pc = centroid(m), dx = pc.x - c.x, dy = pc.y - c.y, a = Math.hypot(dx, dy) < .05 ? Math.random() * TAU : Math.atan2(dy, dx);
+      for (const o of m) { o.vx += Math.cos(a) * 2.5; o.vy += Math.sin(a) * 2.5; }
+    }
+    fxRing(c.x, c.y, .4, GOLD, 2.5, .6);
+    this.float(c.x, c.y, `${HADRON[grp.kind][0]} → ${grp.parts.map(p => HADRON[p.kind][0]).join(' + ')}`, [255, 220, 160], 13);
   },
 
   // ---------- физика ----------
@@ -202,11 +306,11 @@ const Quarks = {
   },
   strings(dt) {
     for (const grp of [...this.groups.values()]) {
-      const m = grp.m; let broke = false;
+      const m = grp.m, exo = EXO[grp.kind]; let broke = false;
       for (let i = 0; i < m.length && !broke; i++) for (let j = i + 1; j < m.length; j++) {
         const a = m[i], b = m[j];
         const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1e-9;
-        if (d > DBREAK) { this.snap(grp, a, b); broke = true; break; }
+        if (d > DBREAK && !exo) { this.snap(grp, a, b); broke = true; break; }
         if (d > D0) {
           const f = KSTR * (d - D0) * Math.max(this.conf, .3) * dt;
           a.vx += dx / d * f; a.vy += dy / d * f; b.vx -= dx / d * f; b.vy -= dy / d * f;
@@ -233,8 +337,9 @@ const Quarks = {
   updGroups(dt) {
     for (const grp of [...this.groups.values()]) {
       if (!this.groups.has(grp.id)) continue;
+      if (EXO[grp.kind]) { if ((grp.t -= dt) <= 0) this.unfuse(grp); continue; }
       if (grp.kind === 'meson' || grp.kind === 'anti') {
-        grp.t -= dt;
+        grp.t -= grp.m[0].cap ? dt * .3 : dt; // поле придерживает мезон
         if (grp.kind === 'anti' || grp.t <= 0) {
           // мезон нестабилен: кварк и антикварк аннигилируют во вспышку света
           const c = centroid(grp.m);
@@ -260,7 +365,7 @@ const Quarks = {
   spare() {
     return baryonTrios(this.q.filter(o => {
       if (o.dead || o.anti) return false;
-      if (o.g) { const k = this.groups.get(o.g).kind; if (k === 'p' || k === 'n') return false; }
+      if (o.g) { const k = this.groups.get(o.g).kind; if (k === 'p' || k === 'n' || EXO[k]) return false; }
       return true;
     }));
   },
@@ -303,9 +408,11 @@ const Quarks = {
     if (!act) return; // этап гаснет: барионы на тех же местах становятся нуклонами уровня ядер
     if (!live) return;
     // всё, что можно было собрать, собрано
-    if (this.doneAt === null) { this.flow(dt); this.autoAsm(dt); }
+    if (this.doneAt === null) { this.flow(dt); this.pairs(dt); this.autoAsm(dt); }
+    this.hover = !this.focus && this.doneAt === null && (this.handN >= HAND_Q || this.learn.had) ? this.hadronAt(.7) : null;
     if (this.doneAt === null && this.steps().every(g => g.d) && !this.q.some(o => o.cap)) {
       this.doneAt = this.clock; this.endCd = 1.4; this.release(); this.holding = false; this.asm = null;
+      for (const g of [...this.groups.values()]) if (EXO[g.kind]) this.unfuse(g); // барионы уходят к ядрам целыми
       this.tickStars(true);
       this.float(P.x, P.y - this.hr - .5, 'конфайнмент повсюду ✓', [140, 235, 170], 17);
     }
@@ -315,15 +422,52 @@ const Quarks = {
 
   // ---------- кварки со всей Вселенной и конфайнмент сам ----------
   freeQ() { return this.q.filter(o => !o.dead && !o.anti && !o.g && !o.cap); },
-  // из-за края приходят кварки: того цвета и аромата, которых среди свободных меньше
+  // Кварки приходят сами: того цвета и аромата, которого не хватает. Считаются и свободные, и недособранные пары
+  // (паре нужен третий цвет). Обычно держим FLOW_N свободных, но цвет, без которого не собрать ни одной тройки,
+  // приходит всегда — иначе тупик: девять красных и синих и ни одного зелёного.
   flow(dt) {
     if (this.conf < .2 || (this.flowCd -= dt) > 0) return;
     this.flowCd = .7;
-    const f = this.freeQ(); if (f.length >= FLOW_N) return;
-    const cc = [0, 1, 2].map(c => f.filter(o => o.col === c).length), col = cc.indexOf(Math.min(...cc));
-    const nu = f.filter(o => o.fl === 'u').length, fl = nu <= f.length - nu ? 'u' : 'd';
+    const f = this.freeQ(), sup = [0, 1, 2].map(c => f.filter(o => o.col === c).length);
+    const pairs = [...this.groups.values()].filter(g => g.kind === 'forming' && !g.m.some(x => x.anti));
+    for (const g of pairs) for (const x of g.m) sup[x.col]++;
+    const lo = Math.min(...sup), col = sup.indexOf(lo);
+    // лишние (самого частого цвета) далеко за краем экрана уходят — свободных не копится больше FLOW_MAX
+    if (f.length > FLOW_MAX) {
+      const hi = sup.indexOf(Math.max(...sup)), far = f.filter(o => o.col === hi && !o.mine && Math.hypot(o.x - P.x, o.y - P.y) > viewRadius() + 1);
+      if (far.length) far[0].dead = true;
+    }
+    if (lo > 0 && f.length >= FLOW_N) return; // цвета, без которого нет ни одной тройки, — всегда
+    const nu = f.filter(o => o.fl === 'u').length;
+    let fl = nu <= f.length - nu ? 'u' : 'd';
+    const pr = pairs.find(g => g.m.length === 2 && !g.m.some(x => x.col === col));
+    if (pr && pr.m[0].fl === pr.m[1].fl) fl = pr.m[0].fl === 'u' ? 'd' : 'u'; // не дать паре uu/dd стать Δ
+    this.born(col, fl);
+  },
+  // рождение кварка: чаще — прямо из вакуума рядом с полем (видно, что они берутся сами), реже — из-за края
+  born(col, fl) {
+    if (Math.random() < .6) {
+      const a = Math.random() * TAU, d = this.fr() * 1.25 + Math.random() * 1.6;
+      const q = this.mk(P.x + Math.cos(a) * d, P.y + Math.sin(a) * d, col, false, fl);
+      q.vx = Math.cos(a) * .6 + P.vx * .3; q.vy = Math.sin(a) * .6 + P.vy * .3; q.sz = .15;
+      fxFlash(q.x, q.y, .35, QCOL[col], .35);
+      return q;
+    }
     const a = Math.random() * TAU, d = Q_WR * .95, q = this.mk(this.C.x + Math.cos(a) * d, this.C.y + Math.sin(a) * d, col, false, fl);
     q.vx = -Math.cos(a) * 2.5; q.vy = -Math.sin(a) * 2.5;
+    return q;
+  },
+  // вакуум кипит: время от времени рождается пара кварк + антикварк (из неё — мезоны π)
+  pairs(dt) {
+    if (this.conf < .5 || (this.pairCd -= dt) > 0) return;
+    this.pairCd = PAIR_CD * (.7 + Math.random() * .6);
+    if (this.q.filter(o => o.anti).length >= ANTI_MAX) return;
+    const a = Math.random() * TAU, d = this.fr() * 1.3 + Math.random() * 2, x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
+    const col = Math.random() * 3 | 0, fl = Math.random() < .5 ? 'u' : 'd', b = Math.random() * TAU;
+    const q1 = this.mk(x + Math.cos(b) * .25, y + Math.sin(b) * .25, col, false, fl), q2 = this.mk(x - Math.cos(b) * .25, y - Math.sin(b) * .25, col, true, fl);
+    q1.vx = Math.cos(b) * 1.8; q1.vy = Math.sin(b) * 1.8; q2.vx = -q1.vx; q2.vy = -q1.vy;
+    q1.nb = q2.nb = .9; q1.sz = q2.sz = .2;
+    fxFlash(x, y, .6, [255, 240, 200], .4);
   },
   // Вселенная сама: выбирает ближайшую тройку R·G·B (не uuu/ddd) и стягивает её, пока не слипнется
   autoAsm(dt) {
@@ -391,6 +535,7 @@ const Quarks = {
       { t: '5 барионов полем', ok: () => this.handN >= 5 },
       { t: 'ни одного Δ', bad: () => st.delta > 0, atEnd: true },
       { t: '2 p⁺ и 2 n⁰', ok: () => this.made.p >= 2 && this.made.n >= 2, can: () => this.q.length >= 12 },
+      { t: 'экзотический адрон', ok: () => st.exo > 0 },
     ];
   },
   tickStars(end) {
@@ -465,6 +610,15 @@ const Quarks = {
           label(grp.kind === 'p' ? 'p⁺' : 'n⁰', cx, cy - 1.05 * z, 12, [255, 255, 255], .7 * al, 700);
         }
       } else if (pts.length === 2) this.tube(pts[0][0], pts[0][1], pts[1][0], pts[1][1], c, w, al * flick);
+      else if (pts.length > 3) {
+        // экзотика: все струны в общий центр, золотое свечение пульсирует, пока не распадётся
+        const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        for (const p of pts) this.tube(cx, cy, p[0], p[1], EXO[grp.kind] ? GOLD : c, w, al);
+        if (EXO[grp.kind]) {
+          glow(cx, cy, 2 * z, GOLD, (.2 + .1 * Math.sin(G.T * 8)) * al);
+          label(HADRON[grp.kind][1], cx, cy - 1.3 * z, 13, GOLD, .9 * al, 700);
+        }
+      }
     }
     // тройка, которую стягивает Вселенная: тонкие зелёные нити к центру
     if (this.asm) {
@@ -501,6 +655,7 @@ const Quarks = {
       ring(sx, sy, this.fr() * z, FIELD_C, .35, 1.5, [6, 6]);
       ring(sx, sy, .6 * z + 3 * Math.sin(G.T * 10), GOLD, .7, 2);
       for (const o of f.cap) { const [ox, oy] = W2S(o.x, o.y); line(ox, oy, sx, sy, GOLD, .6, 1.8); }
+      for (const g of f.had) { const c = centroid(g.m), [ox, oy] = W2S(c.x, c.y); ring(ox, oy, .75 * z, GOLD, .7, 2); line(ox, oy, sx, sy, GOLD, .6, 1.8); }
       // каких цветов не хватает: золотые дуги на подходящих кварках; лишний цвет — тусклый крест
       const need = f.cap.length < 3;
       for (const o of this.q) {
@@ -513,6 +668,12 @@ const Quarks = {
       if (f.cap.length === 3) arc(sx, sy, .6 * z + 8, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(f.tog / .35, 0, 1) * (this.conf > .5 ? 1 : .15), this.conf > .5 ? [255, 255, 255] : [255, 140, 110], .9, 3);
     }
     ring(sx, sy, 3, [255, 255, 255], .8, 1.5);
+    // курсор над готовым адроном: его можно взять целиком (так собирается экзотика)
+    if (this.hover && G.started && !G.paused) {
+      const c = centroid(this.hover.m), [hx, hy] = W2S(c.x, c.y);
+      ring(hx, hy, .8 * z + 2 * Math.sin(G.T * 6), [255, 255, 255], .6, 1.5, [4, 4]);
+      if (!this.learn.had) label('зажми — взять целиком', hx, hy + .8 * z + 16, 12, [255, 255, 255], .8, 700);
+    }
     this.drawHint(sx, sy, r);
     this.drawArrows();
     for (const fl of this.floats) {
@@ -525,6 +686,7 @@ const Quarks = {
     if (!G.started || G.paused || this.doneAt !== null) return;
     const f = this.focus; let t = null;
     if (f && f.cap.length === 3 && this.conf <= .5) t = 'горячо — не слипаются';
+    else if (f && f.had.length === 1 && this.st.exo === 0) t = 'добавь ещё адрон — сожмёшь в один';
     else if (!this.learn.hold && this.t > 1.5) t = 'зажми — собрать кварки';
     else if (f && f.cap.length && !this.learn.bar) t = 'три разных цвета';
     if (t) label(t, sx, sy + Math.max(r, this.fr() * cam.z) + 22, 14, [255, 255, 255], .75 + .2 * Math.sin(G.T * 4), 700);
