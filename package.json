@@ -1,11 +1,16 @@
 {
   "name": "proto-type",
   "private": true,
-  "description": "PROTO // TYPE — игра без сборки; package.json только для тестов",
+  "description": "PROTO // TYPE — игра без сборки; package.json только для тестов и проверки типов",
   "scripts": {
-    "test": "node --test \"tests/*.test.mjs\""
+    "test": "node --test \"tests/*.test.mjs\"",
+    "typecheck": "tsc -p .",
+    "check": "npm run typecheck && npm test"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
   }
 }

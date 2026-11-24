@@ -5,6 +5,7 @@
    Открыть = увидеть своими глазами: событие должно случиться внутри круга детектора. */
 // Поколения открываются по порядку: тяжёлое поколение — «та же» частица, только тяжелее, и родиться ей
 // можно, лишь когда открыто лёгкое. μ — после e, τ — после μ; c и s — после u и d; t и b — после c и s.
+/** @type {Record<string, string[]>} */
 const GEN_PREV = { mu: ['e'], ta: ['mu'], c: ['u', 'd'], s: ['u', 'd'], t: ['c', 's'], b: ['c', 's'] };
 const GEN_N = ['', 'I', 'II', 'III'], GEN_SP = [[], ['u', 'd', 'e'], ['c', 's', 'mu'], ['t', 'b', 'ta']];
 // текущее поколение — первое, где открыто ещё не всё (нейтрино не в счёт)
@@ -13,6 +14,8 @@ const genOpen = sp => (GEN_PREV[sp] || []).every(k => Codex.has(k));
 const genNeed = sp => (GEN_PREV[sp] || []).filter(k => !Codex.has(k));
 const Codex = {
   known: new Set(), run: new Set(), dirty: true,
+  /** что Вселенная рождает сама (исследовано); заводит уровень частиц */
+  auto: /** @type {Set<string>} */ (new Set()),
   load() {
     try { const s = JSON.parse(localStorage.getItem('protoCodex') || '[]'); this.known = new Set(s); } catch (e) { this.known = new Set(); }
   },

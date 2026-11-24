@@ -1,13 +1,15 @@
 "use strict";
 // Общее состояние, камера, ввод, эффекты.
-const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0, stage: null, prev: null, trans: 1, started: false, ended: false, fx: [], score: 0 };
+const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0, stage: /** @type {any} */ (null), prev: /** @type {any} */ (null), trans: 1, started: false, ended: false, paused: false, fx: [], score: 0,
+  /** низ панели задания и когда она рисовалась (заголовки встают ниже) */
+  taskY: 0, taskAt: /** @type {number | undefined} */ (undefined) };
 // Очки — только для счёта: копятся весь забег, не тратятся (✦ — валюта уровня, её тратят на исследования).
 // Каждый добытый ✦ приносит 10 очков (main.js следит за kn уровня); прочее — addScore.
 function addScore(n) { G.score += Math.max(0, Math.round(n)); }
 const fmtScore = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const cam = { x: 0, y: 0, z: 40 };
 // idle — палец отпущен: цели нет, тело плавно тормозит (мышь остаётся на месте и ведёт дальше)
-const mouse = { x: 0, y: 0, has: false, down: false, idle: false };
+const mouse = { x: 0, y: 0, has: false, down: false, idle: false, clicked: false };
 const keys = new Set();
 // P — «точка игрока» в мире. Активный этап держит её в актуальном состоянии.
 const P = { x: 0, y: 0, vx: 0, vy: 0, dashCd: 0, dashT: 0 };
@@ -18,7 +20,9 @@ function resize() {
   cv.width = G.W * G.DPR; cv.height = G.H * G.DPR;
   cv.style.width = G.W + 'px'; cv.style.height = G.H + 'px';
 }
+/** @type {(x: number, y: number) => [number, number]} */
 const W2S = (x, y) => [G.W / 2 + (x - cam.x) * cam.z, G.H / 2 + (y - cam.y) * cam.z];
+/** @type {(sx: number, sy: number) => [number, number]} */
 const S2W = (sx, sy) => [(sx - G.W / 2) / cam.z + cam.x, (sy - G.H / 2) / cam.z + cam.y];
 const onScreen = (sx, sy, r) => sx > -r && sy > -r && sx < G.W + r && sy < G.H + r;
 const viewRadius = () => Math.hypot(G.W, G.H) / 2 / cam.z;
@@ -111,6 +115,7 @@ function wrapText(t, px, weight, maxW) {
 }
 // Испытания ★ — два случайных из набора эпохи, каждый забег разные.
 // ok() — выполнено; bad() — провалено; atEnd — засчитывается в конце, если не провалено.
+/** @template T @param {T[]} pool @param {number} [n] @returns {(T & { st: number })[]} */
 function pickStars(pool, n = 2) {
   const a = pool.filter(s => !s.can || s.can());
   for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; }

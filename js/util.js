@@ -38,6 +38,7 @@ function glow(x, y, r, c, a) {
   g.addColorStop(0, rgb(c, a)); g.addColorStop(1, rgb(c, 0));
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
 }
+/** @param {number[] | null} [dash] */
 function ring(x, y, r, c, a, lw = 1, dash = null) {
   if (!(r > 0) || !(a > 0)) return;
   ctx.strokeStyle = rgb(c, a); ctx.lineWidth = lw;

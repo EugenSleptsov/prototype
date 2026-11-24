@@ -1,0 +1,14 @@
+{
+  // Проверка типов без сборки: tsc только читает JS (JSDoc + types/*.d.ts), ничего не выпускает.
+  // Файлы включаются по одному строкой // @ts-check в начале — по мере того, как в них объявлено состояние.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "strict": true,
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "skipLibCheck": true
+  },
+  "include": ["js/*.js", "types/*.d.ts"]
+}

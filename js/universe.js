@@ -12,6 +12,7 @@ const UNIVERSE = {
    m — масса, ГэВ; q — заряд (в единицах e) у частицы (у античастицы обратный);
    kind — quark / lepton / nu / boson; gen — поколение; life — время жизни в ИГРОВЫХ секундах
    (реальные времена сжаты на десятки порядков, иначе t-кварк не увидеть). */
+/** @type {Record<string, Species>} */
 const SM = {
   u:  { sym: 'u',  name: 'u-кварк (верхний)',  kind: 'quark',  gen: 1, m: .0022, q: 2 / 3 },
   d:  { sym: 'd',  name: 'd-кварк (нижний)',   kind: 'quark',  gen: 1, m: .0047, q: -1 / 3 },
@@ -32,6 +33,7 @@ const SM = {
   H:  { sym: 'H',  name: 'бозон Хиггса',       kind: 'boson',  m: 125.1, q: 0, life: 1.2 },
 };
 // нейтрино в паре с заряженным лептоном того же поколения
+/** @type {Record<string, string>} */
 const NU_OF = { e: 'ne', mu: 'nm', ta: 'nt' };
 
 // Короткий факт для карточки открытия
