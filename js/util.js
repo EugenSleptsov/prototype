@@ -22,8 +22,10 @@ const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
 const mixc = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 
 // ---------- примитивы рисования ----------
-const cv = document.getElementById('c');
-const ctx = cv.getContext('2d');
+/** Элемент страницы по id — для тех, что точно есть в index.html (нет — ошибка сразу, а не null дальше) */
+const byId = (/** @type {string} */ id) => { const el = document.getElementById(id); if (!el) throw new Error('нет #' + id); return el; };
+const cv = /** @type {HTMLCanvasElement} */ (byId('c'));
+const ctx = /** @type {CanvasRenderingContext2D} */ (cv.getContext('2d'));
 
 function ball(x, y, r, c, a = 1) {
   if (!(r > 0)) return;

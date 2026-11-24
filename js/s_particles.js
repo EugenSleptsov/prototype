@@ -1107,9 +1107,12 @@ const Particles = {
     const b = G.T * 2.2 + c * TAU / 3; return { x: x + Math.cos(b) * .16, y: y + Math.sin(b) * .16, a };
   },
   // Итоги уровня для ненавязчивого экрана между уровнями
+  /** @returns {TallyData} */
   tally() {
     const hand = baryonTrios(this.stockQ), auto = this.safe.length;
-    const hr = this.heatRes, heat = hr ? [['🔥 разогрев', `${hr.T0} ГэВ${hr.rec ? ' · рекорд' : ` · #${hr.place + 1}`}`]] : [];
+    const hr = this.heatRes;
+    /** @type {TallyData['rows']} */
+    const heat = hr ? [['🔥 разогрев', `${hr.T0} ГэВ${hr.rec ? ' · рекорд' : ` · #${hr.place + 1}`}`]] : [];
     return { name: 'Частицы', rows: [['⏱ уровень', fmtClock(this.t)], ...heat, ['✦ добыто', Math.round(this.kn)], ['тройки — руками', hand], ['тройки — Вселенная', auto]], auto: [auto, hand + auto], stars: this.stars };
   },
   // Эпоха 4: кварки почти остановились (упрощение), антикварки ищут вещество — свободное или в детекторе
@@ -2178,3 +2181,4 @@ const Particles = {
     return { title: '', sub: `T ≈ ${fmtGeV(this.T)}${this.ff > 1 ? ' · ×4' : ''}`, lines: [], goal: '', laws: [] };
   },
 };
+/** @typedef {IsStage<typeof Particles>} ParticlesIsStage — Particles выполняет договор этапа (Stage в types/game.d.ts) */

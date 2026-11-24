@@ -19,6 +19,58 @@ interface LBEntry { n: string; s: number; t: number | null; d: number; h?: numbe
 /** Испытание ★ (pickStars / tickStars в core.js); st: 0 — идёт, 1 — выполнено, -1 — провалено */
 interface Star { t: string; ok?: () => boolean; bad?: () => boolean; atEnd?: boolean; can?: () => boolean; st: number }
 
+// ---------- общее (core.js) ----------
+
+/** Вспышка или кольцо в мире (fxRing / fxFlash) */
+interface Fx { x: number; y: number; r0: number; r1: number; t: number; dur: number; c: RGB; kind: 'ring' | 'flash' }
+/** Фишка в строке: [текст, [цвет фона, прозрачность], цвет текста, зачёркнуто] */
+type Chip = [string, [RGB, number], RGB, boolean?];
+/** Состояние панели задания у этапа (hudTask): прошлые галочки шагов и ★, вспышка «✓ …», когда закрыт шаг */
+interface TaskPanel { ds?: boolean[]; ss?: number[]; fl?: { txt: string; c: RGB; at: number }; doneAt?: number }
+/** Итоги уровня (tally): строки [подпись, значение, класс], доля Вселенной [сама, всего] */
+interface TallyData { name: string; rows: [string, string | number, string?][]; auto?: [number, number] | null; stars?: Star[] }
+
+/** Этап лестницы (STAGES в main.js) — то, что main.js и core.js вызывают у уровня. Необязательное — не у всех. */
+interface Stage {
+  key: string; name: string;
+  /** цвет фона */
+  bg: RGB;
+  /** подсказка по управлению (HTML) */
+  controls?: string;
+  /** очки забега на входе в уровень (ставит advance) */
+  scoreAt?: number;
+  /** ✦ уровня — main.js превращает прирост в очки */
+  kn?: number;
+  cheated?: boolean;
+  /** время уровня, с (для таблицы рекордов) */
+  clock?: number; t?: number;
+  /** уровень управляется рогаткой: палец — сам жест */
+  sling?: unknown;
+  enter(prev?: Stage | null): void;
+  update(dt: number, active: boolean): void;
+  viewR(): number;
+  draw(alpha: number): void;
+  drawPlayer(alpha: number): void;
+  overlay?(alpha: number): void;
+  hud(): unknown;
+  tally?(): TallyData;
+  showCodex?(): boolean;
+  renderUpg?(el: HTMLElement): void;
+  renderShop?(el: HTMLElement): void;
+  startTut?(): void;
+  wheel?(d: number): void;
+  dash?(): void;
+  enterKey?(): void;
+  detach?(): void;
+  pick?(i: number): void;
+  buy?(i: number): void;
+  closeCard?(): void;
+  cheat?(): void;
+}
+
+/** Проверка «этот объект — этап»: @typedef {IsStage<typeof X>} в файле этапа — ошибка, если X не выполняет договор Stage */
+type IsStage<T extends Stage> = T;
+
 // ---------- уровень частиц (s_particles.js) ----------
 
 /** Объект мира частиц: квант (γ, g) или частица вещества. Поля после dead — состояние, которое заводят по ходу. */
@@ -155,7 +207,7 @@ interface ParticlesState {
   need0: string[]; need2: string[];
   st: EpochStat;
   /** состояние карточек задания (hudTask) */
-  tk: Record<string, unknown>;
+  tk: TaskPanel;
   stars: Star[];
   wave?: Wave;
   annN?: number;

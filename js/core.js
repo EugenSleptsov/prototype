@@ -1,12 +1,21 @@
+// @ts-check
 "use strict";
 // Общее состояние, камера, ввод, эффекты.
-const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0, stage: /** @type {any} */ (null), prev: /** @type {any} */ (null), trans: 1, started: false, ended: false, paused: false, fx: [], score: 0,
+// Типы (Stage — что этап отдаёт main.js, Fx, Step, TaskPanel…) — в types/game.d.ts
+const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0,
+  /** текущий этап; prev — уходящий, пока идёт переход (trans 0…1) */
+  stage: /** @type {Stage} */ (/** @type {unknown} */ (null)), prev: /** @type {Stage | null} */ (null), trans: 1,
+  started: false, ended: false, paused: false, fx: /** @type {Fx[]} */ ([]), score: 0,
   /** низ панели задания и когда она рисовалась (заголовки встают ниже) */
-  taskY: 0, taskAt: /** @type {number | undefined} */ (undefined) };
+  taskY: 0, taskAt: /** @type {number | undefined} */ (undefined),
+  /** заводит main.js: масштаб щипком/колесом, начало забега, идёт обучение, ✦ уже обращённые в очки (у какого этапа), лестница */
+  zoom: 1, runT0: 0, tutor: false, knOf: /** @type {Stage | null} */ (null), knSeen: 0,
+  ladP: /** @type {number | null} */ (null), ladT: /** @type {number | undefined} */ (undefined) };
 // Очки — только для счёта: копятся весь забег, не тратятся (✦ — валюта уровня, её тратят на исследования).
 // Каждый добытый ✦ приносит 10 очков (main.js следит за kn уровня); прочее — addScore.
+/** @param {number} n */
 function addScore(n) { G.score += Math.max(0, Math.round(n)); }
-const fmtScore = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const fmtScore = (/** @type {number} */ n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const cam = { x: 0, y: 0, z: 40 };
 // idle — палец отпущен: цели нет, тело плавно тормозит (мышь остаётся на месте и ведёт дальше)
 const mouse = { x: 0, y: 0, has: false, down: false, idle: false, clicked: false };
@@ -24,10 +33,12 @@ function resize() {
 const W2S = (x, y) => [G.W / 2 + (x - cam.x) * cam.z, G.H / 2 + (y - cam.y) * cam.z];
 /** @type {(sx: number, sy: number) => [number, number]} */
 const S2W = (sx, sy) => [(sx - G.W / 2) / cam.z + cam.x, (sy - G.H / 2) / cam.z + cam.y];
+/** @type {(sx: number, sy: number, r: number) => boolean} */
 const onScreen = (sx, sy, r) => sx > -r && sy > -r && sx < G.W + r && sy < G.H + r;
 const viewRadius = () => Math.hypot(G.W, G.H) / 2 / cam.z;
 
 // Плавное управление: тело тянется к курсору. resp — «вязкость» отклика.
+/** @param {{ x: number, y: number, vx: number, vy: number }} o @param {number} maxSp @param {number} resp @param {number} dt */
 function steer(o, maxSp, resp, dt) {
   if (!G.started || !mouse.has || P.dashT > 0) return;
   const [mx, my] = mouse.idle ? [o.x, o.y] : S2W(mouse.x, mouse.y);
@@ -36,6 +47,7 @@ function steer(o, maxSp, resp, dt) {
   const k = Math.min(1, dt * resp);
   o.vx += (dx / d * sp - o.vx) * k; o.vy += (dy / d * sp - o.vy) * k;
 }
+/** @param {{ x: number, y: number, vx: number, vy: number }} o @param {number} power */
 function tryDash(o, power) {
   if (!G.started || P.dashCd > 0 || !mouse.has) return false;
   const [mx, my] = mouse.idle ? [o.x + o.vx, o.y + o.vy] : S2W(mouse.x, mouse.y); // палец отпущен — рывок по ходу
@@ -47,7 +59,9 @@ function tryDash(o, power) {
 }
 
 // ---------- эффекты ----------
+/** @param {number} x @param {number} y @param {number} r0 @param {RGB} c @param {number} [r1] @param {number} [dur] */
 function fxRing(x, y, r0, c, r1 = r0 * 3, dur = .6) { G.fx.push({ x, y, r0, r1, t: 0, dur, c, kind: 'ring' }); }
+/** @param {number} x @param {number} y @param {number} r @param {RGB} c @param {number} [dur] */
 function fxFlash(x, y, r, c, dur = .5) { G.fx.push({ x, y, r0: r, r1: r * 1.8, t: 0, dur, c, kind: 'flash' }); }
 function drawFx() {
   for (const f of G.fx) {
@@ -59,6 +73,7 @@ function drawFx() {
 
 // ---------- общий интерфейс уровней: часы, цели, заголовок, стрелки ----------
 // Часы, ✦ и очки забега — сверху по центру, под ними цели «фишками» [текст, выполнено]
+/** @param {number} alpha @param {string} left @param {RGB} leftCol @param {number | string} pts @param {[string, boolean][]} chips */
 function hudClock(alpha, left, leftCol, pts, chips) {
   const x = G.W / 2, y = 24;
   ctx.globalAlpha = alpha;
@@ -79,6 +94,7 @@ function hudClock(alpha, left, leftCol, pts, chips) {
   ctx.globalAlpha = 1;
 }
 // Заголовок: всплывает и гаснет, игру не останавливает (b — секунды с начала)
+/** @param {number} b @param {string} kicker @param {string} name @param {string} sub @param {number} alpha */
 function hudBanner(b, kicker, name, sub, alpha) {
   if (!G.started || b > 4.2) return;
   const a = smooth(0, .4, b) * (1 - smooth(3, 4.2, b)) * alpha, y = Math.max(G.H * .3, (G.T - (G.taskAt ?? -9) < .2 ? G.taskY : 0) + 62); // не на карточках задания
@@ -87,6 +103,7 @@ function hudBanner(b, kicker, name, sub, alpha) {
   wrapText(sub, 15, 500, Math.min(640, G.W - 40)).forEach((l, k) => label(l, G.W / 2, y + 36 + k * 20, 15, [220, 225, 240], .8 * a, 500));
 }
 // Стрелки у края экрана к целям за кадром: pts = [[x, y, подпись или цвет]]; не больше n ближайших
+/** @param {[number, number, (string | RGB)?][]} pts @param {number} n */
 function edgeArrows(pts, n) {
   const m = 34, cx = G.W / 2, cy = G.H / 2, off = pts.filter(([wx, wy]) => !onScreen(...W2S(wx, wy), -m));
   off.sort((u, v) => Math.hypot(u[0] - P.x, u[1] - P.y) - Math.hypot(v[0] - P.x, v[1] - P.y));
@@ -103,6 +120,7 @@ function edgeArrows(pts, n) {
 }
 
 // ---------- задание и испытания ★ ----------
+/** @param {string} t @param {number} px @param {number | string} weight @param {number} maxW @returns {string[]} */
 function wrapText(t, px, weight, maxW) {
   ctx.font = `${weight} ${px}px system-ui,sans-serif`;
   const out = []; let line = '';
@@ -115,13 +133,14 @@ function wrapText(t, px, weight, maxW) {
 }
 // Испытания ★ — два случайных из набора эпохи, каждый забег разные.
 // ok() — выполнено; bad() — провалено; atEnd — засчитывается в конце, если не провалено.
-/** @template T @param {T[]} pool @param {number} [n] @returns {(T & { st: number })[]} */
+/** @template {object} T @param {T[]} pool @param {number} [n] @returns {(T & { st: number })[]} */
 function pickStars(pool, n = 2) {
-  const a = pool.filter(s => !s.can || s.can());
+  const a = pool.filter(s => { const can = /** @type {{ can?: () => boolean }} */ (s).can; return !can || can(); });
   for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; }
   return a.slice(0, n).map(s => ({ ...s, st: 0 }));
 }
 // end — эпоха закончилась (всё несделанное проваливается); onWin(s) — награда
+/** @param {Star[]} stars @param {boolean} end @param {(s: Star) => void} onWin */
 function tickStars(stars, end, onWin) {
   for (const s of stars) {
     if (s.st) continue;
@@ -130,12 +149,14 @@ function tickStars(stars, end, onWin) {
     else if (end) s.st = -1;
   }
 }
-const starsWon = stars => stars.filter(s => s.st === 1).length;
+const starsWon = (/** @type {Star[]} */ stars) => stars.filter(s => s.st === 1).length;
 // Текст слева (или справа) и обрезка с «…» по ширине
+/** @param {string} t @param {number} x @param {number} y @param {number} px @param {RGB} c @param {number} [a] @param {number} [weight] @param {CanvasTextAlign} [align] */
 function labelL(t, x, y, px, c, a = 1, weight = 600, align = 'left') {
   ctx.fillStyle = rgb(c, a); ctx.font = `${weight} ${px}px system-ui,sans-serif`;
   ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y);
 }
+/** @param {string} t @param {number} px @param {number} weight @param {number} maxW */
 function fitText(t, px, weight, maxW) {
   ctx.font = `${weight} ${px}px system-ui,sans-serif`;
   if (ctx.measureText(t).width <= maxW) return t;
@@ -143,6 +164,7 @@ function fitText(t, px, weight, maxW) {
   return t.trimEnd() + '…';
 }
 // Фишки в строку с переносом: [[текст, цвет фона, цвет текста, зачёркнуто]] → высота; draw=false — только мерить
+/** @param {Chip[]} list @param {number} x0 @param {number} y @param {number} maxW @param {number} px @param {boolean} draw @param {number} alpha */
 function chipRows(list, x0, y, maxW, px, draw, alpha) {
   ctx.font = `700 ${px}px system-ui,sans-serif`;
   const h = px + 9, gap = 6; let x = x0, rows = list.length ? 1 : 0;
@@ -163,13 +185,15 @@ function chipRows(list, x0, y, maxW, px, draw, alpha) {
 // p: [сколько, из], s: коротко — вспыхивает «✓ s», d: сделано}. Видно: два последних выполненных (свёрнуты, ✓),
 // текущий (раскрыт), следующий (свёрнут, тускло); в шапке — полоска шагов; испытания ★ — фишками под карточками.
 // tk — состояние панели у этапа (сбрасывать на новой эпохе), after — текст, когда все шаги сделаны.
+/** @param {number} alpha @param {TaskPanel} tk @param {string} kicker @param {Step[]} steps @param {Star[]} stars @param {string} [after] */
 function hudTask(alpha, tk, kicker, steps, stars, after) {
   if (!G.started) return;
   const ds = steps.map(s => !!s.d), ss = stars.map(s => s.st);
-  if (tk.ds) {
-    const j = ds.findIndex((d, k) => d && !tk.ds[k]);
+  const pd = tk.ds, ps = tk.ss || [];
+  if (pd) {
+    const j = ds.findIndex((d, k) => d && !pd[k]);
     if (j >= 0) { tk.fl = { txt: '✓ ' + steps[j].s, c: [140, 235, 170], at: G.T }; tk.doneAt = G.T; Sfx.play('goal'); }
-    const w = ss.findIndex((v, k) => v === 1 && tk.ss[k] !== 1);
+    const w = ss.findIndex((v, k) => v === 1 && ps[k] !== 1);
     if (w >= 0) { tk.fl = { txt: '★ ' + stars[w].t, c: [255, 215, 110], at: G.T }; Sfx.play('star'); }
   }
   tk.ds = ds; tk.ss = ss;
@@ -185,6 +209,7 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
     ctx.beginPath(); ctx.roundRect(x0 + W - (n - k) * (sw + 3) + 3, y + 6, sw, 4, 2); ctx.fill();
   }
   y += 20;
+  /** @param {string} txt @param {string} bg @param {RGB} fg @param {number} fa */
   const slim = (txt, bg, fg, fa) => {
     ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(x0, y, W, 26, 9); ctx.fill();
     labelL(fitText(txt, 12, 700, W - pad * 2), x0 + pad, y + 13.5, 12, fg, fa * a, 700);
@@ -198,6 +223,7 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   const title = wrapText(cur ? cur.t : after || 'Задание выполнено', 16, 800, iw);
   let hint = cur && cur.h ? wrapText(cur.h, 13, 500, iw) : [];
   if (small && hint.length > 2) { hint = hint.slice(0, 2); hint[1] = hint[1].replace(/[\s,.;:—-]*\S*$/, '') + '…'; }
+  /** @type {Chip[]} */
   const items = cur && cur.items ? cur.items.map(([t, d]) => [(d ? '✓ ' : '') + t, d ? [[77, 232, 155], .28] : [[255, 255, 255], .09], d ? [170, 245, 205] : [235, 235, 245]]) : [];
   const ih = chipRows(items, tx, 0, iw, 12, false, a);
   const hasP = cur && cur.p;
@@ -213,7 +239,7 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   if (hint.length) { cy += 3; hint.forEach(l => { labelL(l, tx, cy + 8.5, 13, [200, 206, 228], .88 * a, 500); cy += 17; }); }
   if (ih) { cy += 8; chipRows(items, tx, cy, iw, 12, true, a); cy += ih; }
   if (hasP) {
-    const [v, of] = cur.p, k = of > 0 ? Math.min(1, v / of) : 0, bw = iw - 46;
+    const [v, of] = hasP, k = of > 0 ? Math.min(1, v / of) : 0, bw = iw - 46;
     ctx.fillStyle = rgb([255, 255, 255], .12 * a); ctx.beginPath(); ctx.roundRect(tx, cy + 7, bw, 5, 2.5); ctx.fill();
     if (k > 0) { ctx.fillStyle = rgb(GOLD, .95 * a); ctx.beginPath(); ctx.roundRect(tx, cy + 7, Math.max(5, bw * k), 5, 2.5); ctx.fill(); }
     labelL(`${v}/${of}`, tx + iw, cy + 9.5, 12, GOLD, .95 * a, 800, 'right');
@@ -223,6 +249,7 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   if (!small && cur && i + 1 < n && !ds[i + 1]) slim(`${i + 2}.  ${steps[i + 1].t}`, rgb([10, 9, 18], .5 * a), [215, 220, 235], .55);
   // испытания ★
   if (stars.length) {
+    /** @type {Chip[]} */
     const st = stars.map(s => s.st === 1 ? ['★ ' + s.t, [[255, 215, 110], .26], [255, 225, 140]]
       : s.st < 0 ? ['✗ ' + s.t, [[255, 255, 255], .05], [150, 150, 165], true] : ['☆ ' + s.t, [[10, 9, 18], .62], [225, 228, 240]]);
     y += chipRows(st, x0, y + 1, W, 12, true, a) + 6;
@@ -242,21 +269,27 @@ const TALLY_T = 8, LVL_BONUS = 500, AUTO_BONUS = 1000;
 const Tally = {
   t: 0,
   // итоги пройденного уровня (из advance)
+  /** @param {Stage} st */
   show(st) {
+    /** @type {TallyData} */
     const d = st.tally ? st.tally() : { name: st.name, rows: [] };
     const auto = d.auto && d.auto[1] > 0 ? clamp(d.auto[0] / d.auto[1], 0, 1) : null;
     addScore(LVL_BONUS); if (auto !== null) addScore(AUTO_BONUS * auto);
     const lvl = Math.round(G.score - (st.scoreAt || 0));
+    /** @type {number | null} */
     let place = null;
     if (!st.cheated) place = LB.add('run.' + st.key, { n: LB.name(), s: lvl, t: Math.floor(st.clock ?? st.t ?? 0), d: Date.now() }).place;
-    this.note(`УРОВЕНЬ ${G.stageI + 1} · ПРОЙДЕН`, d.name, [...d.rows, ['уровень пройден', '+' + LVL_BONUS, 'tb'],
-      ...(auto !== null ? [['отдано Вселенной', '+' + Math.round(AUTO_BONUS * auto), 'tb']] : []),
-      ['очки за уровень', fmtScore(lvl), 'tl'], ['всего', fmtScore(G.score), 'tt']], d.stars || [], place, '', auto);
+    /** @type {TallyData['rows']} */
+    const rows = [...d.rows, ['уровень пройден', '+' + LVL_BONUS, 'tb']];
+    if (auto !== null) rows.push(['отдано Вселенной', '+' + Math.round(AUTO_BONUS * auto), 'tb']);
+    rows.push(['очки за уровень', fmtScore(lvl), 'tl'], ['всего', fmtScore(G.score), 'tt']);
+    this.note(`УРОВЕНЬ ${G.stageI + 1} · ПРОЙДЕН`, d.name, rows, d.stars || [], place, '', auto);
   },
   // любая сводка сбоку: шапка, имя, строки [подпись, значение, класс], ★, место в таблице, сноска, доля Вселенной
+  /** @param {string} kick @param {string} name @param {TallyData['rows']} rows @param {Star[]} stars @param {number | null} place @param {string} [foot] @param {number | null} [auto] */
   note(kick, name, rows, stars, place, foot, auto) {
-    const row = ([k, v, c = 'tx']) => `<div class="${c}"><span>${k}</span><b>${v}</b></div>`;
-    const el = document.getElementById('tally');
+    const row = (/** @type {TallyData['rows'][number]} */ [k, v, c = 'tx']) => `<div class="${c}"><span>${k}</span><b>${v}</b></div>`;
+    const el = byId('tally');
     el.innerHTML = `<div class="tk">${kick}</div><div class="tn">${name}</div>` +
       (auto != null ? `<div class="ta"><i style="width:${Math.round(auto * 100)}%"></i><span>Вселенная — ${Math.round(auto * 100)} %</span></div>` : '') +
       rows.map(row).join('') +
@@ -265,30 +298,34 @@ const Tally = {
       (foot ? `<div class="tf">${foot}</div>` : '');
     el.classList.add('on'); this.t = TALLY_T;
   },
+  /** @param {number} dt */
   tick(dt) {
     if (this.t <= 0) return;
-    const el = document.getElementById('tally');
+    const el = byId('tally');
     if ((this.t -= dt) <= 0) { el.classList.remove('on'); return; }
     // на узком экране — компактно под панелью задания (и под карточкой открытия, если она видна)
     if (G.W <= 700) {
-      const cd = document.getElementById('card'), cv = +cd.style.opacity > 0 && !cd.classList.contains('side');
+      const cd = byId('card'), cv = +cd.style.opacity > 0 && !cd.classList.contains('side');
       el.style.top = Math.max(60, (G.taskY || 0) + 10 + (cv ? cd.offsetHeight + 8 : 0)) + 'px';
     } else el.style.top = '';
   },
 };
 
 let msgT = 0, lastMsg = '';
+/** @param {string} t @param {number} [dur] */
 function msg(t, dur = 3.8) {
-  const el = document.getElementById('msg');
-  el.textContent = t; el.style.opacity = 1; msgT = dur; lastMsg = t;
+  const el = byId('msg');
+  el.textContent = t; el.style.opacity = '1'; msgT = dur; lastMsg = t;
   el.style.top = Math.max(G.H * .2, (G.taskY || 0) + 14) + 'px'; // под панелью задания, не поверх
 }
 
 // ---------- фон: масштабно-инвариантная «пыль» ----------
+/** @param {number} a @param {number} b @param {number} c */
 function hash(a, b, c) {
   let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 1442695041);
   h = Math.imul(h ^ (h >>> 13), 1274126177); return (h ^ (h >>> 16)) >>> 0;
 }
+/** @param {RGB} bg */
 function drawDust(bg) {
   const R = viewRadius(), base = Math.log(R) / Math.log(4);
   if (!isFinite(base)) return;
