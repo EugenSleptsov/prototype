@@ -239,14 +239,25 @@ const Particles = {
   // ещё достижимые спектры: ни в одном столбце не перебрал
   liveProf() { const S = this.spec; return S.prof.filter(p => S.n.every((v, i) => v <= p.tgt[i])); },
   specDone() { const S = this.spec; return S.prof.find(p => S.n.every((v, i) => v === p.tgt[i])); },
-  // ни один спектр больше не подходит — лишняя пара краснеет и по одной уходит (наказание — время)
+  // ближайший спектр: до него меньше всего лишних пар (сумма перебора по столбцам)
+  nearProf() {
+    const S = this.spec; let best = S.prof[0], bx = Infinity;
+    for (const p of S.prof) { const x = S.n.reduce((s, v, i) => s + Math.max(0, v - p.tgt[i]), 0); if (x < bx) { bx = x; best = p; } }
+    return [best, bx];
+  },
+  // ни один спектр больше не подходит — лишние пары краснеют и уходят к ближайшему спектру (наказание — время):
+  // первая через 1,6 с, дальше тем чаще, чем больше лишнего (1,2 с / √лишних, не чаще 0,3 с)
   tickSpec(dt) {
     const S = this.spec;
     for (let i = 0; i < 4; i++) S.pulse[i] = Math.max(0, S.pulse[i] - dt * 2);
-    if (this.liveProf().length) { S.bad = -1; return; }
-    if (S.bad < 0) { const mx = i => Math.max(...S.prof.map(p => p.tgt[i])); S.bad = [0, 1, 2, 3].find(i => S.n[i] > mx(i)) ?? S.last; S.drainT = 1.6; }
+    if (this.liveProf().length) { S.bad = -1; S.chain = false; return; }
+    if (S.bad < 0) {
+      const [p, x] = this.nearProf(); let bi = 0;
+      for (let i = 1; i < 4; i++) if (S.n[i] - p.tgt[i] > S.n[bi] - p.tgt[bi]) bi = i;
+      S.bad = bi; S.drainT = S.chain ? clamp(1.2 / Math.sqrt(x), .3, 1.2) : 1.6; S.chain = true;
+    }
     if ((S.drainT -= dt) > 0) return;
-    S.n[S.bad]--; S.bad = -1;
+    S.n[S.bad] = Math.max(0, S.n[S.bad] - 1); S.bad = -1;
     const p = this.specDone(); if (p) this.ignite(p);
   },
   // Спектр совпал — Вселенная разогрета до его температуры; света в ней до конца уровня ∝ T^1,5
@@ -1541,7 +1552,8 @@ const Particles = {
     const hold = this.pg && mouse.down ? this.gestCls(this.pg) : -1, L = this.liveProf(), pick = S.pick;
     const top = Math.max(...S.prof.flatMap(p => p.tgt), ...S.n) * u + u + 14;
     ctx.globalAlpha = a; ctx.fillStyle = rgb([0, 0, 0], .35); ctx.beginPath(); ctx.roundRect(x0 - 14, yb - top, W + 128, top + 26, 10); ctx.fill();
-    const sw = (bw - 6) / 3, pa = p => pick ? (p === pick ? 1 : .12) : L.includes(p) ? .9 : .15;
+    const near = L.length ? null : this.nearProf()[0]; // ничего не подходит — виден спектр, к которому всё уходит
+    const sw = (bw - 6) / 3, pa = p => pick ? (p === pick ? 1 : .12) : L.includes(p) ? .9 : p === near ? .7 : .15;
     for (let i = 0; i < 4; i++) {
       const C = PH_CLS[i], x = x0 + i * (bw + gap), n = Math.min(S.n[i], 30), fill = n * u, bad = S.bad === i;
       ctx.globalAlpha = a;
@@ -1553,7 +1565,7 @@ const Particles = {
       // контуры трёх спектров — каждый в своей трети столбца
       S.prof.forEach((p, j) => {
         const th = p.tgt[i] * u, sx = x + 3 + j * sw, ok = S.n[i] === p.tgt[i];
-        ctx.globalAlpha = a * pa(p); ctx.strokeStyle = rgb(pick === p ? GOLD : p.c, 1); ctx.lineWidth = ok ? 2.2 : 1.4; ctx.setLineDash(ok ? [] : [3, 2]);
+        ctx.globalAlpha = a * pa(p); ctx.strokeStyle = rgb(pick === p ? GOLD : p === near ? mixc(p.c, [255, 255, 255], .6) : p.c, 1); ctx.lineWidth = ok || p === near ? 2.2 : 1.4; ctx.setLineDash(ok ? [] : [3, 2]);
         if (th > 0) ctx.strokeRect(sx + .5, yb - th + .5, sw - 1, th); else { ctx.beginPath(); ctx.moveTo(sx, yb - .5); ctx.lineTo(sx + sw, yb - .5); ctx.stroke(); }
       });
       ctx.setLineDash([]); ctx.globalAlpha = a;
