@@ -34,7 +34,7 @@ const UPG = [
   { key: 'pow', name: 'Сила поля', ic: 'ϟ', val: [3, 4, 5, 6.5], fmt: v => '×' + v + ' T', about: 'больше энергии' },
   { key: 'fr', name: 'Захват', ic: '◌', val: [2.6, 3.2, 3.9], fmt: v => '×' + v, about: 'тянет издалека' },
 ];
-const NEED0 = [['e', 'mu', 'ta'], ['u', 'd', 's', 'c', 'b']]; // эпоха 1 загадывает лептон и два кварка
+const NEED0 = ['u', 'd', 'e']; // эпоха 1: первое поколение; следующие открываются по порядку (GEN_PREV в codex.js)
 const HIT_R = .42, H_WIN = 20, Z_WIN = 14; // радиус встречи; полуширина окна резонанса H (ГэВ)
 // Тепловая масса в плазме до перехода Хиггса: m ≈ g·T (сильное взаимодействие — кварки ≈ 0,5 T, топ ещё и юкавское ≈ 0,6 T;
 // электрослабое — лептоны ≈ 0,2 T). Поэтому и без поля Хиггса у рождения пары есть порог 2m.
@@ -184,8 +184,9 @@ const Particles = {
     this.pairs = 0; this.decSeen = new Set(); this.hot = []; this.hotCd = 3; this.stock = 0; this.stockQ = []; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
     Codex.run = new Set(); Codex.dirty = true;
     // цели этого забега: что открыть в эпохе 1 и чьи распады снять в эпохе 3
-    this.need0 = [...pickStars(NEED0[0].map(sp => ({ sp })), 1), ...pickStars(NEED0[1].map(sp => ({ sp })), 2)].map(x => x.sp);
-    this.need2 = pickStars(CHAINS.flat().map(sp => ({ sp })), 3).map(x => x.sp);
+    this.need0 = [...NEED0];
+    // распады эпохи 3 — по порядку поколений: лёгкое раньше тяжёлого
+    this.need2 = pickStars(CHAINS.flat().map(sp => ({ sp })), 3).map(x => x.sp).sort((a, b) => SM[a].gen - SM[b].gen);
     this.newEpochState(0);
     P.x = P.y = P.vx = P.vy = 0; P.dashCd = 0;
   },
@@ -493,7 +494,7 @@ const Particles = {
   // spont — столкнула сама Вселенная: рождает только то, что исследовано «X сам» (руками — всё, на что хватает энергии)
   channels(a, b, rs, spont) {
     const ch = [], post = this.hig > .5, kinds = [a.sp, b.sp].sort().join('');
-    const ok = sp => rs >= 2 * this.mThr(sp) && (!spont || Codex.auto.has(sp));
+    const ok = sp => rs >= 2 * this.mThr(sp) && (!spont || Codex.auto.has(sp)) && genOpen(sp);
     for (const sp of ['u', 'c', 't', 'd', 's', 'b', 'e', 'mu', 'ta']) {
       const s = SM[sp], quark = s.kind === 'quark';
       if (!ok(sp)) continue;
@@ -501,7 +502,7 @@ const Particles = {
       if (kinds === 'phph') w = s.q * s.q * (quark ? 3 : 1);
       else if (kinds === 'gph') w = quark ? s.q * s.q * 3 : 0;
       else if (kinds === 'gg') w = quark ? 1 : 0;
-      if (this.ep === 0 && this.need0.includes(sp) && !Codex.has(sp)) w *= quark ? 5 : 3; // загаданное рождается охотнее
+      if (!Codex.has(sp)) w *= quark ? 5 : 3; // ещё не виденное (но уже открытое поколение) рождается охотнее
       if (w > 0) ch.push([sp, w]);
     }
     if (post && kinds === 'phph' && rs >= 2 * SM.W.m && (!spont || Codex.auto.has('W'))) ch.push(['WW', 1.5]);
@@ -576,11 +577,11 @@ const Particles = {
       case 'mu': return [L('e', a), L('ne', !a), L('nm', a)];
       case 'W': { // W⁺ (anti=false) → ℓ⁺ ν или u d̄ / c s̄
         const r = Math.random();
-        if (r < .5) { const l = pick(['e', 'mu', 'ta']); return [L(l, !a), L(NU_OF[l], a)]; }
-        return r < .75 ? [L('u', a), L('d', !a)] : [L('c', a), L('s', !a)];
+        if (r < .5) { const l = pick(['e', 'mu', 'ta'].filter(genOpen)); return [L(l, !a), L(NU_OF[l], a)]; } // только открытые поколения
+        return r < .75 || !genOpen('c') ? [L('u', a), L('d', !a)] : [L('c', a), L('s', !a)];
       }
-      case 'Z': { const f = pick(['e', 'mu', 'ta', 'ne', 'nm', 'nt', 'u', 'd', 'c', 's', 'b']); return [L(f, false), L(f, true)]; }
-      case 'H': { const r = Math.random(); const f = r < .58 ? 'b' : r < .7 ? 'ta' : r < .8 ? 'c' : null;
+      case 'Z': { const f = pick(['e', 'mu', 'ta', 'ne', 'nm', 'nt', 'u', 'd', 'c', 's', 'b'].filter(genOpen)); return [L(f, false), L(f, true)]; }
+      case 'H': { const r = Math.random(); let f = r < .58 ? 'b' : r < .7 ? 'ta' : r < .8 ? 'c' : null; if (f && !genOpen(f)) f = null;
         return f ? [L(f, false), L(f, true)] : r < .9 ? [L('ph', false), L('ph', false)] : [L('g', false), L('g', false)]; }
     }
     return null;
@@ -982,12 +983,22 @@ const Particles = {
     const up = el.querySelector('#upk'); if (up) up.onclick = e => { const b = e.target.closest('button'); if (b) this.pick(+b.dataset.u); };
     el.style.display = 'flex';
   },
+  // первое неоткрытое звено цепочки поколений перед sp, которое уже можно родить
+  genFirst(sp) {
+    for (const k of genNeed(sp)) { if (genOpen(k)) return k; const r = this.genFirst(k); if (r) return r; }
+    return null;
+  },
   // Горячая точка: мерцающее кольцо, через 1,6 с там рождается нужная тяжёлая частица
   hotTarget() {
     if (this.ep === 1 && this.hig >= 1 && this.epT > 50 && !Codex.has('W') && !Codex.has('Z')) return 'W'; // подсказка, если Z долго не выходит
     // эпоха 3: тяжёлое у горячей точки рождает Вселенная — если исследовано «X сам», если руками его уже
     // не сделать (порог выше максимума поля) или если распад долго не выходит
-    if (this.ep === 2) for (const sp of this.need2) if (!this.decSeen.has(sp) && (Codex.auto.has(sp) || 2 * this.mThr(sp) > this.Emax() || this.epT > 45)) return sp;
+    // поколение ещё закрыто — Вселенная помогает открыть недостающее лёгкое (его надо снять самому)
+    if (this.ep === 2) for (const sp of this.need2) {
+      if (this.decSeen.has(sp)) continue;
+      const c = genOpen(sp) ? sp : this.genFirst(sp);
+      if (c && (Codex.auto.has(c) || 2 * this.mThr(c) > this.Emax() || this.epT > 45)) return c;
+    }
     return null;
   },
   tickHot(dt) {
@@ -1084,7 +1095,7 @@ const Particles = {
         { t: 'Измерь спектр', h: 'лови фотоны кругом — пойманный измерен; найди 3 класса из 4', items: PH_CLS.map((c, i) => [c.n, this.phSeen.has(i)]), s: 'спектр измерен', d: this.phSeen.size >= 3 },
         { t: this.gOn ? 'Сними глюон' : 'Исследуй глюоны', h: this.gOn ? 'глюоны уже в мире — поймай один' : `${buy('g')} — и сними глюон`, s: 'глюон открыт', d: has('g') },
         { t: 'Столкни кванты', h: 'зажми рядом с двумя волнами и отпусти', s: 'первое столкновение', d: this.pairs > 0 },
-        { t: 'Открой частицы', h: 'сталкивай кванты и снимай, что родилось' + (this.need0.some(sp => SM[sp].kind === 'lepton' && !has(sp)) ? '. Лептоны — из γ + γ: наведись на фотон и отпусти в синем окне, до риски q' : ''),
+        { t: 'Открой первое поколение', h: 'сталкивай кванты и снимай, что родилось. Тяжёлые поколения откроются следом' + (this.need0.some(sp => SM[sp].kind === 'lepton' && !has(sp)) ? '. Лептоны — из γ + γ: наведись на фотон и отпусти в синем окне, до риски q' : ''),
           items: this.need0.map(sp => [sym(sp), has(sp)]), s: 'частицы открыты', d: this.need0.every(has) },
       ];
       case 1: return [
@@ -1093,7 +1104,8 @@ const Particles = {
         { t: 'Удержи вещество', h: 'с массой его можно поймать: сделай пару столкновением и возьми полем частицу и её античастицу', s: 'вещество в поле', d: this.learn.pair2 || has('W') || has('Z') },
         { t: 'Открой Z', h: 'столкни пару, когда шкала в золотой полосе (≈91 ГэВ), и сними', s: 'Z открыт', d: has('W') || has('Z') },
       ];
-      case 2: return this.need2.map(sp => ({ t: `Сними распад ${sym(sp)}`, h: Codex.auto.has(sp) ? `жди вспышку и ${tap} по золотой вершине следа`
+      case 2: return this.need2.map(sp => ({ t: `Сними распад ${sym(sp)}`, h: !genOpen(sp) ? `сначала открой ${genNeed(sp).map(sym).join(' и ')} — поколения открываются по порядку: столкни кванты и сними`
+        : Codex.auto.has(sp) ? `жди вспышку и ${tap} по золотой вершине следа`
         : `сделай ${sym(sp)} столкновением (выше риски ${sym(sp)}) и ${tap} по вершине распада — или исследуй «${sym(sp)} сам»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp) }));
       default: {
         const t = baryonTrios(this.stockQ);
@@ -1110,7 +1122,8 @@ const Particles = {
     const st = this.st, fast = sec => ({ t: `быстрее ${fmtClock(sec)}`, bad: () => this.epClock > sec, atEnd: true });
     const clean = { t: 'без пустых снимков', bad: () => st.empty > 0, atEnd: true }, thr = { t: 'пара броском', ok: () => st.thr > 0 };
     switch (i) {
-      case 0: return [thr, fast(130), { t: 'горячий разогрев', ok: () => !!this.inf.pick && this.inf.pick.i === 2, bad: () => !!this.inf.pick && this.inf.pick.i < 2 }, { t: 'поймай сверхжёсткий γ', ok: () => this.phSeen.has(3) }, { t: 'снимок с 3 видами', ok: () => st.kinds >= 3 }, { t: '6 столкновений', ok: () => st.pairs >= 6 }];
+      case 0: return [thr, fast(130), { t: 'горячий разогрев', ok: () => !!this.inf.pick && this.inf.pick.i === 2, bad: () => !!this.inf.pick && this.inf.pick.i < 2 }, { t: 'поймай сверхжёсткий γ', ok: () => this.phSeen.has(3) }, { t: 'снимок с 3 видами', ok: () => st.kinds >= 3 }, { t: '6 столкновений', ok: () => st.pairs >= 6 },
+        { t: 'открой второе поколение', ok: () => ['c', 's', 'mu'].some(sp => Codex.has(sp)) }];
       case 1: return [thr, fast(45), { t: 'и W, и Z', ok: () => Codex.has('W') && Codex.has('Z') },
         { t: 'открой t-кварк', ok: () => Codex.has('t'), can: () => !Codex.has('t') }, { t: 'не остаться без ⚡', bad: () => st.dry > 0, atEnd: true }];
       case 2: return [thr, clean, fast(35), { t: 'снимок с 4 видами', ok: () => st.kinds >= 4 }];
