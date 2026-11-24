@@ -1080,6 +1080,11 @@ const Particles = {
     Sfx.play('segment');
   },
   // Горячая точка: мерцающее кольцо, через 1,6 с там рождается нужная тяжёлая частица
+  // Первое ещё не открытое звено цепочки поколений к sp (что открыть, чтобы sp стал доступен)
+  genFirst(sp) {
+    for (const k of genNeed(sp)) { if (genOpen(k)) return k; const r = this.genFirst(k); if (r) return r; }
+    return null;
+  },
   hotTarget() {
     if (this.ep === 1 && this.hig >= 1 && this.epT > 50 && !Codex.has('W') && !Codex.has('Z')) return 'W'; // подсказка, если Z долго не выходит
     // эпоха 3: тяжёлое у горячей точки рождает Вселенная — если исследовано «X сам», если руками его уже
@@ -1237,7 +1242,7 @@ const Particles = {
         { t: 'Удержи вещество', h: 'с массой его можно поймать: сделай пару столкновением и возьми полем частицу и её античастицу', s: 'вещество в поле', d: this.learn.pair2 || has('W') || has('Z') },
         { t: 'Открой Z', h: 'столкни пару, когда шкала в золотой полосе (≈91 ГэВ), и сними', s: 'Z открыт', d: has('W') || has('Z') },
       ];
-      case 2: return this.need2.map(sp => ({ t: `Сними распад ${sym(sp)}`, h: !genOpen(sp) ? `сначала открой ${genNeed(sp).map(sym).join(' и ')} — поколения открываются по порядку: столкни кванты и сними`
+      case 2: return this.need2.map(sp => ({ t: `Сними распад ${sym(sp)}`, h: !genOpen(sp) ? `сначала открой ${genNeed(sp).map(k => `${sym(k)} (${this.recipe(k)})`).join(' и ')} — поколения открываются по порядку: столкни и сними`
         : Codex.auto.has(sp) ? `жди вспышку и ${tap} по золотой вершине следа`
         : `сделай ${sym(sp)} (${this.recipe(sp)}) и ${tap} по вершине распада — или исследуй «Рождение ${sym(sp)}»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? sp : null }));
       default: {
