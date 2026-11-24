@@ -10,8 +10,11 @@
    - Эпоха 4: зажатое поле — щит: тянет кварки вещества и отталкивает антикварки.
    - Каждая эпоха — задание крупно под часами (цели меняются от забега к забегу) и два случайных испытания ★.
    - ✦ знания добываются снимками и тратятся на улучшения детектора прямо в игре (клавиши 1–4).
-   - Эпоха 1 начинается с пустого вакуума: вспышка детектора (клик) возмущает его и рождает пару фотонов;
-     после PERTS возмущений вакуум «закипает» и свет рождается сам. Пойманный фотон измерен: класс по энергии
+   - Эпоха 1 начинается с пустого вакуума. Движения детектора возмущают его и рождают пару фотонов —
+     энергия зависит от жеста: клик — мягкий, зажать дольше — тёплый, ещё дольше — жёсткий,
+     зажать и описать круг — сверхжёсткий. Жест не объясняется текстом: кольцо заряда меняет цвет,
+     на порогах вспыхивает, круг оставляет светящийся след. Раскачал вакуум на VAC_NEED — он «закипает»
+     и свет рождается сам. Пойманный фотон измерен: класс по энергии
      (мягкий, тёплый — обычные; жёсткий — редкий; сверхжёсткий — легендарный) и ⚡ по классу.
    Текста минимум: подсказка в одну строку у детектора, пока действие не освоено. */
 const C_LIGHT = 1.2, WORLD_R = 12, T_START = 1000, N_QUANTA = 22, PAIR_T = .8, VERT_T = 2.6, CHARGE_T = 3;
@@ -30,7 +33,8 @@ const THROW_V = 5, THROW_R = .6; // скорость детектора для �
 const E_CAP = 10, E_START = 0, E_SHOT = 1, E_FIELD = 2, PH_C = [255, 238, 150];
 // Норматив времени эпохи (с): каждая секунда быстрее даёт +2 к итогу. В эпохе 4 вместо скорости — сохранённое вещество.
 const PAR = [150, 60, 60];
-const PERTS = 5; // столько возмущений вакуума нужно, чтобы свет начал рождаться сам
+const VAC_W = [1, 2, 3, 5], VAC_NEED = 8; // раскачка вакуума за возмущение по классу; столько нужно, чтобы свет рождался сам
+const G_WARM = .45, G_HARD = 1.5, G_SPIN = TAU * .9; // пороги жеста: удержание (с) и угол круга
 // Классы фотонов по энергии относительно температуры (x = E/T, тепловой спектр): доля, ⚡ и ✦ за первую находку
 const PH_CLS = [
   { n: 'мягкий', r: 'обычный', x: 0, e: .5, k: 5, c: [255, 170, 110] },
@@ -132,7 +136,7 @@ const Particles = {
     this.p = []; this.t = 0; this.T = T_START; this.hig = 0; this.higT = -1; this.higC = { x: 0, y: 0 }; this.ripples = []; this.ripCd = 0; this.ff = 1;
     this.advanced = false;
     this.gOn = false; this.full = false; this.spCd = 0; // эволюция эпохи 1: сперва пустота, потом свет, потом глюоны
-    this.lit = false; this.litT = 0; this.perts = 0; this.phSeen = new Set();
+    this.lit = false; this.litT = 0; this.perts = 0; this.vac = 0; this.pg = null; this.gest = new Set(); this.phSeen = new Set();
     this.kn = 0; this.spent = 0; this.epClock = 0; this.epKn0 = 0; this.doneAt = null; this.lvlTotal = 0; this.cheated = false; this.res = null;
     this.lvl = { r: 0, sh: 0, pow: 0, fr: 0 }; this.focus = null; this.holding = false; this.hold = 0; this.shield = 1;
     this.learn = {}; this.en = 0; this.enFx = 0; this.shotCd = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
@@ -175,20 +179,20 @@ const Particles = {
     return [P.x + this.wr() * .8, P.y];
   },
   // Возмущение вакуума: из точки разлетается пара фотонов (импульс сохраняется)
-  burst(x, y, fx) {
-    const a = Math.random() * TAU, p = this.thermalP(this.T), made = [];
+  burst(x, y, fx, p0) {
+    const a = Math.random() * TAU, p = p0 ?? this.thermalP(this.T), made = [];
     for (const s of [0, Math.PI]) { const o = this.mk('ph', false, x, y, a + s, p); o.cd = .6; made.push(o); }
     if (fx) fxRing(x, y, .05, PH_C, .9, .6);
     this.pingRare(made[0]);
     return made;
   },
-  // Свет рождён руками PERTS раз — дальше вакуум кипит сам
+  // Вакуум раскачан на VAC_NEED — дальше он кипит сам
   ignite() {
     this.lit = true; this.litT = 0;
     if (!Codex.has('ph')) Codex.see('ph');
     this.en = Math.max(this.en, E_START);
     fxRing(P.x, P.y, .5, PH_C, this.wr(), 2.5); fxFlash(P.x, P.y, this.hr() * 2, [255, 240, 200], .6);
-    this.float(P.x, P.y - this.hr() - .3, 'вакуум закипел — свет рождается сам', PH_C, 16);
+    this.float(P.x, P.y + this.hr() + .9, 'вакуум закипел — свет рождается сам', PH_C, 16, -.4);
   },
   phClass(o) { const x = o.p / Math.max(this.T, 1e-9); let c = 0; for (let i = 0; i < PH_CLS.length; i++) if (x >= PH_CLS[i].x) c = i; return c; },
   // Родился легендарный фотон — вспышка-метка, чтобы его заметили
@@ -252,15 +256,49 @@ const Particles = {
     const c = this.phClass(o), C = PH_CLS[c];
     o.dead = true; this.en = Math.min(E_CAP, this.en + C.e); this.learn.absorb = true;
     fxRing(o.x, o.y, .05, C.c, .5 + .3 * c, .35 + .1 * c);
-    if (!this.phSeen.has(c)) {
-      this.phSeen.add(c); this.kn += C.k;
-      fxRing(P.x, P.y, this.hr(), C.c, this.hr() * 1.6, .8);
-      this.float(P.x, P.y - this.hr() - .2, `НОВЫЙ КЛАСС: ${C.n} γ · ${C.r} · +${C.k} ✦`, c >= 2 ? [255, 215, 110] : C.c, c >= 2 ? 17 : 15);
-    } else if (c >= 2) {
+    if (!this.measure(c)) { if (c >= 2) {
       const k = c === 3 ? 8 : 3; this.kn += k;
       this.float(P.x, P.y - this.hr() - .2, `${C.r}! ${C.n} γ · +${k} ✦`, [255, 215, 110], 15);
-    } else this.float(P.x + .5, P.y + this.hr() * .3, `${C.n} +${C.e}⚡`, C.c, 12);
+    } else this.float(P.x + .5, P.y + this.hr() * .3, `${C.n} +${C.e}⚡`, C.c, 12); }
     if (c === 3) fxFlash(P.x, P.y, this.hr() * 1.5, C.c, .5);
+  },
+  // Измерен фотон класса c: новый класс — событие и ✦. Возвращает true, если класс новый.
+  measure(c) {
+    if (this.phSeen.has(c)) return false;
+    const C = PH_CLS[c];
+    this.phSeen.add(c); this.kn += C.k;
+    fxRing(P.x, P.y, this.hr(), C.c, this.hr() * 1.6, .8);
+    this.float(P.x, P.y - this.hr() - .2, `НОВЫЙ КЛАСС: ${C.n} γ · ${C.r} · +${C.k} ✦`, c >= 2 ? [255, 215, 110] : C.c, c >= 2 ? 17 : 15);
+    return true;
+  },
+  // ---------- пустота: жесты возмущают вакуум ----------
+  // Жест: клик — мягкий; удержание ≥ 0,45 с — тёплый, ≥ 1,5 с — жёсткий; круг детектором при удержании — сверхжёсткий
+  gestCls(g) { return Math.abs(g.ang) >= G_SPIN ? 3 : g.t >= G_HARD ? 2 : g.t >= G_WARM ? 1 : 0; },
+  vacInput(dt) {
+    if (mouse.clicked) { mouse.clicked = false; if (this.shotCd <= 0) this.pg = { t: 0, ang: 0, la: null, path: [], c: 0 }; }
+    const g = this.pg; if (!g) return;
+    if (mouse.down) {
+      g.t += dt;
+      const v = Math.hypot(P.vx, P.vy);
+      if (v > 1.5) { const a = Math.atan2(P.vy, P.vx); if (g.la != null) { let d = a - g.la; d -= TAU * Math.round(d / TAU); g.ang += d; } g.la = a; } else g.la = null;
+      const l = g.path[g.path.length - 1];
+      if (!l || Math.hypot(P.x - l[0], P.y - l[1]) > .08) { g.path.push([P.x, P.y]); if (g.path.length > 90) g.path.shift(); }
+      // порог жеста пройден — отклик: вспышка цвета нового класса
+      const c = this.gestCls(g);
+      if (c > g.c) { g.c = c; const C = PH_CLS[c]; fxRing(P.x, P.y, this.hr() * .6, C.c, this.hr() * (1.2 + .3 * c), .5); if (c === 3) fxFlash(P.x, P.y, this.hr(), C.c, .4); }
+      return;
+    }
+    this.pg = null; this.perturb(this.gestCls(g));
+  },
+  // Возмущение: из детектора разлетается пара фотонов энергии жеста; детектор сразу их измеряет
+  perturb(c) {
+    const C = PH_CLS[c], lo = C.x, hi = c < 3 ? PH_CLS[c + 1].x : 11;
+    this.burst(P.x, P.y, false, this.T * rnd(Math.max(.6, lo + .2), hi - .2));
+    this.perts++; this.vac += VAC_W[c]; this.gest.add(c); this.shotCd = .3;
+    fxRing(P.x, P.y, .1, C.c, this.hr() * (1.3 + .3 * c), .7); fxFlash(P.x, P.y, this.hr() * (1 + .3 * c), C.c, .3 + .1 * c);
+    if (!Codex.has('ph')) { Codex.see('ph'); this.kn += 10; this.float(P.x, P.y + this.hr() + .3, 'НОВОЕ γ', [255, 215, 110], 15, -.3); }
+    if (!this.measure(c)) this.float(P.x, P.y - this.hr() - .2, `${C.n} γ`, C.c, 13);
+    if (this.vac >= VAC_NEED) this.ignite();
   },
   // Больцмановский вес: сколько частиц этого сорта держит Вселенная при температуре T
   weight(sp) { const m = SM[sp].m * this.hig; return m <= 0 ? 1 : Math.exp(-m / this.T); },
@@ -268,6 +306,7 @@ const Particles = {
   // ---------- действие игрока: поле ----------
   // Ввод: нажатие — снимок; удержание — поле (эпохи 1–3: захват квантов, эпоха 4: щит)
   input(dt) {
+    if (!this.lit && this.ep === 0) return this.vacInput(dt);
     if (mouse.clicked) { mouse.clicked = false; this.snapshot(); this.holding = true; this.hold = 0; }
     if (this.holding && !mouse.down) { this.holding = false; this.release(); }
     if (this.holding) { this.hold += dt; if (this.hold > .14 && !this.focus && this.fieldOn()) this.focus = { cap: [], q: 0, E: 0, ang: Math.random() * TAU, t: 0 }; }
@@ -489,11 +528,6 @@ const Particles = {
     const paid = this.enOn();
     if (paid && this.en < E_SHOT) { this.noEnergy(); this.shotCd = .25; this.float(P.x, P.y - this.hr(), 'нет энергии ⚡', [255, 150, 130], 13); return; }
     if (paid) this.en -= E_SHOT;
-    if (!this.lit && this.ep === 0) { // пустота: вспышка детектора возмущает вакуум — рождается свет
-      this.perts++; this.burst(P.x, P.y, false);
-      fxRing(P.x, P.y, .1, PH_C, this.hr() * 1.5, .7); fxFlash(P.x, P.y, this.hr(), [255, 245, 210], .35);
-      if (this.perts >= PERTS) this.ignite();
-    }
     this.shotCd = this.up('sh'); this.learn.snap = true;
     const R0 = this.hr(), got = new Map(); // вид → где его видно (частица или след)
     for (const o of this.p) if (!o.dead && this.inHand(o) && !got.has(o.sp)) got.set(o.sp, { x: o.x, y: o.y });
@@ -851,7 +885,7 @@ const Particles = {
       case 0: {
         const got = this.need0.filter(has).length, list = this.need0.map(sp => sym(sp) + (has(sp) ? ' ✓' : '')).join(' · ');
         return [
-          { t: `Вокруг пустота. Возмути вакуум: кликай — вспышка детектора рождает свет (${Math.min(this.perts, PERTS)}/${PERTS})`, s: 'вакуум закипел', d: this.lit },
+          { t: `Вокруг пустота. Возмути вакуум — пробуй разные движения (${Math.min(this.vac, VAC_NEED)}/${VAC_NEED})`, s: 'вакуум закипел', d: this.lit },
           { t: `Лови фотоны кругом — пойманный измерен. Найди 3 класса: ${PH_CLS.map((c, i) => c.n + (this.phSeen.has(i) ? ' ✓' : '')).join(' · ')}`, s: 'спектр измерен', d: this.phSeen.size >= 3 },
           { t: `Наполни энергию детектора: лови фотоны (${Math.min(E_CAP, Math.floor(this.en))}/${E_CAP}) — жёсткие дают больше`, s: 'энергия собрана', d: this.full },
           { t: 'Появились глюоны — сними глюон', s: 'глюон открыт', d: has('g') },
@@ -877,7 +911,7 @@ const Particles = {
     const st = this.st, fast = sec => ({ t: `быстрее ${fmtClock(sec)}`, bad: () => this.epClock > sec, atEnd: true });
     const clean = { t: 'без пустых снимков', bad: () => st.empty > 0, atEnd: true }, thr = { t: 'пара броском', ok: () => st.thr > 0 };
     switch (i) {
-      case 0: return [thr, fast(100), { t: 'поймай сверхжёсткий γ', ok: () => this.phSeen.has(3) }, { t: 'снимок с 3 видами', ok: () => st.kinds >= 3 }, { t: '6 столкновений', ok: () => st.pairs >= 6 }];
+      case 0: return [thr, fast(100), { t: 'сверхжёсткий γ', ok: () => this.phSeen.has(3) }, { t: 'снимок с 3 видами', ok: () => st.kinds >= 3 }, { t: '6 столкновений', ok: () => st.pairs >= 6 }];
       case 1: return [thr, fast(45), { t: 'и W, и Z', ok: () => Codex.has('W') && Codex.has('Z') },
         { t: 'открой t-кварк', ok: () => Codex.has('t'), can: () => !Codex.has('t') }, { t: 'не остаться без ⚡', bad: () => st.dry > 0, atEnd: true }];
       case 2: return [thr, clean, fast(35), { t: 'снимок с 4 видами', ok: () => st.kinds >= 4 }];
@@ -897,7 +931,7 @@ const Particles = {
   enterKey() { this.ff = this.ff > 1 ? 1 : 4; msg(this.ff > 1 ? '×4' : '×1', 1); },
   cheat() {
     for (const k of Object.keys(SM)) Codex.see(k);
-    this.kn += 100; this.pairs++; this.cheated = true; this.en = E_CAP; if (!this.lit) { this.perts = PERTS; this.ignite(); } PH_CLS.forEach((c, i) => this.phSeen.add(i)); this.full = true; if (!this.gOn) this.unlockGluons();
+    this.kn += 100; this.pairs++; this.cheated = true; this.en = E_CAP; if (!this.lit) { this.vac = VAC_NEED; this.ignite(); } PH_CLS.forEach((c, i) => this.phSeen.add(i)); this.full = true; if (!this.gOn) this.unlockGluons();
     for (const sp of CHAINS.flat()) this.decSeen.add(sp);
     if (this.ep === 1) this.higT = 99;
     if (this.ep === 3) while (this.stock < STOCK_GOAL) { this.stock++; this.stockQ.push({ fl: this.stock % 3 === 2 ? 'd' : 'u', col: this.stockQ.length % 3 }); }
@@ -981,7 +1015,9 @@ const Particles = {
     const hw = G.W / 2 / cam.z, hh = G.H / 2 / cam.z;
     for (let i = 0; i < 70; i++) {
       const ph = G.T * .9 + i * .618, n = Math.floor(ph), f = ph - n, h = Math.sin(i * 127.1 + n * 311.7) * 43758.5453, r1 = h - Math.floor(h), h2 = Math.sin(i * 269.5 + n * 183.3) * 43758.5453, r2 = h2 - Math.floor(h2);
-      const [x, y] = W2S(cam.x + (r1 * 2 - 1) * hw, cam.y + (r2 * 2 - 1) * hh), a = Math.sin(f * Math.PI) * .5 * k;
+      const wx = cam.x + (r1 * 2 - 1) * hw, wy = cam.y + (r2 * 2 - 1) * hh, [x, y] = W2S(wx, wy);
+      const near = this.pg && mouse.down ? Math.max(0, 1 - Math.hypot(wx - P.x, wy - P.y) / (this.hr() * 3)) * (Math.min(1, this.pg.t / G_HARD) + Math.min(1, Math.abs(this.pg.ang) / G_SPIN)) : 0;
+      const a = Math.sin(f * Math.PI) * (.5 + 1.5 * near) * k;
       ball(x - 2, y, 1.2, [200, 210, 255], a); ball(x + 2, y, 1.2, [255, 200, 220], a);
     }
   },
@@ -1140,6 +1176,7 @@ const Particles = {
     }
     for (const tr of this.tracks) if (Math.hypot(tr.x - P.x, tr.y - P.y) < this.hr() && tr.sps.some(sp => !Codex.has(sp))) unk++;
     this.drawField(sx, sy, r);
+    this.drawGesture(sx, sy, r);
     // вспышка затвора
     if (this.shotFx > 0) glow(sx, sy, r, [255, 255, 255], .14 * this.shotFx / .35);
     glow(sx, sy, r, [255, 255, 255], ready ? .05 : .02);
@@ -1159,6 +1196,25 @@ const Particles = {
       label(f.txt, fx, fy - 16 - f.t * 26, f.sz || 14, f.c || [140, 220, 255], clamp(1.6 - f.t, 0, 1), 700);
     }
     ctx.globalAlpha = 1;
+  },
+  // Жест в пустоте: кольцо заряда меняет цвет по классу, след круга светится, на верху — какой выйдет свет
+  drawGesture(sx, sy, r) {
+    const g = this.pg; if (!g || !mouse.down) return;
+    const c = this.gestCls(g), C = PH_CLS[c], z = cam.z, k = Math.min(1, g.t / G_HARD), a0 = -Math.PI / 2;
+    const sp = Math.min(1, Math.abs(g.ang) / G_SPIN);
+    // след движения: чем ближе к полному кругу, тем ярче
+    if (g.path.length > 2 && sp > .15) {
+      ctx.strokeStyle = rgb(PH_CLS[3].c, .15 + .75 * sp); ctx.lineWidth = 2 + 4 * sp; ctx.beginPath();
+      g.path.forEach(([x, y], i) => { const [px, py] = W2S(x, y); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
+      ctx.stroke();
+    }
+    const jit = c >= 2 ? Math.sin(G.T * 40) * 1.5 : 0;
+    glow(sx, sy, r * (1 + .3 * k), C.c, .06 + .14 * k);
+    arc(sx, sy, r + 8 + jit, a0, a0 + TAU * Math.max(.02, k), C.c, .95, 4);
+    // риски порогов удержания
+    for (const q of [G_WARM / G_HARD, 1]) { const an = a0 + TAU * q * .999; line(sx + Math.cos(an) * (r + 3), sy + Math.sin(an) * (r + 3), sx + Math.cos(an) * (r + 13), sy + Math.sin(an) * (r + 13), [255, 255, 255], .5, 1.5); }
+    if (sp > .15) arc(sx, sy, r + 16, a0, a0 + TAU * sp * Math.sign(g.ang || 1), PH_CLS[3].c, .9, 3);
+    label(`${C.n} γ`, sx, sy - r - 22 - z * 0, 14, C.c, .95, 800);
   },
   // Поле: пунктир захвата, ядро, нити к захваченным квантам и кольцо-шкала энергии с порогами
   drawField(sx, sy, r) {
@@ -1235,10 +1291,16 @@ const Particles = {
     if (!G.started || G.paused || this.advanced) return;
     let t = null;
     if (this.ep === 3) t = this.learn.shield ? null : 'зажми — щит';
-    else if (!this.lit && this.ep === 0) t = 'клик — возмути вакуум';
-    else if (!this.learn.snap) t = 'клик — снимок';
+    else if (!this.lit && this.ep === 0) {
+      // пустота: только намёки — и только когда игрок долго пробует одно и то же
+      if (this.pg && mouse.down) t = null;
+      else if (!this.perts) t = 'клик — возмути вакуум';
+      else if (this.perts >= 2 && !this.gest.has(1) && !this.gest.has(2)) t = 'а если зажать?';
+      else if (this.perts >= 4 && this.gest.has(2) && !this.gest.has(3)) t = 'а если закрутить?';
+    }
     else if (this.enOn() && this.phSeen.size < 3) t = 'лови фотоны кругом — измерить';
     else if (this.enOn() && (!this.full || this.en < E_SHOT + .5)) t = 'лови фотоны — энергия';
+    else if (!this.learn.snap) t = 'клик — снимок';
     else if (this.focus && this.focus.cap.length === 2 && !this.learn.smash) t = 'отпусти — столкнуть';
     else if (this.focus && this.focus.cap.length === 1 && !this.isQ(this.focus.cap[0]) && !this.learn.ann) t = `тяжёлое тянется медленно — нужна античастица ${this.lab({ ...this.focus.cap[0], anti: !this.focus.cap[0].anti })}`;
     else if (this.focus && this.focus.cap.length === 2 && !this.isQ(this.focus.cap[0]) && !this.learn.ann) t = this.band(this.focus) ? 'отпусти в золотой полосе' : 'отпусти — аннигиляция';
@@ -1247,7 +1309,7 @@ const Particles = {
     else if (!this.learn.hold && this.ep === 0 && this.fieldOn()) t = 'зажми — притянуть кванты';
     else if (!this.learn.buy && this.canBuy()) t = 'хватает ✦ — улучши детектор: клавиши 1–4';
     if (!t) return;
-    if (!this.learn.snap || (!this.lit && this.ep === 0)) { const ph = (G.T % 1.4) / 1.4; ring(sx, sy, r * (1 + .25 * ph), [255, 255, 255], .5 * (1 - ph), 2); }
+    if (!this.learn.snap && this.lit || (!this.lit && this.ep === 0 && !this.perts)) { const ph = (G.T % 1.4) / 1.4; ring(sx, sy, r * (1 + .25 * ph), [255, 255, 255], .5 * (1 - ph), 2); }
     label(t, sx, sy + r + 36, 14, [255, 255, 255], .75 + .2 * Math.sin(G.T * 4), 700);
   },
   // Стрелки у края экрана — к тому, что нужно снять, если оно за кадром
