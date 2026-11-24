@@ -49,19 +49,64 @@
   .overlay kbd{background:#ffffff22;padding:1px 6px;border-radius:4px}
   .overlay button{margin-top:14px;font-size:16px;padding:8px 20px;border-radius:8px;border:0;background:#8fd0ff;color:#012;cursor:pointer}
   #end{display:none}
-  #codex{position:fixed;right:16px;top:190px;width:230px;font-size:12px;pointer-events:none;display:none}
-  #codex b{display:block;font-size:11px;opacity:.6;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em}
-  .cxg{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
-  .cx{height:34px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:15px;font-weight:600;border:1px solid #ffffff18}
+  #codex{position:fixed;right:16px;top:190px;font-size:12px;display:none;cursor:pointer;z-index:5;background:#0b0f1c99;border:1px solid #ffffff1a;border-radius:10px;padding:6px 7px}
+  #codex:hover{border-color:#ffd27a88}
+  #codex b{display:block;font-size:10px;opacity:.75;font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
+  #codex b i{font-style:normal;border:1px solid #ffffff40;border-radius:4px;padding:0 4px;margin-left:4px;font-size:9px;opacity:.8}
+  #codex.chip b{margin:0}
+  .cxg{display:grid;grid-template-columns:repeat(5,20px);gap:3px}
+  .cx{height:20px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #ffffff18}
   .cx.off{opacity:.25}
   .cx.auto{position:relative;box-shadow:inset 0 0 0 1px #ffd27a}
-  .cx.auto::after{content:'⟳';position:absolute;right:3px;top:0;font-size:10px;color:#ffd27a}
+  .cx.auto::after{content:'⟳';position:absolute;right:1px;top:-2px;font-size:7px;color:#ffd27a}
   .cx.old{opacity:.5;border-style:dashed}
-  .cx.lock{opacity:.3;font-size:11px;border-style:dotted}
+  .cx.lock{opacity:.3;border-style:dotted}
   .cx.quark.on{background:#7a3d9a88;border-color:#c48be8}
   .cx.lepton.on{background:#2f7a4e88;border-color:#7fdca4}
   .cx.nu.on{background:#2f7a4e55;border-color:#7fdca4}
   .cx.boson.on{background:#9a4a2e88;border-color:#f0a070}
+  /* окно кодекса */
+  #cxm{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:#02040acc;padding:12px}
+  .cxw{width:min(760px,100%);max-height:calc(100vh - 24px);overflow:auto;background:#0b0f1cf5;border:1px solid #ffffff2a;border-radius:16px;padding:16px 18px;color:#dde3f0;box-shadow:0 20px 60px #000a}
+  .cxh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .cxk{font-size:11px;letter-spacing:.12em;color:#ffd27a;font-weight:700;text-transform:uppercase}
+  .cxh b{font-size:19px}
+  #cxx{flex:none;background:none;border:1px solid #ffffff30;color:#dde3f0;border-radius:10px;width:36px;height:36px;font-size:16px;cursor:pointer}
+  #cxtabs{display:flex;gap:6px;margin:12px 0;flex-wrap:wrap}
+  #cxtabs button{background:#ffffff08;border:1px solid #ffffff20;color:#dde3f0;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+  #cxtabs button span{opacity:.55;font-size:11px;margin-left:2px}
+  #cxtabs button.on{border-color:#ffd27a;background:#ffd27a22;color:#ffd27a}
+  .cxb{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start}
+  #cxgrid{display:grid;gap:6px}
+  #cxgrid .gh{font-size:10px;font-weight:800;text-align:center;opacity:.5;padding-bottom:2px;border-bottom:2px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #cxgrid .gh.cur{opacity:1;color:#ffd27a;border-color:#ffd27a}
+  #cxgrid .gh.done{opacity:.85;color:#8fe8b0}
+  .cc{aspect-ratio:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:10px;border:1px solid #ffffff1c;background:#ffffff06;color:#dde3f0;font:inherit;cursor:pointer;padding:2px}
+  .cc b{font-size:19px;font-weight:800;white-space:nowrap}
+  .cc small{font-size:9px;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .cc.off{opacity:.35}
+  .cc.old{border-style:dashed;opacity:.7}
+  .cc.sel{border-color:#ffd27a;box-shadow:0 0 0 1px #ffd27a}
+  .cc.mol b{font-size:15px}
+  .cc.quark.on,.cb.quark{background:#7a3d9a66;border-color:#c48be8}
+  .cc.lepton.on,.cb.lepton{background:#2f7a4e66;border-color:#7fdca4}
+  .cc.nu.on,.cb.nu{background:#2f7a4e44;border-color:#7fdca4}
+  .cc.boson.on,.cb.boson{background:#9a4a2e66;border-color:#f0a070}
+  .cc.nuc.on,.cb.nuc{background:#9a6a2e55;border-color:#f0c070}
+  .cc.atom.on,.cb.atom{background:#2e5a9a55;border-color:#70b0f0}
+  .cc.mol.on,.cb.mol{background:#2e8a7a55;border-color:#70e8d0}
+  #cxi{background:#ffffff06;border:1px solid #ffffff1a;border-radius:14px;padding:14px;min-height:150px}
+  .ce{opacity:.6;font-size:13px;line-height:1.5}
+  .ch{display:flex;gap:12px;align-items:center}
+  .cb{min-width:48px;height:48px;padding:0 8px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800;background:#ffffff14;border:1px solid #ffffff30;white-space:nowrap}
+  .cb.off{opacity:.5}
+  .ch b{font-size:17px;display:block}
+  .ch small{font-size:12px;opacity:.6}
+  .cr{margin-top:12px;display:grid;font-size:13px}
+  .cr div{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid #ffffff10;text-align:right}
+  .cr span{opacity:.6;text-align:left}
+  .cfx{margin-top:12px;font-size:13px;line-height:1.45;opacity:.9}
+  @media (max-width:640px){.cxb{grid-template-columns:1fr}.cc b{font-size:16px}.cc.mol b{font-size:13px}#cxgrid{gap:4px}.cxh b{font-size:16px}.cxw{padding:14px}}
   #card{position:fixed;left:50%;top:30%;transform:translateX(-50%);max-width:min(420px,calc(100vw - 24px));z-index:7;background:#000a;border:1px solid #ffffff30;border-radius:10px;padding:10px 14px;opacity:0;transition:opacity .4s;pointer-events:none}
   #card .ck{font-size:11px;opacity:.6;text-transform:uppercase;letter-spacing:.08em}
   #card .cn{font-size:17px;font-weight:600;margin:3px 0}
@@ -199,7 +244,12 @@
 <div id="laws" class="shadow"><b>Законы этапа</b><div id="bars"></div></div>
 <div id="controls" class="shadow"></div>
 <div id="msg" class="shadow"></div>
-<div id="codex" class="shadow"></div>
+<div id="codex" class="shadow" title="Кодекс (C)"></div>
+<div id="cxm"><div class="cxw" role="dialog" aria-label="Кодекс">
+  <div class="cxh"><div><div class="cxk">Кодекс</div><b id="cxt"></b></div><button id="cxx" aria-label="закрыть">✕</button></div>
+  <div id="cxtabs"></div>
+  <div class="cxb"><div id="cxgrid"></div><div id="cxi"></div></div>
+</div></div>
 <div id="card" class="shadow"></div>
 <div id="upg" class="shadow"></div>
 <div id="shop"></div>
@@ -207,6 +257,7 @@
 <div id="epoch"></div>
 <button id="act" aria-label="действие: снимок или поле"><span>◉</span><small></small></button>
 <div id="tbar">
+  <button id="t-cx" data-key="KeyC" aria-label="кодекс">⚛</button>
   <button id="t-mute" data-key="KeyM" aria-label="звук">🔊</button>
   <button id="t-ff" data-key="Enter" aria-label="ускорить время">×4</button>
   <button id="t-dash" data-key="Space" aria-label="рывок">⇢</button>
@@ -232,18 +283,18 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=77"></script>
-<script src="js/audio.js?v=77"></script>
-<script src="js/core.js?v=77"></script>
-<script src="js/universe.js?v=77"></script>
-<script src="js/codex.js?v=77"></script>
-<script src="js/sling.js?v=77"></script>
-<script src="js/s0_quarks.js?v=77"></script>
-<script src="js/s_particles.js?v=77"></script>
-<script src="js/s1_nuclei.js?v=77"></script>
-<script src="js/s_stars.js?v=77"></script>
-<script src="js/s2_atoms.js?v=77"></script>
-<script src="js/s3_molecules.js?v=77"></script>
-<script src="js/main.js?v=77"></script>
+<script src="js/util.js?v=78"></script>
+<script src="js/audio.js?v=78"></script>
+<script src="js/core.js?v=78"></script>
+<script src="js/universe.js?v=78"></script>
+<script src="js/codex.js?v=78"></script>
+<script src="js/sling.js?v=78"></script>
+<script src="js/s0_quarks.js?v=78"></script>
+<script src="js/s_particles.js?v=78"></script>
+<script src="js/s1_nuclei.js?v=78"></script>
+<script src="js/s_stars.js?v=78"></script>
+<script src="js/s2_atoms.js?v=78"></script>
+<script src="js/s3_molecules.js?v=78"></script>
+<script src="js/main.js?v=78"></script>
 </body>
 </html>

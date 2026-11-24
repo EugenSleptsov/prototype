@@ -175,7 +175,7 @@ const Particles = {
     this.p = []; this.t = 0; this.T = T_START; this.hig = 0; this.higT = -1; this.higC = { x: 0, y: 0 }; this.ripples = []; this.ripCd = 0; this.ff = 1;
     this.advanced = false;
     this.gOn = false; this.full = false; this.spCd = 0; // эволюция эпохи 1: сперва пустота, потом свет, потом глюоны
-    this.lit = false; this.litT = 0; this.rs = { ph: 0, g: 0, coll: 0, cp: 0 }; this.safe = []; this.saveCd = 0; this.autoT = 0; Codex.auto = new Set(); this.inf = this.mkInf(); this.T0 = T_START; this.heat = 1; this.upPts = 0; this.caught = [0, 0, 0, 0]; this.phSeen = new Set();
+    this.lit = false; this.litT = 0; this.rs = { ph: 0, g: 0, coll: 0, cp: 0 }; this.safe = []; this.saveCd = 0; this.autoT = 0; Codex.auto = new Set(); this.inf = this.mkInf(); this.heatBest = LB.best('heat'); this.heatRes = null; this.T0 = T_START; this.heat = 1; this.upPts = 0; this.caught = [0, 0, 0, 0]; this.phSeen = new Set();
     this.kn = 0; this.spent = 0; this.epClock = 0; this.epKn0 = 0; this.doneAt = null; this.lvlTotal = 0; this.cheated = false; this.res = null;
     this.lvl = { r: 0, sh: 0, pow: 0, fr: 0 }; this.focus = null; this.holding = false; this.hold = 0; this.shield = 1;
     this.learn = {}; this.en = 0; this.enFx = 0; this.shotCd = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
@@ -288,6 +288,15 @@ const Particles = {
     this.T = this.T0 = T_START * p.k;
     this.en = Math.max(this.en, E_START);
     fxRing(P.x, P.y, .5, PH_C, this.wr(), 2.5); fxFlash(P.x, P.y, this.hr() * 2, [255, 240, 200], .6);
+    // разогрев — чистый скилл: очки за каждый процент шкалы и отдельный рекорд температуры
+    if (this.inf.go && !this.cheated) {
+      const T0 = Math.round(this.T0), pts = Math.round(this.inf.H * 100) * 10, was = this.heatBest;
+      addScore(pts);
+      const r = LB.add('heat', { n: LB.name(), s: T0, h: this.inf.H, t: null, d: Date.now() });
+      this.heatRes = { T0, pts, place: r.place, n: r.list.length, rec: r.place === 0 && (!was || T0 > was.s) };
+      this.float(P.x, P.y - this.hr() * 2.2, `разогрев ${T0} ГэВ · +${pts} очков`, p.c, 16);
+      if (this.heatRes.rec && was) this.float(P.x, P.y - this.hr() * 3.2, `🏆 рекорд разогрева! было ${was.s} ГэВ`, GOLD, 17);
+    }
   },
   phClass(o) { const x = o.p / Math.max(this.T, 1e-9); let c = 0; for (let i = 0; i < PH_CLS.length; i++) if (x >= PH_CLS[i].x) c = i; return c; },
   // Родился легендарный фотон — вспышка-метка, чтобы его заметили
@@ -916,7 +925,8 @@ const Particles = {
   // Итоги уровня для ненавязчивого экрана между уровнями
   tally() {
     const hand = baryonTrios(this.stockQ), auto = this.safe.length;
-    return { name: 'Частицы', rows: [['⏱ уровень', fmtClock(this.t)], ['✦ добыто', Math.round(this.kn)], ['тройки — руками', hand], ['тройки — Вселенная', auto]], auto: [auto, hand + auto], stars: this.stars };
+    const hr = this.heatRes, heat = hr ? [['🔥 разогрев', `${hr.T0} ГэВ${hr.rec ? ' · рекорд' : ` · #${hr.place + 1}`}`]] : [];
+    return { name: 'Частицы', rows: [['⏱ уровень', fmtClock(this.t)], ...heat, ['✦ добыто', Math.round(this.kn)], ['тройки — руками', hand], ['тройки — Вселенная', auto]], auto: [auto, hand + auto], stars: this.stars };
   },
   // Эпоха 4: кварки почти остановились (упрощение), антикварки ищут вещество — свободное или в детекторе
   drift4(o, dt) {
@@ -1262,16 +1272,16 @@ const Particles = {
         if (o.thrown) { ctx.lineCap = 'round'; line(sx, sy, sx - o.dx * 34, sy - o.dy * 34, GOLD, .5 * a, 4); }
         if (!known) {
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [c], .6 * a, 1.6);
-          ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,32,.85)'; ctx.beginPath(); ctx.arc(hx, hy, 7.5, 0, TAU); ctx.fill();
-          ring(hx, hy, 7.5, [235, 245, 255], .9, 1.3); label('?', hx, hy + .5, 10, [255, 255, 255], 1, 800); ctx.globalAlpha = 1;
+          ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,32,.85)'; ctx.beginPath(); ctx.arc(sx, sy, 7.5, 0, TAU); ctx.fill(); // кружок — на оси: волна бежит, а он стоит
+          ring(sx, sy, 7.5, [235, 245, 255], .9, 1.3); label('?', sx, sy + .5, 10, [255, 255, 255], 1, 800); ctx.globalAlpha = 1;
         } else if (o.sp === 'ph' && this.ep === 3) { // аннигиляция: свет — фон, фокус на кварках и глюонах
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [[220, 225, 240]], .18 * a, 1.2);
         } else if (o.sp === 'ph') {
           const cc = mixc([255, 200, 120], [220, 235, 255], hot);
-          if (this.enOn() && (this.en < 3 || !this.full) && !o.cap) ring(hx, hy, 10 + 2 * Math.sin(G.T * 8 + o.ph), PH_C, .7 * a, 1.6);
+          if (this.enOn() && (this.en < 3 || !this.full) && !o.cap) ring(sx, sy, 10 + 2 * Math.sin(G.T * 8 + o.ph), PH_C, .7 * a, 1.6);
           // редкие классы — вращающиеся дуги цвета класса
           const pc = this.lit ? this.phClass(o) : 0;
-          if (pc === 3 || (pc === 2 && !this.phSeen.has(2))) { const s0 = G.T * 3; for (let k = 0; k < 3; k++) arc(hx, hy, 15, s0 + k * TAU / 3, s0 + k * TAU / 3 + 1, PH_CLS[pc].c, .9 * a, 2); }
+          if (pc === 3 || (pc === 2 && !this.phSeen.has(2))) { const s0 = G.T * 3; for (let k = 0; k < 3; k++) arc(sx, sy, 15, s0 + k * TAU / 3, s0 + k * TAU / 3 + 1, PH_CLS[pc].c, .9 * a, 2); }
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [cc], .75 * a, 1.8);
           glow(hx, hy, 4 + 5 * hot, cc, .45 * a);
         } else {
@@ -1281,7 +1291,7 @@ const Particles = {
           if (this.ep === 3 && !this.stockOut) {
             const help = this.helpGlu(o), y = sy - 15; // метка — на оси, чтобы не прыгала с волной
             ball(sx - 7, y, 3.2, QCOL[o.col2]); line(sx - 3, y, sx + 3, y, [235, 240, 250], .8 * a, 1.2); ball(sx + 7, y, 3.2, QCOL[o.col]);
-            if (help && !this.advanced) ring(hx, hy - 5, 15 + 1.5 * Math.sin(G.T * 8), GOLD, .85 * a, 2);
+            if (help && !this.advanced) ring(sx, sy - 5, 15 + 1.5 * Math.sin(G.T * 8), GOLD, .85 * a, 2);
           }
         }
         continue;
@@ -1593,8 +1603,8 @@ const Particles = {
     const fade = this.lit ? 1 - smooth(1, 2.5, this.litT) : 1, a = alpha * fade;
     if (a <= .01 || this.ep || !G.started) return;
     const pad = document.body.classList.contains('touch') ? 124 : 0; // справа — кнопка действия
-    const I = this.inf, W = Math.min(440, G.W - (pad ? 48 : 120) - pad), narrow = W < 330, cx = (G.W - pad) / 2, x0 = cx - W / 2, y = G.H - 96, h = 14, cur = this.inf.pick || this.profOf(I.H);
-    ctx.globalAlpha = a; ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.roundRect(x0 - 14, y - 34, W + 28, 72, 10); ctx.fill();
+    const I = this.inf, W = Math.min(440, G.W - (pad ? 48 : 120) - pad), narrow = W < 330, cx = (G.W - pad) / 2, x0 = cx - W / 2, y = G.H - 110, h = 14, cur = this.inf.pick || this.profOf(I.H);
+    ctx.globalAlpha = a; ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.roundRect(x0 - 14, y - 34, W + 28, 86, 10); ctx.fill();
     PROF.forEach((p, i) => {
       const hi = i < 2 ? PROF[i + 1].h : 1, xa = x0 + W * p.h, xb = x0 + W * hi, on = cur.i === i, mid = ((p.k[0] + p.k[1]) / 2) ** 1.5;
       ctx.fillStyle = rgb(p.c, on ? .25 : .1); ctx.fillRect(xa, y, xb - xa, h);
@@ -1606,6 +1616,10 @@ const Particles = {
     ctx.fillStyle = gr; ctx.fillRect(x0, y + 3, fw, h - 6);
     if (I.flash > 0) glow(x0 + fw, y + h / 2, 10 + 14 * I.flash, [255, 255, 255], .5 * I.flash);
     ctx.fillStyle = '#fff'; ctx.fillRect(x0 + fw - 1, y - 3, 2, h + 6);
+    // рекорд — золотая риска на шкале; под шкалой — сколько сейчас и сколько рекорд
+    const B = this.heatBest, Tn = Math.round(T_START * cur.k);
+    if (B && B.h > 0) { const xb = x0 + W * Math.min(1, B.h); ctx.fillStyle = rgb(GOLD, .95); ctx.fillRect(xb - 1, y - 5, 2, h + 10); }
+    label(I.go ? `≈ ${Tn} ГэВ${B ? ` · рекорд ${B.s} ГэВ` : ''}` : B ? `рекорд разогрева ${B.s} ГэВ` : '', cx, y + h + 30, 11, B && I.go && Tn > B.s ? GOLD : [215, 220, 235], .85, 700);
     // сколько ещё живёт поле
     const left = I.go ? Math.max(0, INF.life - I.t) : INF.life;
     ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(x0, y - 8, W * left / INF.life, 2);

@@ -155,6 +155,7 @@ const Mols = {
     const cp = COMP_BY[ckey(this.counts(host))];
     if (!cp) return;
     if (src === 'auto') this.st.auto++; else if (src === 'hand') this.st.hand++;
+    Codex.note('m:' + cp.f);
     if (!this.found.includes(cp.f)) {
       this.found.push(cp.f); this.kn += 15; Sfx.play('fresh');
       this.float(x, y - 14, `НОВОЕ: ${cp.f} · ${cp.n} +15 ✦`, [255, 215, 110], 16);

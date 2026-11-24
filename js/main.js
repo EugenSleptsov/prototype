@@ -73,7 +73,7 @@ function touchBar() {
   on('act', G.started && hold && !G.paused);
   actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держи' : s.ep === 3 ? 'держи — щит' : 'тап — снимок · держи — поле') : 'держи — поле';
   on('t-ff', G.started && s.enterKey); on('t-dash', G.started && s.dash);
-  on('t-rl', false); on('t-rr', false); on('t-x', false); // взятое само поворачивается по ходу броска
+  on('t-cx', G.started); on('t-rl', false); on('t-rr', false); on('t-x', false); // взятое само поворачивается по ходу броска
   document.getElementById('t-mute').textContent = Sfx.muted ? '🔇' : '🔊';
 }
 // Колесо — зум: вглубь до ×2,2, наружу до ×0,55 от обзора этапа. Shift + колесо — действие этапа (вращение молекулы).
@@ -85,6 +85,9 @@ addEventListener('wheel', e => {
 addEventListener('keydown', e => {
   keys.add(e.code); Sfx.unlock();
   if (e.code === 'KeyM' && document.activeElement !== pname) { const m = Sfx.toggle(); if (G.started) msg(m ? 'звук выкл. · M' : 'звук вкл. · M', 1.2); }
+  // кодекс: C — открыть / закрыть, Esc — закрыть; пока открыт, игра стоит и клавиши не доходят до этапа
+  if (Codex.isOpen) { if (e.code === 'KeyC' || e.code === 'Escape') Codex.close(); return; }
+  if (e.code === 'KeyC' && G.started && document.activeElement !== pname) { Codex.open(); return; }
   if (!G.started) return;
   if (e.code === 'Space' && !G.paused) { e.preventDefault(); G.stage.dash && G.stage.dash(); }
   if (e.code === 'Enter' || e.code === 'NumpadEnter') G.stage.enterKey && G.stage.enterKey();

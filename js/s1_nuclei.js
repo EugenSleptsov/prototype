@@ -63,7 +63,7 @@ const Nuclei = {
     }
     this.nB = this.o.length; this.nN = this.o.filter(o => o.N).length;
     for (const o of this.o) if (o.N) o.life = rnd(70, 100);
-    for (const o of this.o) this.seen.add(nkey(o));
+    for (const o of this.o) { this.seen.add(nkey(o)); Codex.note('n:' + nkey(o)); }
     this.stars = pickStars(this.starPool());
     this.sl = new Sling(this);
   },
@@ -182,6 +182,7 @@ const Nuclei = {
   made(o, i) {
     const k = nkey(o), nm = NUC_NAME[k];
     if (!nm || o.Z + o.N < 2) return;
+    Codex.note('n:' + k);
     let pts = 0, txt = '';
     if (!this.seen.has(k)) { this.seen.add(k); pts += 10; txt = `НОВОЕ ${nm[0]} ${nm[1]}`; }
     if (k === '2,2') pts += 5; else if (o.Z >= 3) pts += 15;

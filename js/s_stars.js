@@ -79,6 +79,7 @@ const Stars = {
   // новое ядро +10 ✦; C, N, O — ещё +5
   gain(o) {
     const k = nkey(o), nm = NUC_NAME[k]; let pts = 0, txt = '';
+    Codex.note('n:' + k);
     if (!this.seen.has(k)) { this.seen.add(k); pts += 10; txt = `НОВОЕ ${nm[0]} ${nm[1]}`; }
     if (ST_NEED[k]) pts += 5;
     if (!pts) return;

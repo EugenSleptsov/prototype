@@ -161,7 +161,7 @@ const Atoms = {
     Sfx.play('catch', Math.min(3, io.ne - 1));
     if (io.ne >= io.Z) { // нейтральный атом
       const s = atSym(io.Z);
-      let pts = 2, txt = s;
+      let pts = 2, txt = s; Codex.note('a:' + io.Z);
       if (!this.seenN.has(io.Z)) { this.seenN.add(io.Z); pts += 10; txt = `НОВЫЙ АТОМ ${s} · ${elemOf(io.Z)[1].toLowerCase()}`; Sfx.play('fresh'); }
       this.kn += pts;
       fxFlash(io.x, io.y, 1.4, c, .6);

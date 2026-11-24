@@ -33,25 +33,176 @@ const Codex = {
   },
   // Сетка Стандартной модели: три поколения материи + бозоны
   LAYOUT: [['u', 'c', 't', 'g', 'H'], ['d', 's', 'b', 'ph', ''], ['e', 'mu', 'ta', 'Z', ''], ['ne', 'nm', 'nt', 'W', '']],
+  // всё, что открыто кроме частиц (ядра, атомы, молекулы): ключи 'n:Z,N', 'a:Z', 'm:формула'
+  note(k) {
+    if (this.run.has(k)) return;
+    this.run.add(k); this.dirty = true;
+    if (!this.known.has(k)) { this.known.add(k); this.save(); }
+  },
+  st(k) { return this.run.has(k) ? 'on' : this.known.has(k) ? 'old' : 'off'; },
+  // На экране — маленькая сетка (уровень частиц) или фишка «Кодекс» (дальше); клик — окно кодекса
   render(show) {
     const el = document.getElementById('codex');
-    el.style.display = show ? 'block' : 'none';
-    if (!show || !this.dirty) return;
-    this.dirty = false;
+    el.style.display = 'block';
+    const mode = show ? 'grid' : 'chip';
+    if (!this.dirty && this.mode === mode) return;
+    this.dirty = false; this.mode = mode;
+    el.className = mode;
+    if (!el.onclick) el.onclick = () => this.open();
+    if (mode === 'chip') {
+      el.innerHTML = '<b>Кодекс <i>C</i></b>';
+      return;
+    }
     let n = 0;
     const cells = this.LAYOUT.flat().map(k => {
       if (!k) return '<div></div>';
       const s = SM[k], lock = !this.run.has(k) && !genOpen(k), st = this.run.has(k) ? 'on' : lock ? 'lock' : this.known.has(k) ? 'old' : 'off';
       if (st === 'on') n++;
       const tip = lock ? `откроется после ${genNeed(k).map(x => SM[x].sym).join(' и ')}` : st === 'off' ? '?' : s.name;
-      return `<div class="cx ${s.kind} ${st}${st === 'on' && this.auto && this.auto.has(k) ? ' auto' : ''}" title="${tip}">${lock ? '🔒' : st === 'off' ? '?' : s.sym}</div>`;
+      return `<div class="cx ${s.kind} ${st}${st === 'on' && this.auto && this.auto.has(k) ? ' auto' : ''}" title="${tip}">${lock ? '·' : st === 'off' ? '?' : s.sym}</div>`;
     }).join('');
-    const gc = genCur(), head = [1, 2, 3].map(g => `<div class="gh ${g < gc ? 'done' : g === gc ? 'cur' : ''}">${g < gc ? '✓ ' : ''}${GEN_N[g]}</div>`).join('') + '<div></div><div></div>';
-    el.innerHTML = `<b>Стандартная модель · ${n}/17</b><div class="cxg">${head}${cells}</div>` +
-      (gc < 4 ? `<div class="gn">поколение ${GEN_N[gc]}</div>` : '<div class="gn">все три поколения</div>');
+    const gc = genCur(), head = [1, 2, 3].map(g => `<div class="gh ${g < gc ? 'done' : g === gc ? 'cur' : ''}">${g < gc ? '✓' : GEN_N[g]}</div>`).join('') + '<div></div><div></div>';
+    el.innerHTML = `<b>Кодекс · ${n}/17 <i>C</i></b><div class="cxg">${head}${cells}</div>`;
+  },
+
+  // ---------- окно кодекса ----------
+  isOpen: false, tab: 'sm', sel: null,
+  open(tab) {
+    if (this.isOpen) return;
+    this.isOpen = true; this.wasPaused = G.paused; G.paused = true; mouse.down = false;
+    this.tab = tab || (G.stage && CX_TAB_OF[G.stage.key]) || 'sm'; this.sel = null;
+    const m = document.getElementById('cxm');
+    if (!m.onclick) m.onclick = e => {
+      if (e.target === m || e.target.id === 'cxx') return this.close();
+      const t = e.target.closest('[data-tab]'); if (t) { this.tab = t.dataset.tab; this.sel = null; return this.draw(); }
+      const c = e.target.closest('[data-k]'); if (c) { this.sel = c.dataset.k; this.draw(); }
+    };
+    m.style.display = 'flex';
+    this.draw();
+  },
+  close() {
+    if (!this.isOpen) return;
+    this.isOpen = false; G.paused = !!this.wasPaused;
+    document.getElementById('cxm').style.display = 'none';
+  },
+  toggle() { if (this.isOpen) this.close(); else this.open(); },
+  draw() {
+    const T = CX[this.tab], items = T.items(), real = items.filter(it => !it.gap), on = real.filter(it => it.st === 'on').length, ever = real.filter(it => it.st !== 'off').length;
+    document.getElementById('cxtabs').innerHTML = Object.keys(CX).map(k => {
+      const its = CX[k].items().filter(it => !it.gap), got = its.filter(it => it.st !== 'off').length;
+      return `<button data-tab="${k}" class="${k === this.tab ? 'on' : ''}">${CX[k].n} <span>${got}/${its.length}</span></button>`;
+    }).join('');
+    document.getElementById('cxt').textContent = `${T.title} · ${on}/${real.length}${ever > on ? ` (за все забеги ${ever})` : ''}`;
+    const grid = document.getElementById('cxgrid');
+    grid.style.gridTemplateColumns = `repeat(${T.cols}, minmax(0,1fr))`;
+    grid.innerHTML = (T.head ? T.head() : '') + items.map(it => it.gap ? '<div></div>' :
+      `<button data-k="${it.k}" class="cc ${it.cls || ''} ${it.st}${this.sel === it.k ? ' sel' : ''}"><b>${it.st === 'off' ? '?' : it.sym}</b><small>${it.st === 'off' ? (it.hint || '') : it.sub || ''}</small></button>`).join('');
+    const it = items.find(x => x.k === this.sel);
+    document.getElementById('cxi').innerHTML = it ? this.card(it) : `<div class="ce">${T.empty}</div>`;
+  },
+  card(it) {
+    if (it.st === 'off') return `<div class="ch"><span class="cb off">?</span><div><b>Ещё не открыто</b><small>${it.how || ''}</small></div></div>`;
+    const rows = it.rows.filter(r => r[1] !== '' && r[1] != null).map(([a, b]) => `<div><span>${a}</span>${b}</div>`).join('');
+    return `<div class="ch"><span class="cb ${it.cls || ''}">${it.sym}</span><div><b>${it.name}</b><small>${it.kind}${it.st === 'old' ? ' · в прошлых забегах' : ''}</small></div></div>` +
+      `<div class="cr">${rows}</div>` + (it.fact ? `<div class="cfx">${it.fact}</div>` : '');
   },
 };
 Codex.load();
+
+// ---------- данные окна: вкладки ----------
+const fmtMass = m => !m ? '0' : m >= 1 ? m.toFixed(1) + ' ГэВ' : m >= .001 ? (m * 1000).toFixed(1) + ' МэВ' : (m * 1e6).toFixed(0) + ' кэВ';
+const fmtQ = q => Math.abs(q) < 1e-6 ? '0' : (q > 0 ? '+' : '−') + ({ '0.33': '⅓', '0.67': '⅔', '1.00': '1' })[Math.abs(q).toFixed(2)];
+const SM_KIND = { quark: 'кварк', lepton: 'лептон', nu: 'нейтрино', boson: 'бозон' };
+const SM_DEC = {
+  t: 't → b + W⁺', b: 'b → c + e⁻ + ν̄e', c: 'c → s + e⁺ + νe', s: 's → u + e⁻ + ν̄e',
+  mu: 'μ → e + ν̄e + νμ', ta: 'τ → μ + ν̄μ + ντ', W: 'W⁺ → ℓ⁺ + ν или u + d̄', Z: 'Z → частица + античастица',
+  H: 'H → b + b̄ (чаще всего), τ τ̄, c c̄, γγ, gg',
+};
+const NUC_ORDER = ['1,0', '0,1', '1,1', '1,2', '2,1', '2,2', '3,3', '3,4', '4,3', '4,4', '6,6', '6,7', '7,7', '8,8'];
+const NUC_UNST = { '0,1': 'распадается: n → p + e⁻ + ν̄e', '1,2': 'распадается в ³He', '4,3': 'ловит электрон и становится ⁷Li', '4,4': 'сразу распадается на два ⁴He' };
+const NUC_FACT = {
+  '1,0': 'Ядро водорода. Поймает электрон — станет атомом H.',
+  '0,1': 'Один, без ядра, живёт около 15 минут.',
+  '1,1': 'Хрупкий: пока горячо, свет его разбивает. Через него идёт весь синтез.',
+  '1,2': 'Сверхтяжёлый водород, радиоактивный.',
+  '2,1': 'Лёгкий гелий: два протона и один нейтрон.',
+  '2,2': 'Очень прочное ядро. Четверть массы обычного вещества — гелий-4.',
+  '3,3': 'Литий — самое тяжёлое, что успел сделать Большой взрыв.',
+  '3,4': 'Литий — самое тяжёлое, что успел сделать Большой взрыв.',
+  '4,3': 'Через него в ранней Вселенной получился почти весь литий-7.',
+  '4,4': 'Живёт мгновения. Звезда успевает бросить в него третий гелий.',
+  '6,6': 'Три гелия — один углерод. Из него строится вся органика.',
+  '6,7': 'Шаг на пути от углерода к азоту.',
+  '7,7': 'Углерод и два протона. Сейчас его больше всего в воздухе.',
+  '8,8': 'Углерод и гелий. Третий по количеству элемент во Вселенной.',
+};
+const ATOM_ORDER = [1, 2, 6, 7, 8];
+const ATOM_INFO = {
+  1: ['водород', 1, 'Протон и электрон. Самый частый атом во Вселенной.'],
+  2: ['гелий', 0, 'Два электрона закрывают оболочку — связей не делает.'],
+  6: ['углерод', 4, 'Четыре связи: строит цепи и кольца. Основа органики.'],
+  7: ['азот', 3, 'Три связи. Без него нет белков и ДНК.'],
+  8: ['кислород', 2, 'Две связи. Вода, дыхание, огонь.'],
+};
+const MOL_FACT = {
+  'H₂': 'Самая простая молекула: два водорода на общей паре электронов.',
+  'H₂O': 'Угол 104,5° делает воду полярной — она растворяет почти всё.',
+  'NH₃': 'Азот с тремя водородами. Сырьё для аминокислот.',
+  'CH₄': 'Углерод с четырьмя водородами по углам тетраэдра.',
+  'H₂O₂': 'Связь O–O легко рвётся — отсюда отбеливающая сила.',
+  'CH₃OH': 'Простейший спирт. Найден в межзвёздных облаках.',
+  'C₂H₆': 'Первая связь углерод–углерод: начало цепей.',
+  'CH₃NH₂': 'Углерод и азот вместе — шаг к аминокислотам.',
+  'N₂H₄': 'Связь N–N. Ракетное топливо.',
+  'NH₂OH': 'Азот и кислород в одной молекуле.',
+  'C₂H₅OH': 'Два углерода и спиртовая группа.',
+};
+const CX_TAB_OF = { particles: 'sm', quarks: 'sm', nuclei: 'n', stars: 'n', atoms: 'a', molecules: 'm' };
+const CX = {
+  sm: {
+    n: 'Частицы', title: 'Стандартная модель', cols: 5, empty: 'Нажми на открытую частицу — масса, заряд, распады.',
+    head: () => { const gc = genCur(); return [1, 2, 3].map(g => `<div class="gh ${g < gc ? 'done' : g === gc ? 'cur' : ''}">${g < gc ? '✓ ' : ''}${GEN_N[g]}</div>`).join('') + '<div class="gh">бозоны</div><div class="gh"></div>'; },
+    items: () => Codex.LAYOUT.flat().map(k => {
+      if (!k) return { gap: true };
+      const s = SM[k], lock = !Codex.run.has(k) && !genOpen(k);
+      return {
+        k, sym: s.sym, name: s.name, cls: s.kind, kind: SM_KIND[s.kind] + (s.gen ? ` · ${GEN_N[s.gen]} поколение` : ''),
+        st: Codex.st(k), sub: s.m ? fmtMass(s.m) : '0', hint: lock ? '🔒' : '',
+        how: lock ? `Откроется после ${genNeed(k).map(x => SM[x].sym).join(' и ')}.` : 'Поймай её в круг детектора.',
+        rows: [['масса', fmtMass(s.m)], ['заряд', fmtQ(s.q)], ['живёт', s.life ? 'недолго — распадается' : 'стабильна'], ['распад', SM_DEC[k] || '']],
+        fact: SM_FACT[k],
+      };
+    }),
+  },
+  n: {
+    n: 'Ядра', title: 'Ядра', cols: 5, empty: 'Нажми на открытое ядро.',
+    items: () => NUC_ORDER.filter(k => NUC_NAME && NUC_NAME[k]).map(k => {
+      const [Z, N] = k.split(',').map(Number), [sym, name] = NUC_NAME[k];
+      return {
+        k: 'n:' + k, sym, name, cls: 'nuc', kind: Z + N > 5 ? 'звёздный синтез' : 'Большой взрыв', st: Codex.st('n:' + k), sub: `${Z}p ${N}n`,
+        how: Z + N > 5 ? 'Куётся в звёздах.' : 'Собирается в первые минуты.',
+        rows: [['состав', `${Z} p⁺ + ${N} n⁰`], ['живёт', NUC_UNST[k] || 'стабильно']], fact: NUC_FACT[k],
+      };
+    }),
+  },
+  a: {
+    n: 'Атомы', title: 'Атомы', cols: 5, empty: 'Нажми на открытый атом.',
+    items: () => ATOM_ORDER.map(Z => {
+      const [name, val, fact] = ATOM_INFO[Z], sym = elemOf(Z)[0];
+      return {
+        k: 'a:' + Z, sym, name, cls: 'atom', kind: 'атом', st: Codex.st('a:' + Z), sub: 'Z ' + Z, how: 'Одень ядро электронами.',
+        rows: [['ядро', `Z = ${Z}`], ['электронов', Z], ['связей', val || 'нет']], fact,
+      };
+    }),
+  },
+  m: {
+    n: 'Молекулы', title: 'Молекулы', cols: 4, empty: 'Нажми на открытую молекулу.',
+    items: () => COMP.map(c => ({
+      k: 'm:' + c.f, sym: c.f, name: c.n, cls: 'mol', kind: 'молекула', st: Codex.st('m:' + c.f), sub: c.n, hint: '', how: 'Собери из атомов.',
+      rows: [['состав', Object.keys(c.c).map(e => `${e} ×${c.c[e]}`).join(', ')]], fact: MOL_FACT[c.f],
+    })),
+  },
+};
 
 let cardT = 0;
 function showCard(k, first, extra) {
