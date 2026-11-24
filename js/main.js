@@ -14,6 +14,12 @@ function endGame(text) {
   if (G.ended) return;
   G.ended = true;
   document.getElementById('endtext').textContent = text;
+  // счёт забега: в таблицу браузера и (если включена) в общую
+  const cheated = STAGES.some(s => s.cheated), secs = (Date.now() - (G.runT0 || Date.now())) / 1000, el = document.getElementById('endlb');
+  const local = lbTable('total', { n: LB.name(), s: Math.round(G.score), t: Math.floor(secs), d: Date.now() }, cheated);
+  const mine = local.replace('class="rk">', 'class="rk">в этом браузере · ');
+  el.innerHTML = `<div class="rk big">${fmtScore(G.score)} очков за забег</div><div id="endon">${Online.on() ? '' : mine}</div>`;
+  endBoard(document.getElementById('endon'), G.score, secs, cheated, mine);
   setTimeout(() => { document.getElementById('end').style.display = 'flex'; }, 1500);
 }
 
@@ -106,7 +112,7 @@ const pname = document.getElementById('pname');
 try { pname.value = localStorage.getItem('proto.name') || ''; } catch (e) { /* без хранилища */ }
 document.getElementById('go').onclick = () => {
   try { localStorage.setItem('proto.name', pname.value.trim() || 'Игрок'); } catch (e) { /* без хранилища */ }
-  document.getElementById('intro').style.display = 'none'; G.started = true;
+  document.getElementById('intro').style.display = 'none'; G.started = true; G.runT0 = Date.now();
 };
 
 // ---------- цикл ----------
