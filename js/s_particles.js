@@ -416,7 +416,8 @@ const Particles = {
   // Пойманный фотон измерен: класс по энергии; ⚡ — по классу; новый класс и редкие дают ✦
   absorb(o) {
     const c = this.phClass(o), C = PH_CLS[c];
-    o.dead = true; this.en = Math.min(E_CAP, this.en + C.e); if (this.tut) this.tut.abs++; if (!this.learn.absorb) this.acted(); this.learn.absorb = true; // фотоны залетают и сами — в счёт только первый this.caught[c]++; this.caughtFx = c; this.caughtAt = G.T;
+    o.dead = true; this.en = Math.min(E_CAP, this.en + C.e); if (this.tut) this.tut.abs++; if (!this.learn.absorb) this.acted(); this.learn.absorb = true; // фотоны залетают и сами
+    this.caught[c]++; this.caughtFx = c; this.caughtAt = G.T;
     fxRing(o.x, o.y, .05, C.c, .5 + .3 * c, .35 + .1 * c); Sfx.play('catch', c);
     if (!this.measure(c)) { this.kn += C.kn; if (c >= 2) {
       this.float(P.x, P.y - this.hr() - .2, `${C.r}! ${C.n} γ · +${C.kn} ✦`, [255, 215, 110], 15);
