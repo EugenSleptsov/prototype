@@ -93,6 +93,7 @@ function lbTable(key, entry, cheated) {
 }
 const LEP_C = [[150, 205, 255], [120, 165, 255], [150, 120, 255]];
 const BOS_C = { W: [255, 150, 70], Z: [255, 105, 115], H: [255, 215, 90], ph: [255, 240, 190] };
+const NO_C = [255, 95, 85]; // клетка матрицы, которую пока не создать
 const NU_C = [175, 255, 205], GOLD = [255, 226, 106], FIELD_C = [82, 200, 255], SHIELD_C = [77, 232, 155];
 const FERMIONS = ['u', 'd', 'c', 's', 't', 'b', 'e', 'mu', 'ta', 'ne', 'nm', 'nt'];
 // Эпохи уровня. Температура не опускается ниже floor, пока цели эпохи не выполнены;
@@ -1820,15 +1821,16 @@ const Particles = {
       for (let k = 1; k <= LV_N; k++) {
         const an = a0 + TAU * k / LV_N, c = Math.cos(an), s = Math.sin(an), got = (f.lv || 0) >= k;
         const xs = this.cellsAt(kinds, k), x = xs.find(v => !this.cellWhy(v, this.lvE(k), false)) || xs[0], open = !!x && !this.cellWhy(x, this.lvE(k), false);
-        line(sx + c * (Rg - 8), sy + s * (Rg - 8), sx + c * (Rg + 8), sy + s * (Rg + 8), got ? GOLD : [255, 255, 255], got ? 1 : .7, 2);
+        line(sx + c * (Rg - 8), sy + s * (Rg - 8), sx + c * (Rg + 8), sy + s * (Rg + 8), !open ? NO_C : got ? GOLD : [255, 255, 255], got || !open ? 1 : .7, 2);
         const R = Rg + (Math.abs(c) > .5 ? 30 : 22), lx = sx + c * R, ly = sy + s * R; // сбоку надпись шире — дальше от круга
-        label(`${k}⚡`, lx, ly - 8, 10, got ? GOLD : [200, 210, 230], .85, 600);
-        label(x ? this.cellSym(x) : '—', lx, ly + 7, 13, got ? GOLD : open ? [255, 255, 255] : [150, 150, 165], open ? .95 : .5, 800);
+        label(`${k}⚡`, lx, ly - 8, 10, !open ? NO_C : got ? GOLD : [200, 210, 230], .85, 600);
+        label(x ? this.cellSym(x) : '—', lx, ly + 7, 13, !open ? NO_C : got ? GOLD : [255, 255, 255], .95, 800); // красное — пока не создать
       }
     }
     // энергия столкновения — клин: чем больше набрал, тем толще линия; нити к квантам тоже толстеют
     wedge(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), 2, 2 + 12 * f.q, inH ? GOLD : FIELD_C, .95);
-    if (this.isQ(f.cap[0])) { const k = f.lv || 0, x = k ? this.pickCell(kinds, k, this.lvE(k), false) : null; label(k ? `${k} ⚡ → ${x && x.c ? this.cellSym(x) : '—'}` : 'слабо', sx, sy + Rg + 50, 15, k ? (k === LV_N ? GOLD : [142, 229, 255]) : [200, 205, 220], .95, 800); }
+    if (this.isQ(f.cap[0])) { const k = f.lv || 0, x = k ? this.pickCell(kinds, k, this.lvE(k), false) : null; const no = k && x && x.c && x.k < k; label(k ? `${k} ⚡ → ${x && x.c ? this.cellSym(x) : '—'}` : 'слабо', sx, sy + Rg + 50, 15, no ? NO_C : k ? (k === LV_N ? GOLD : [142, 229, 255]) : [200, 205, 220], .95, 800);
+      if (no) label(`${this.cellSym(this.cellsAt(kinds, k)[0])} — ${x.why.split(': ')[1] || 'закрыто'}`, sx, sy + Rg + 68, 12, NO_C, .85, 600); }
     else label(`√s ${fmtGeV(this.rsOf(f))}`, sx, sy - Rg - 32, 12, inH ? GOLD : [142, 229, 255], .95, 700);
   },
   // Энергия детектора — дуга из делений под кругом; пустая и нужна — мигает красным
@@ -1883,7 +1885,7 @@ const Particles = {
     if (!t) return;
     if (!this.learn.snap && this.lit || (!this.lit && this.ep === 0 && !this.inf.go)) { const ph = (G.T % 1.4) / 1.4; ring(sx, sy, r * (1 + .25 * ph), [255, 255, 255], .5 * (1 - ph), 2); }
     const two = this.focus && this.focus.cap.length === 2 && this.isQ(this.focus.cap[0]); // под шкалой ступеней — ниже
-    label(t, sx, sy + r + (two ? 86 : 36), 14, [255, 255, 255], .75 + .2 * Math.sin(G.T * 4), 700);
+    label(t, sx, sy + r + (two ? 102 : 36), 14, [255, 255, 255], .75 + .2 * Math.sin(G.T * 4), 700);
   },
   // Стрелки у края экрана — к тому, что нужно снять, если оно за кадром
   drawArrows() {
