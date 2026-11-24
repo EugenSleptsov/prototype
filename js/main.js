@@ -240,7 +240,11 @@ function hud() {
 // страховка: ошибка или NaN не должны вешать игру
 let errShown = false;
 function recover(err) {
-  if (err && !errShown) { errShown = true; console.error(err); }
+  if (err && !errShown) { // первая ошибка — в консоль и на экран: игрок пришлёт скриншот
+    errShown = true; console.error(err);
+    const at = String(err.stack || '').split('\n').find(l => /\.js/.test(l)) || '';
+    try { msg(`Ошибка: ${err.message} ${(at.match(/(\w+\.js)[^:]*:(\d+)/) || []).slice(1).join(':')} — пришли скриншот`, 12); } catch (e) { /* без экрана */ }
+  }
   if (!isFinite(P.x + P.y)) { P.x = P.y = 0; }
   if (!isFinite(P.vx + P.vy)) { P.vx = P.vy = 0; }
   if (!isFinite(cam.z) || cam.z <= 0) cam.z = 40;
@@ -251,8 +255,9 @@ G.stage = STAGES[0]; G.stage.enter(null);
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(.05, Math.max(0, (now - last) / 1000)); last = now;
+  // ошибка в расчёте кадра не останавливает отрисовку — иначе игра выглядит зависшей
+  try { if (!G.paused) update(dt); else Sfx.hum(0); } catch (err) { recover(err); }
   try {
-    if (!G.paused) update(dt); else Sfx.hum(0);
     if (!isFinite(P.x + P.y + cam.z)) recover();
     render(); hud();
   } catch (err) { recover(err); }
