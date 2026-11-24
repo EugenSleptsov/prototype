@@ -1,6 +1,6 @@
 "use strict";
-const STAGES = [Particles, Quarks, Nuclei, Atoms, Mols];
-const LADDER = ['Частицы', 'Адроны', 'Ядра', 'Атомы', 'Молекулы', 'Органика', 'Протоклетки', 'Клетки', 'Организмы'];
+const STAGES = [Particles, Quarks, Nuclei, Stars, Atoms, Mols];
+const LADDER = ['Частицы', 'Адроны', 'Ядра', 'Звёзды', 'Атомы', 'Молекулы', 'Органика', 'Протоклетки', 'Клетки', 'Организмы'];
 const TRANS_DUR = 3;
 
 // Переход: старый этап продолжает жить и гаснет, новый проявляется и забирает его частицы.
@@ -73,7 +73,7 @@ function touchBar() {
   on('act', G.started && hold && !G.paused);
   actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держи' : s.ep === 3 ? 'держи — щит' : 'тап — снимок · держи — поле') : 'держи — поле';
   on('t-ff', G.started && s.enterKey); on('t-dash', G.started && s.dash);
-  on('t-rl', G.started && s.key === 'molecules'); on('t-rr', G.started && s.key === 'molecules'); on('t-x', G.started && s.key === 'molecules');
+  on('t-rl', false); on('t-rr', false); on('t-x', false); // взятое само поворачивается по ходу броска
   document.getElementById('t-mute').textContent = Sfx.muted ? '🔇' : '🔊';
 }
 // Колесо — зум: вглубь до ×2,2, наружу до ×0,55 от обзора этапа. Shift + колесо — действие этапа (вращение молекулы).

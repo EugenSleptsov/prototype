@@ -33,6 +33,7 @@
   #hud{position:fixed;left:16px;top:12px;pointer-events:none;max-width:min(440px,60vw)}
   #title{font-size:22px;font-weight:650;letter-spacing:.02em}
   #sub{opacity:.75;font-size:13px;margin-top:2px}
+  @media (max-width:520px){#sub{display:none}} /* на телефоне температура налезает на таймер */
   #lines{margin-top:8px;font-size:13px;display:grid;grid-template-columns:auto 1fr;gap:2px 10px}
   #lines .k{opacity:.6}
   #goal{margin-top:10px;font-size:13px;line-height:1.45;background:#00000055;border-left:3px solid #8fd0ff;padding:6px 10px;border-radius:0 6px 6px 0}
@@ -231,17 +232,18 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=75"></script>
-<script src="js/audio.js?v=75"></script>
-<script src="js/core.js?v=75"></script>
-<script src="js/universe.js?v=75"></script>
-<script src="js/codex.js?v=75"></script>
-<script src="js/sling.js?v=75"></script>
-<script src="js/s0_quarks.js?v=75"></script>
-<script src="js/s_particles.js?v=75"></script>
-<script src="js/s1_nuclei.js?v=75"></script>
-<script src="js/s2_atoms.js?v=75"></script>
-<script src="js/s3_molecules.js?v=75"></script>
-<script src="js/main.js?v=75"></script>
+<script src="js/util.js?v=77"></script>
+<script src="js/audio.js?v=77"></script>
+<script src="js/core.js?v=77"></script>
+<script src="js/universe.js?v=77"></script>
+<script src="js/codex.js?v=77"></script>
+<script src="js/sling.js?v=77"></script>
+<script src="js/s0_quarks.js?v=77"></script>
+<script src="js/s_particles.js?v=77"></script>
+<script src="js/s1_nuclei.js?v=77"></script>
+<script src="js/s_stars.js?v=77"></script>
+<script src="js/s2_atoms.js?v=77"></script>
+<script src="js/s3_molecules.js?v=77"></script>
+<script src="js/main.js?v=77"></script>
 </body>
 </html>

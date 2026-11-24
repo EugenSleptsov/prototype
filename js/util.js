@@ -53,6 +53,12 @@ function label(t, x, y, px, c = [255, 255, 255], a = 1, weight = 600) {
   ctx.fillStyle = rgb(c, a); ctx.font = `${weight} ${Math.max(8, px) | 0}px system-ui,sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y);
 }
+// всплывающая надпись: целиком в экране, даже если источник у края
+function labelIn(t, x, y, px, c, a, weight) {
+  ctx.font = `${weight} ${Math.max(8, px) | 0}px system-ui,sans-serif`;
+  const h = ctx.measureText(t).width / 2 + 8;
+  label(t, G.W > 2 * h ? clamp(x, h, G.W - h) : G.W / 2, y, px, c, a, weight);
+}
 // нуклон с тремя кварками внутри — общий для этапов 0–2 (визуальная преемственность)
 const NUC_C = { p: [230, 80, 70], n: [170, 170, 185] };
 const QDOT = [[255, 60, 90], [70, 235, 120], [80, 140, 255]];

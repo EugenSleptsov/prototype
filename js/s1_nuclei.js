@@ -440,7 +440,7 @@ const Nuclei = {
     this.sl.draw(al);
     this.drawHint(al);
     this.drawArrows();
-    for (const fl of this.floats) { const [fx, fy] = W2S(fl.x, fl.y); label(fl.txt, fx, fy - 16 - fl.t * 26, fl.sz, fl.c, clamp(1.6 - fl.t, 0, 1), 700); }
+    for (const fl of this.floats) { const [fx, fy] = W2S(fl.x, fl.y); labelIn(fl.txt, fx, fy - 16 - fl.t * 26, fl.sz, fl.c, clamp(1.6 - fl.t, 0, 1), 700); }
     ctx.globalAlpha = 1;
   },
   // подсказка новичку: мерцающее кольцо на ближайшем нейтроне, пока не бросил ни разу
@@ -470,6 +470,7 @@ const Nuclei = {
     hudBanner(this.banner, 'УРОВЕНЬ 3 · первые 3 минуты', 'Ядра', 'собери гелий, пока Вселенная горячая', al);
     ctx.globalAlpha = 1;
   },
+  showCodex() { return false; },
   viewR() { return N_WR + 1.5; },
   hud() { return { title: '', sub: `T ≈ ${(this.T() * 1.2).toFixed(1)}·10⁹ K`, lines: [], goal: '', laws: [] }; },
 };
