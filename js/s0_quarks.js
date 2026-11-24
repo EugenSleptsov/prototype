@@ -295,11 +295,7 @@ const Quarks = {
       q.x += q.vx * dt; q.y += q.vy * dt;
     }
     this.q = this.q.filter(q => !q.dead);
-    if (!act) { // этап гаснет: твой первый барион едет к детектору нового этапа
-      const g = this.groups.get(this.mine);
-      if (g) { const c = centroid(g.m), k = Math.min(1, dt * 8); for (const x of g.m) { x.x += (P.x - c.x) * k; x.y += (P.y - c.y) * k; } }
-      return;
-    }
+    if (!act) return; // этап гаснет: барионы на тех же местах становятся нуклонами уровня ядер
     if (!live) return;
     // всё, что можно было собрать, собрано
     if (this.doneAt === null && this.conf > .5 && !this.spare() && !this.q.some(o => o.cap)) {
@@ -456,7 +452,7 @@ const Quarks = {
     edgeArrows(pts, 3);
   },
   overlay(al) {
-    if (!G.started) return;
+    if (!G.started || this.advanced) return;
     const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
     const n = this.made.p + this.made.n, all = n + this.spare();
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > Q_PAR ? [190, 190, 205] : [255, 255, 255], Math.round(this.kn), []);
