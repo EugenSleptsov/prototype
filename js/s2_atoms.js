@@ -122,7 +122,7 @@ const Atoms = {
           const rvx = e.vx - P.vx, rvy = e.vy - P.vy;
           const Einf = .5 * (rvx * rvx + rvy * rvy) - KE * Q / Math.sqrt(d2 + SOFT * SOFT);
           if (Einf < this.bindE(Q, sh) && Math.random() < 1 - Math.exp(-dt * 8)) {
-            e.dead = true; this.ne++;
+            e.dead = true; this.ne++; addScore(50);
             const lineC = sh === 0 ? [190, 130, 255] : sh === 1 ? [255, 90, 90] : [255, 190, 90];
             fxFlash(e.x, e.y, 3, lineC, .6); fxRing(P.x, P.y, SHELL_R[sh], lineC, SHELL_R[sh] * 1.6, .7);
             if (!this.capMsg) { this.capMsg = true; msg('Электрон пойман! Он сбросил энергию, испустив фотон — спектральную линию'); }
@@ -184,6 +184,7 @@ const Atoms = {
       for (let i = 0; i < 2 && this.ions.length + i < 12; i++) this.spawnIon(false);
     }
   },
+  tally() { return { name: 'Рекомбинация', rows: [['⏱ уровень', fmtClock(this.t)], ['электроны', `${this.ne} / ${this.Z}`], ['бросков рогаткой', this.sl ? this.sl.shots : 0]], auto: null }; },
   cheat() { this.ne = this.Z; this.t = Math.max(this.t, 55); this.Ta = .2; this.neutralT = 1.9; },
 
   draw(al) {
@@ -245,7 +246,7 @@ const Atoms = {
     return {
       title: this.name,
       sub: `T ≈ ${Math.round(1500 + 6000 * this.Ta)} K · ${this.Ta > .3 ? 'Вселенная непрозрачна' : 'Вселенная прозрачна'}`,
-      lines: [['Атом', `${el[1]} ${Q > 0 ? `(ион, заряд +${Q})` : '(нейтральный)'}`], ['Электроны', `${this.ne} / ${this.Z}`],
+      lines: [['Атом', `${el[1]} ${Q > 0 ? `(ион, заряд +${Q})` : '(нейтральный)'}`], ['Электроны', `${this.ne} / ${this.Z}`], ['Очки', fmtScore(G.score)],
         ['Захват', Q > 0 ? `скорость у оболочки ≲ ${vcap.toFixed(1)} (электроны летят ≈ ${this.vth().toFixed(0)})` : '—'],
         ['Ионизация', this.ne ? `${this.ionE().toFixed(1)} эВ` : '—'], ['Химия', `валентность ${el[2]} — оранжевые вакансии станут связями`]],
       goal: 'Собери электроны до нейтрального атома. <b>Рогатка</b>: зажми электрон — он замрёт, но запомнит, куда летел (голубой пунктир); оттяни и отпусти — толчок прибавится к его скорости. Быстрый электрон пролетит мимо ядра по гиперболе: погаси его скорость и брось мягко — пунктир покажет орбиту, у ядра — «захват». Жёсткие фотоны выбивают электроны; Вселенная остывает, и ловить становится легче.',

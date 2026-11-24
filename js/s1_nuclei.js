@@ -262,7 +262,7 @@ const Nuclei = {
       if (!this.allDone()) this.float(P.x, P.y - this.hr - .5, 'остыло — синтез окончен', [200, 210, 240], 16);
       this.tickStars(true);
     }
-    if (this.endCd > 0 && (this.endCd -= dt) <= 0) this.showResult();
+    if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; addScore(this.Y() * 2000); this.handoff(); advance(); } // итоги — сбоку, без паузы
   },
   // после твоей первой реакции ядра изредка сливаются и сами — только с нейтроном (без барьера)
   spontaneous(dt) {
@@ -308,8 +308,12 @@ const Nuclei = {
   },
   tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - this.hr - .4, '★ +10 ✦', [255, 215, 110], 17); }); },
 
-  // ---------- итоги и переход к атомам ----------
-  showResult() {
+  tally() {
+    const c = this.counts();
+    return { name: 'Ядра', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['⁴He · p', `${c.he} · ${c.p}`], ['гелий по массе', Math.round(this.Y() * 100) + ' %'], ['✦ добыто', Math.round(this.kn)]], auto: null, stars: this.stars };
+  },
+  // ---------- итоги и переход к атомам (старая модальная карточка; итоги теперь — Tally сбоку) ----------
+  showResultCard() {
     const t = this.doneAt, pts = Math.round(this.kn), Y = Math.round(this.Y() * 100), bonus = Y * 2, total = pts + bonus, won = starsWon(this.stars);
     const e = { n: LB.name(), s: total, p: pts, t: t === null ? null : Math.floor(t), d: Date.now() };
     const c = this.counts();

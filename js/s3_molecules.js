@@ -155,7 +155,7 @@ const Mols = {
       host.atoms.push({ el: at.el, lx, ly, base: gu.a + at.base + dA - host.a, b: at.b.map(x => x < 0 ? -1 : x + off) });
     });
     for (const bd of gu.bonds) host.bonds.push([bd[0] + off, bd[1] + off, bd[2], bd[3]]);
-    host.bonds.push([ih, off + ig, sh, sg]);
+    host.bonds.push([ih, off + ig, sh, sg]); if (host.player) addScore(80);
     host.atoms[ih].b[sh] = off + ig; host.atoms[off + ig].b[sg] = ih;
     this.recompute(host);
     host.vx = vx; host.vy = vy; host.w = Lw / host.I;
@@ -366,7 +366,7 @@ const Mols = {
     return {
       title: this.name,
       sub: 'Первичный бульон · ковалентные связи',
-      lines: [['Молекула', this.formula(pm)], ['Атомов', pm.atoms.length],
+      lines: [['Молекула', this.formula(pm)], ['Атомов', pm.atoms.length], ['Очки', fmtScore(G.score)],
         ['Свободные связи', free ? free : '<span style="color:#ff9a7a">0 — насыщена, X — отщепить</span>'],
         ['Цели', GOALS.map((g, i) => `${i < this.goalI ? '✓' : i === this.goalI ? '→' : '·'} ${g.t}`).join('<br>')]],
       goal: '<b>Рогатка</b>: зажми атом, оттяни назад и отпусти — он полетит в обратную сторону. Связь возникает, только если <b>свободные связи</b> (оранжевые штрихи) смотрят друг на друга и удар сильнее <b>энергии активации</b>. Пока держишь — Q/E поворачивают атом, пунктир показывает путь, у цели — что выйдет. Слишком сильный удар не той стороной рвёт связи; насыщенная молекула больше не растёт. Свою молекулу тоже можно взять и бросить.',

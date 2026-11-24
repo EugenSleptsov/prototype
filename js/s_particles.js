@@ -65,7 +65,7 @@ const PH_CLS = [
   { n: 'сверхжёсткий', r: 'легендарный', x: 8, e: 4, k: 20, kn: 10, c: [210, 170, 255] },
 ];
 // Цены исследований: новое в мире (новый вид частиц) — дорого, автоматизация уже имеющегося — дешевле
-const RES_COST = { ph: [10, 30, 60], g: [100], coll: [60] }, resNew = v => 60 + 20 * v;
+const RES_COST = { ph: [10, 30, 60], g: [100], coll: [60], cp: [60] }, resNew = v => 60 + 20 * v;
 const LB_KEY = 'proto.lb.v1', LB_TOP = 5;
 // Таблица рекордов — в браузере игрока (localStorage)
 const LB = {
@@ -101,12 +101,15 @@ const EPOCHS = [
   { name: 'Чистая энергия', floor: 165, tau: 36, startT: Infinity, when: '10⁻¹² с', line: 'Сначала нет ничего — только вакуум' },
   { name: 'Поле Хиггса', floor: 90, tau: 14, startT: 160, when: '10⁻¹¹ с', line: 'Поле застывает — у частиц появляется масса' },
   { name: 'Распады', floor: 3, tau: 14, startT: Infinity, when: '10⁻¹⁰ с', line: 'Тяжёлое распадается — сними цепочки' },
-  { name: 'Аннигиляция', floor: 0, tau: 36, startT: 3, when: '10⁻⁷ с', line: 'Вещество против антивещества' },
+  { name: 'Аннигиляция', floor: .5, tau: 36, startT: 3, when: '10⁻⁷ с', line: 'Вещество против антивещества' },
 ];
 const CHAINS = [['t', 'b', 'c'], ['ta', 'mu']]; // чьи распады нужно снять в эпохе 3
 const COL_N = ['красный', 'зелёный', 'синий']; // цвет кварка; у глюона — цвет и антицвет
 const STOCK_GOAL = 15, TRIO_GOAL = 5; // цель эпохи 4 — пять будущих барионов (по кварку каждого цвета)
 const TRIO_W = TRIO_GOAL < 5 ? 'тройки' : 'троек';
+// Автоматизация эпохи 4: исследуй «Асимметрию» — и Вселенная сама сберегает тройки (раз в SAVE_CD с);
+// AUTO_TRIO таких — и вещество больше не нуждается в тебе: уровень кончается не «по времени», а потому что научился сам
+const AUTO_TRIO = 6, SAVE_CD = 2.2, HAND_CP = 2;
 // Сколько барионов можно собрать из кварков [{fl, col}]: три разных цвета, не uuu/ddd (жадно)
 function baryonTrios(list) {
   const cnt = {};
@@ -172,7 +175,7 @@ const Particles = {
     this.p = []; this.t = 0; this.T = T_START; this.hig = 0; this.higT = -1; this.higC = { x: 0, y: 0 }; this.ripples = []; this.ripCd = 0; this.ff = 1;
     this.advanced = false;
     this.gOn = false; this.full = false; this.spCd = 0; // эволюция эпохи 1: сперва пустота, потом свет, потом глюоны
-    this.lit = false; this.litT = 0; this.rs = { ph: 0, g: 0, coll: 0 }; this.autoT = 0; Codex.auto = new Set(); this.inf = this.mkInf(); this.T0 = T_START; this.heat = 1; this.upPts = 0; this.caught = [0, 0, 0, 0]; this.phSeen = new Set();
+    this.lit = false; this.litT = 0; this.rs = { ph: 0, g: 0, coll: 0, cp: 0 }; this.safe = []; this.saveCd = 0; this.autoT = 0; Codex.auto = new Set(); this.inf = this.mkInf(); this.T0 = T_START; this.heat = 1; this.upPts = 0; this.caught = [0, 0, 0, 0]; this.phSeen = new Set();
     this.kn = 0; this.spent = 0; this.epClock = 0; this.epKn0 = 0; this.doneAt = null; this.lvlTotal = 0; this.cheated = false; this.res = null;
     this.lvl = { r: 0, sh: 0, pow: 0, fr: 0 }; this.focus = null; this.holding = false; this.hold = 0; this.shield = 1;
     this.learn = {}; this.en = 0; this.enFx = 0; this.shotCd = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
@@ -663,7 +666,8 @@ const Particles = {
   // Пункт виден, только когда это уже сделано руками; уровень хранится в rs[k]
   // Порядок — приоритет (в панели только первые RES_MAX): то, что нужно для задания эпохи, — раньше
   resList() {
-    if (!this.lit || this.ep === 3) return [];
+    if (!this.lit) return [];
+    if (this.ep === 3) return baryonTrios(this.stockQ) >= HAND_CP || this.rs.cp ? [{ k: 'cp', ic: '⚖', name: 'Асимметрия', cost: RES_COST.cp, about: () => 'Вселенная сама сберегает вещество' }] : [];
     const ph = { k: 'ph', ic: 'γ', name: 'Свет сам', cost: RES_COST.ph, about: l => `γ ${Math.round(PH_DENS[l] * 100)}% → ${Math.round(PH_DENS[l + 1] * 100)}%` };
     const L = [];
     if (!this.rs.ph) L.push(ph);
@@ -695,10 +699,11 @@ const Particles = {
     const k = r.k, l = this.rs[k] = this.rLvl(k) + 1; Sfx.play('upgrade');
     if (k === 'ph' && l === 1) { this.autoT = 0; Codex.auto.add('ph'); fxRing(P.x, P.y, .5, PH_C, this.wr(), 2.5); fxFlash(P.x, P.y, this.hr() * 2, [255, 240, 200], .5); }
     else if (k === 'g') { Codex.auto.add('g'); this.unlockGluons(); }
+    else if (k === 'cp') this.saveCd = .8;
     else if (k !== 'ph' && k !== 'coll') Codex.auto.add(k);
     Codex.dirty = true;
     fxRing(P.x, P.y, this.hr(), GOLD, this.hr() * 1.8, .7);
-    this.float(P.x, P.y - this.hr() - .3, `${r.ic} ${k === 'ph' ? `свет ×${l}` : k === 'g' ? 'глюоны в мире' : k === 'coll' ? 'кванты сталкиваются сами' : k === 'H' ? 'Вселенная рождает сама' : 'столкновения рождают ' + SM[k].sym}`, GOLD, 16);
+    this.float(P.x, P.y - this.hr() - .3, `${r.ic} ${k === 'ph' ? `свет ×${l}` : k === 'g' ? 'глюоны в мире' : k === 'coll' ? 'кванты сталкиваются сами' : k === 'cp' ? 'Вселенная сберегает вещество' : k === 'H' ? 'Вселенная рождает сама' : 'столкновения рождают ' + SM[k].sym}`, GOLD, 16);
   },
   renderShop(el) {
     if (!G.started || this.stockOut || !this.lit || !this.shopItems().length) { el.style.display = 'none'; return; } // в пустоте исследовать нечего
@@ -750,11 +755,11 @@ const Particles = {
       if (this.doneAt === null && (this.lit || this.ep)) this.epClock += dt0; // часы эпохи идут до выполнения целей (пролог не в счёт)
       const E = EPOCHS[this.ep], nx = EPOCHS[this.ep + 1];
       const floor = this.epDone ? (nx ? Math.min(nx.startT, this.T) * .999 : 0) : E.floor;
-      const rate = this.epDone && nx ? 12 : this.ff;
+      const rate = this.epDone ? (nx ? 12 : 4) : this.ff; // последняя эпоха выполнена — догорает быстро
       if (this.lit || this.ep) this.T = Math.max(floor, this.T * Math.exp(-dt * rate / E.tau)); // в прологе не остывает
       if (this.epDone && nx && (this.epGap -= dt) <= 0 && this.T <= nx.startT) this.startEpoch(this.ep + 1);
       this.tickHot(dt);
-      if (this.ep === 3 && !this.advanced) this.soup(dt);
+      if (this.ep === 3 && !this.advanced) { this.soup(dt); if (this.rs.cp && this.safe.length < AUTO_TRIO + 4 && (this.saveCd -= dt * this.ff) <= 0) { this.saveCd = SAVE_CD; this.addSafe(); } }
     }
     if (this.higT >= 0) { this.higT += dt; this.hig = smooth(0, 9, this.higT); }
     this.tickRipples(dt, live);
@@ -839,7 +844,7 @@ const Particles = {
         }
         this.float(P.x, P.y - this.hr() - .4, `◉ ${this.stock}`, [140, 235, 170], 18);
       }
-      if (this.finale > 0 && (this.finale -= dt0) <= 0) this.showResult(true);
+      if (this.finale > 0 && (this.finale -= dt0) <= 0) { this.finale = -1; this.endLevel(); } // итоги — сбоку, без паузы
     }
     this.p = this.p.filter(o => !o.dead);
     if (this.p.length > 260) this.p.splice(0, this.p.length - 260);
@@ -855,9 +860,33 @@ const Particles = {
       const p = this.stockPos(i), out = rnd(2.6, 3.6), tan = p.rr * 1.2;
       return { x: p.x, y: p.y, vx: Math.cos(p.a) * out - Math.sin(p.a) * tan, vy: Math.sin(p.a) * out + Math.cos(p.a) * tan, fl: s.fl, col: s.col };
     });
+    // и тройки, сбережённые самой Вселенной, — там же, где кружили
+    for (const t of this.safe) t.q.forEach((fl, c) => {
+      const p = this.safePos(t, c), out = rnd(1.2, 2);
+      this.handoff.push({ x: p.x, y: p.y, vx: Math.cos(p.a) * out, vy: Math.sin(p.a) * out, fl, col: c });
+    });
     this.stockOut = true;
     fxFlash(P.x, P.y, this.hr(), [255, 255, 255], .5); fxRing(P.x, P.y, this.hr() * .5, [140, 235, 170], this.hr() * 3, .9);
     advance();
+  },
+  // Вселенная сберегла тройку: R·G·B кружит вокруг детектора, антикварки её не трогают (асимметрия — вещества больше)
+  addSafe() {
+    const k = this.safe.length;
+    this.safe.push({ a: Math.random() * TAU, r: this.hr() * (1.5 + .3 * (k % 4)) + rnd(0, .15), w: rnd(.12, .2) * (k % 2 ? -1 : 1), t0: G.T, q: Math.random() < .5 ? ['u', 'u', 'd'] : ['u', 'd', 'd'] });
+    const p = this.safePos(this.safe[k]);
+    fxRing(p.x, p.y, .1, [140, 235, 170], .9, .6); fxFlash(p.x, p.y, .4, [200, 255, 220], .25);
+    this.kn += 2; this.float(p.x, p.y - .35, '⚖ R·G·B', [140, 235, 170], 13); Sfx.play('pop');
+  },
+  // центр сбережённой тройки (c — один из кварков: вершина маленького треугольника)
+  safePos(t, c) {
+    const a = t.a + t.w * G.T, x = P.x + Math.cos(a) * t.r, y = P.y + Math.sin(a) * t.r;
+    if (c == null) return { x, y, a };
+    const b = G.T * 2.2 + c * TAU / 3; return { x: x + Math.cos(b) * .16, y: y + Math.sin(b) * .16, a };
+  },
+  // Итоги уровня для ненавязчивого экрана между уровнями
+  tally() {
+    const hand = baryonTrios(this.stockQ), auto = this.safe.length;
+    return { name: 'Частицы', rows: [['⏱ уровень', fmtClock(this.t)], ['✦ добыто', Math.round(this.kn)], ['тройки — руками', hand], ['тройки — Вселенная сама', auto]], auto: [auto, hand + auto], stars: this.stars };
   },
   // Эпоха 4: кварки почти остановились (упрощение), антикварки ищут вещество — свободное или в детекторе
   drift4(o, dt) {
@@ -1068,7 +1097,11 @@ const Particles = {
         : `сделай ${sym(sp)} столкновением (выше риски ${sym(sp)}) и ${tap} по вершине распада — или исследуй «${sym(sp)} сам»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp) }));
       default: {
         const t = baryonTrios(this.stockQ);
-        return [{ t: `Собери ${TRIO_GOAL} ${TRIO_W} R·G·B`, h: 'лови кварки недостающего цвета или глюон, что перекрасит лишний; зажми — щит', p: [Math.min(t, TRIO_GOAL), TRIO_GOAL], s: `${TRIO_GOAL} ${TRIO_W}`, d: t >= TRIO_GOAL }];
+        const a = this.safe.length;
+        return [{ t: `Собери ${TRIO_GOAL} ${TRIO_W} R·G·B`, h: 'лови кварки недостающего цвета или глюон, что перекрасит лишний; зажми — щит', p: [Math.min(t, TRIO_GOAL), TRIO_GOAL], s: `${TRIO_GOAL} ${TRIO_W}`, d: t >= TRIO_GOAL },
+          { t: 'Научи Вселенную сберегать вещество', h: this.rs.cp ? 'вещества чуть больше, чем антивещества: Вселенная сама сберегает тройки — зелёные, вокруг детектора'
+            : t < HAND_CP ? `сначала ${HAND_CP} тройки руками — потом исследуй «⚖ Асимметрия»` : `исследуй «⚖ Асимметрия» ${buy('cp')}`,
+            p: [Math.min(a, AUTO_TRIO), AUTO_TRIO], s: 'Вселенная сберегает сама', d: a >= AUTO_TRIO }];
       }
     }
   },
@@ -1100,6 +1133,7 @@ const Particles = {
     this.kn += 100; this.pairs++; this.cheated = true; this.en = E_CAP; if (!this.lit) this.ignite(); this.rs.ph = Math.max(1, this.rs.ph); Codex.auto.add('ph'); Codex.auto.add('g'); this.rs.g = 1; PH_CLS.forEach((c, i) => this.phSeen.add(i)); this.full = true; if (!this.gOn) this.unlockGluons();
     for (const sp of CHAINS.flat()) this.decSeen.add(sp);
     if (this.ep === 1) this.higT = 99;
+    if (this.ep === 3) { this.rs.cp = 1; while (this.safe.length < AUTO_TRIO) this.addSafe(); }
     if (this.ep === 3) while (this.stock < STOCK_GOAL) { this.stock++; this.stockQ.push({ fl: this.stock % 3 === 2 ? 'd' : 'u', col: this.stockQ.length % 3 }); }
   },
   // Что сейчас нужно снять: в эпохе 2 — H и W/Z, в эпохе 3 — распады цепочек
@@ -1330,6 +1364,12 @@ const Particles = {
       // запас вещества кружит внутри детектора
       for (let i = 0; i < this.stock; i++) { const p = this.stockPos(i), [bx, by] = W2S(p.x, p.y); ball(bx, by, 4.5, QCOL[this.stockQ[i].col]); }
     }
+    // тройки, что Вселенная сберегла сама: мягкое зелёное свечение, три цвета треугольником
+    if (this.ep === 3 && !this.stockOut) for (const t of this.safe) {
+      const a = Math.min(1, (G.T - t.t0) * 2), c = this.safePos(t), [cx, cy] = W2S(c.x, c.y);
+      glow(cx, cy, .45 * z, [140, 235, 170], .25 * a);
+      for (let k = 0; k < 3; k++) { const p = this.safePos(t, k), [bx, by] = W2S(p.x, p.y); line(cx, cy, bx, by, [220, 255, 230], .35 * a, 1.2); ball(bx, by, 3.5, QCOL[k], a); }
+    }
     if (this.ep === 3 && !this.stockOut) {
       // счётчик цветов справа от детектора: каких меньше всего — пульсирующее золотое кольцо
       const c = this.colCnt(), mn = Math.min(...c);
@@ -1534,10 +1574,10 @@ const Particles = {
     const done = this.doneAt !== null;
     let left, col = [255, 255, 255];
     if (this.ep < 3) { left = `${done ? '✓ ' : ''}${fmtClock(this.epClock)}`; col = done ? [140, 235, 170] : this.epClock > PAR[this.ep] ? [190, 190, 205] : col; }
-    else left = `⏳ ${fmtClock(this.T > .4 ? EPOCHS[3].tau / this.ff * Math.log(this.T / .4) : 0)}`;
+    else left = done ? `⏳ ${fmtClock(this.T > .4 ? EPOCHS[3].tau / 4 * Math.log(this.T / .4) : 0)}` : fmtClock(this.epClock);
     hudClock(alpha, left, col, this.bal(), []);
     if (!this.advanced) hudTask(alpha, this.tk, !this.lit && !this.ep ? 'ПРОЛОГ' : `ЭПОХА ${this.ep + 1}`, this.steps(), this.stars,
-      this.ep === 3 ? 'Вселенная остывает — лови ещё кварки: больше барионов на следующем уровне' : 'Готово!');
+      this.ep === 3 ? 'Вселенная научилась сама — остывает; лови ещё кварки: больше барионов на следующем уровне' : 'Готово!');
   },
   // Заголовок эпохи: всплывает и гаснет, игру не останавливает
   drawBanner(alpha) {

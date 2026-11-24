@@ -1,6 +1,10 @@
 "use strict";
 // Общее состояние, камера, ввод, эффекты.
-const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0, stage: null, prev: null, trans: 1, started: false, ended: false, fx: [] };
+const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0, stage: null, prev: null, trans: 1, started: false, ended: false, fx: [], score: 0 };
+// Очки — только для счёта: копятся весь забег, не тратятся (✦ — валюта уровня, её тратят на исследования).
+// Каждый добытый ✦ приносит 10 очков (main.js следит за kn уровня); прочее — addScore.
+function addScore(n) { G.score += Math.max(0, Math.round(n)); }
+const fmtScore = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const cam = { x: 0, y: 0, z: 40 };
 // idle — палец отпущен: цели нет, тело плавно тормозит (мышь остаётся на месте и ведёт дальше)
 const mouse = { x: 0, y: 0, has: false, down: false, idle: false };
@@ -50,13 +54,15 @@ function drawFx() {
 }
 
 // ---------- общий интерфейс уровней: часы, цели, заголовок, стрелки ----------
-// Часы и очки — сверху по центру, под ними цели «фишками» [текст, выполнено]
+// Часы, ✦ и очки забега — сверху по центру, под ними цели «фишками» [текст, выполнено]
 function hudClock(alpha, left, leftCol, pts, chips) {
   const x = G.W / 2, y = 24;
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = 'rgba(10,9,18,.55)'; ctx.beginPath(); ctx.roundRect(x - 100, y - 17, 200, 34, 10); ctx.fill();
-  label(left, x - 46, y, 20, leftCol, 1, 700);
-  label(`${pts} ✦`, x + 50, y, 20, [255, 215, 110], 1, 700);
+  ctx.fillStyle = 'rgba(10,9,18,.55)'; ctx.beginPath(); ctx.roundRect(x - 140, y - 17, 280, 34, 10); ctx.fill();
+  label(left, x - 88, y, 20, leftCol, 1, 700);
+  label(`${pts} ✦`, x - 4, y, 20, [255, 215, 110], 1, 700);
+  label(fmtScore(G.score), x + 86, y - 3, 17, [235, 238, 250], 1, 800);
+  label('очки', x + 86, y + 11, 9, [190, 195, 215], .75, 600);
   ctx.font = '700 12px system-ui,sans-serif';
   const ws = chips.map(([t, d]) => ctx.measureText((d ? '✓ ' : '') + t).width + 18), gap = 6;
   let gx = x - (ws.reduce((s, w) => s + w, 0) + gap * (chips.length - 1)) / 2;
@@ -222,6 +228,33 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   }
   ctx.globalAlpha = 1;
 }
+
+// ---------- итоги уровня: ненавязчиво, сбоку, игру не останавливают ----------
+// Уровень даёт tally(): { name, rows: [[подпись, значение]], auto: [сама, всего] | null, stars }.
+// Здесь же: бонус за пройденный уровень и за долю, отданную Вселенной; рекорд уровня — молча в таблицу.
+const TALLY_T = 8, LVL_BONUS = 500, AUTO_BONUS = 1000;
+const Tally = {
+  t: 0,
+  show(st) {
+    const d = st.tally ? st.tally() : { name: st.name, rows: [] };
+    const auto = d.auto && d.auto[1] > 0 ? clamp(d.auto[0] / d.auto[1], 0, 1) : null;
+    addScore(LVL_BONUS); if (auto !== null) addScore(AUTO_BONUS * auto);
+    const lvl = Math.round(G.score - (st.scoreAt || 0)), stars = d.stars || [];
+    let place = null;
+    if (!st.cheated) { const r = LB.add('run.' + st.key, { n: LB.name(), s: lvl, t: Math.floor(st.clock ?? st.t ?? 0), d: Date.now() }); place = r.place; }
+    const row = (k, v, c = '') => `<div class="${c}"><span>${k}</span><b>${v}</b></div>`;
+    const el = document.getElementById('tally');
+    el.innerHTML = `<div class="tk">УРОВЕНЬ ${G.stageI + 1} · ПРОЙДЕН</div><div class="tn">${d.name}</div>` +
+      (auto !== null ? `<div class="ta"><i style="width:${Math.round(auto * 100)}%"></i><span>Вселенная сама — ${Math.round(auto * 100)} %</span></div>` : '') +
+      d.rows.map(([k, v]) => row(k, v, 'tx')).join('') +
+      (stars.length ? `<div class="ts">${stars.map(s => s.st === 1 ? '★' : '☆').join('')}</div>` : '') +
+      row('уровень пройден', '+' + LVL_BONUS, 'tb') + (auto !== null ? row('отдано Вселенной', '+' + Math.round(AUTO_BONUS * auto), 'tb') : '') +
+      row('очки за уровень', fmtScore(lvl), 'tl') + row('всего', fmtScore(G.score), 'tt') +
+      (place === 0 ? '<div class="tr">🏆 рекорд уровня</div>' : place !== null ? `<div class="tr">#${place + 1} в таблице уровня</div>` : '');
+    el.classList.add('on'); this.t = TALLY_T;
+  },
+  tick(dt) { if (this.t > 0 && (this.t -= dt) <= 0) document.getElementById('tally').classList.remove('on'); },
+};
 
 let msgT = 0, lastMsg = '';
 function msg(t, dur = 3.8) {

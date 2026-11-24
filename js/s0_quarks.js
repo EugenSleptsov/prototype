@@ -1,7 +1,9 @@
 "use strict";
 /* Уровень 2. Адроны: из кварк-глюонной плазмы — протоны и нейтроны.
-   Материал — ровно те кварки, что ты сберёг в эпохе аннигиляции: они вылетают из детектора,
-   новых из ниоткуда не появляется (кроме пар от порванной струны — это E = mc²).
+   Материал — сначала те кварки, что ты сберёг в эпохе аннигиляции (они вылетают из детектора), а дальше
+   кварки со всей Вселенной приходят из-за края (у тебя — лишь кусочек плазмы).
+   Автоматизация: собери HAND_Q барионов полем — и исследуй «Конфайнмент сам»: Вселенная начинает сама
+   стягивать тройки R·G·B в барионы. Когда она собрала AUTO_Q — уровень пройден: дальше без тебя.
    Физика:
    - Пока плазма горячая (T > ~180 МэВ), кварки свободны и не слипаются.
    - Остыла — конфайнмент: кварки связываются струнами в бесцветные состояния.
@@ -12,6 +14,7 @@ const QCOL = [[255, 60, 90], [70, 235, 120], [80, 140, 255]];
 const QANTI = [[60, 230, 240], [240, 90, 240], [250, 225, 70]]; // анти-красный = голубой и т.д.
 const QR = .26, BIND = .62, D0 = .55, KSTR = 9, DBREAK = 2.6;
 const Q_PAR = 60, Q_WR = 7.5, Q_T0 = 4.6; // эталон времени, радиус области, стартовая T (10¹² K ≈ 400 МэВ)
+const HAND_Q = 3, AUTO_Q = 5, CONF_COST = 25, FLOW_N = 9; // барионов руками, Вселенной, цена исследования, свободных кварков в притоке
 
 const Quarks = {
   key: 'quarks', name: 'Адроны', bg: [34, 6, 26], controls: '',
@@ -22,6 +25,7 @@ const Quarks = {
     this.focus = null; this.holding = false; this.hold = 0; this.learn = {}; this.floats = [];
     this.kn = 0; this.clock = 0; this.doneAt = null; this.endCd = -1; this.banner = -1.5; this.made = { p: 0, n: 0 }; this.mine = 0;
     this.st = { passive: 0, delta: 0 }; this.tk = {};
+    this.spent = 0; this.rs = { conf: 0 }; this.handN = 0; this.autoN = 0; this.flowCd = 1; this.asm = null; this.asmCd = 0;
     this.hr = prev && prev.hr ? prev.hr() : 1.4;
     const src = prev && prev.handoff || [];
     // сбережённые кварки вырываются из детектора там же, где кружили, оставляя треки, и растут до размера кварка
@@ -77,6 +81,7 @@ const Quarks = {
   onBaryon(grp) {
     const c = centroid(grp.m), hand = grp.m.some(x => x.cap || x.hand > 0);
     const pts = hand ? 10 : 4; if (!hand) this.st.passive++;
+    if (hand) this.handN++; else if (this.rs.conf) this.autoN++;
     this.kn += pts; this.made[grp.kind]++;
     if (!this.mine && hand) this.mine = grp.id;
     for (const x of grp.m) { x.cap = false; x.hand = 0; }
@@ -298,20 +303,92 @@ const Quarks = {
     if (!act) return; // этап гаснет: барионы на тех же местах становятся нуклонами уровня ядер
     if (!live) return;
     // всё, что можно было собрать, собрано
-    if (this.doneAt === null && this.conf > .5 && !this.spare() && !this.q.some(o => o.cap)) {
-      this.doneAt = this.clock; this.endCd = 1.4; this.release(); this.holding = false;
+    if (this.doneAt === null) { this.flow(dt); this.autoAsm(dt); }
+    if (this.doneAt === null && this.steps().every(g => g.d) && !this.q.some(o => o.cap)) {
+      this.doneAt = this.clock; this.endCd = 1.4; this.release(); this.holding = false; this.asm = null;
       this.tickStars(true);
+      this.float(P.x, P.y - this.hr - .5, 'Вселенная собирает барионы сама ✓', [140, 235, 170], 17);
     }
     if (this.doneAt === null) this.tickStars(false);
-    if (this.endCd > 0 && (this.endCd -= dt) <= 0) this.showResult();
+    if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; advance(); }
+  },
+
+  // ---------- кварки со всей Вселенной и конфайнмент сам ----------
+  freeQ() { return this.q.filter(o => !o.dead && !o.anti && !o.g && !o.cap); },
+  // из-за края приходят кварки: того цвета и аромата, которых среди свободных меньше
+  flow(dt) {
+    if (this.conf < .2 || (this.flowCd -= dt) > 0) return;
+    this.flowCd = .7;
+    const f = this.freeQ(); if (f.length >= FLOW_N) return;
+    const cc = [0, 1, 2].map(c => f.filter(o => o.col === c).length), col = cc.indexOf(Math.min(...cc));
+    const nu = f.filter(o => o.fl === 'u').length, fl = nu <= f.length - nu ? 'u' : 'd';
+    const a = Math.random() * TAU, d = Q_WR * .95, q = this.mk(this.C.x + Math.cos(a) * d, this.C.y + Math.sin(a) * d, col, false, fl);
+    q.vx = -Math.cos(a) * 2.5; q.vy = -Math.sin(a) * 2.5;
+  },
+  // Вселенная сама: выбирает ближайшую тройку R·G·B (не uuu/ddd) и стягивает её, пока не слипнется
+  autoAsm(dt) {
+    if (!this.rs.conf || this.conf < .5) return;
+    const A = this.asm;
+    if (A) {
+      A.t += dt;
+      if (A.m.some(o => o.dead || o.g || o.cap) || A.t > 6) { this.asm = null; this.asmCd = .4; return; }
+      const c = centroid(A.m);
+      for (const o of A.m) {
+        const dx = c.x - o.x, dy = c.y - o.y, d = Math.hypot(dx, dy) || 1e-6;
+        const k = Math.min(14, 4 + 3 * d) * dt; o.vx += dx / d * k; o.vy += dy / d * k; o.nb = 0;
+        const dr = Math.exp(-dt * 3); o.vx *= dr; o.vy *= dr;
+      }
+      if (A.m.every(o => Math.hypot(o.x - c.x, o.y - c.y) < BIND * .55)) {
+        const [a, b, e] = A.m; this.join(a, b); this.join(a, e); this.asm = null; this.asmCd = .9;
+      }
+      return;
+    }
+    if ((this.asmCd -= dt) > 0) return;
+    const f = this.freeQ().filter(o => o.age > .6 && Math.hypot(o.x - P.x, o.y - P.y) > this.fr() * .8); // поле игрока не трогаем
+    let best = null, bs = Infinity; // ближайшая тройка — где бы она ни была
+    for (const a of f) for (const b of f) {
+      if (b === a || b.col === a.col) continue;
+      const dab = Math.hypot(a.x - b.x, a.y - b.y); if (dab >= bs) continue;
+      for (const e of f) {
+        if (e === a || e === b || e.col === a.col || e.col === b.col || (a.fl === b.fl && b.fl === e.fl)) continue;
+        const s = dab + Math.hypot(a.x - e.x, a.y - e.y); if (s < bs) { bs = s; best = [a, b, e]; }
+      }
+    }
+    if (best) { this.asm = { m: best, t: 0 }; Sfx.play('grab'); } else this.asmCd = .5;
+  },
+  // исследование — в лавке ✦ (как на уровне частиц)
+  bal() { return Math.floor(this.kn - this.spent); },
+  shopItems() { return this.handN >= HAND_Q && !this.rs.conf ? [{ ic: '◬', name: 'Конфайнмент сам', about: 'Вселенная собирает барионы', c: CONF_COST }] : []; },
+  keyOf() { return this.shopItems().length ? 1 : null; },
+  buy(i) {
+    const it = this.shopItems()[i];
+    if (!it || !G.started || G.paused || this.doneAt !== null) return;
+    if (this.bal() < it.c) { this.float(P.x, P.y - this.hr - .2, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
+    this.spent += it.c; this.rs.conf = 1; this.asmCd = .6; Sfx.play('upgrade');
+    fxRing(P.x, P.y, this.hr, GOLD, Q_WR, 1.4);
+    this.float(P.x, P.y - this.hr - .3, '◬ Вселенная собирает сама', GOLD, 16);
+  },
+  renderShop(el) {
+    const items = this.shopItems();
+    if (!G.started || this.advanced || !items.length) { el.style.display = 'none'; return; }
+    const b = this.bal();
+    const html = items.map((r, k) => `<button data-i="${k}" class="res ${b >= r.c ? 'ok' : 'no'}"><span class="k">${k + 1}</span>` +
+      `<span class="ic">${r.ic}</span><b>${r.name}</b><i>${r.about}</i><em>${r.c} ✦</em></button>`).join('');
+    if (el._h !== html) { el._h = html; el.innerHTML = html; el.classList.remove('many'); }
+    if (!el.onclick) el.onclick = e => { const bt = e.target.closest('button'); if (bt && G.stage.buy) G.stage.buy(+bt.dataset.i); };
+    el.style.display = 'flex';
+  },
+  tally() {
+    const n = this.made.p + this.made.n, self = n - this.handN;
+    return { name: 'Адроны', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['p⁺ · n⁰', `${this.made.p} · ${this.made.n}`], ['барионы — полем', this.handN], ['барионы — Вселенная сама', self]], auto: [self, n], stars: this.stars || [] };
   },
 
   // ---------- задание и испытания ★ ----------
   starPool() {
     const st = this.st;
     return [
-      { t: 'быстрее 0:30', bad: () => this.clock > 30, atEnd: true },
-      { t: 'все барионы — полем', bad: () => st.passive > 0, atEnd: true },
+      { t: 'быстрее 0:45', bad: () => this.clock > 45, atEnd: true },
+      { t: '5 барионов полем', ok: () => this.handN >= 5 },
       { t: 'ни одного Δ', bad: () => st.delta > 0, atEnd: true },
       { t: '2 p⁺ и 2 n⁰', ok: () => this.made.p >= 2 && this.made.n >= 2, can: () => this.q.length >= 12 },
     ];
@@ -321,15 +398,17 @@ const Quarks = {
     tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - this.hr - .4, '★ +10 ✦', [255, 215, 110], 17); });
   },
   steps() {
-    const n = this.made.p + this.made.n, all = n + this.spare();
+    const touch = isTouch();
     return [
       { t: 'Жди конфайнмента', h: 'плазма остывает — кварки вот-вот начнут слипаться…', s: 'конфайнмент', d: this.conf > .5 },
-      { t: 'Собери барионы', h: 'зажми возле трёх кварков разных цветов — R, G и B', p: [n, all], s: 'все барионы собраны', d: this.doneAt !== null },
+      { t: 'Собери барионы полем', h: 'зажми возле трёх кварков разных цветов — R, G и B', p: [Math.min(this.handN, HAND_Q), HAND_Q], s: `${HAND_Q} бариона полем`, d: this.handN >= HAND_Q },
+      { t: 'Исследуй «Конфайнмент сам»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${CONF_COST} ✦ — Вселенная начнёт собирать барионы сама`, s: 'конфайнмент сам', d: this.rs.conf > 0 },
+      { t: 'Вселенная собирает сама', h: 'кварки со всей Вселенной слипаются в p⁺ и n⁰ без тебя — помогай полем, если хочешь', p: [Math.min(this.autoN, AUTO_Q), AUTO_Q], s: 'Вселенная умеет сама', d: this.autoN >= AUTO_Q },
     ];
   },
 
-  // ---------- итоги ----------
-  showResult() {
+  // ---------- итоги (старая модальная карточка; итоги теперь — Tally сбоку) ----------
+  showResultCard() {
     const won = starsWon(this.stars || []);
     const t = this.doneAt, pts = Math.round(this.kn), bonus = t === null ? 0 : Math.max(0, Math.round((Q_PAR - t) * 2)), total = pts + bonus;
     const e = { n: LB.name(), s: total, p: pts, t: t === null ? null : Math.floor(t), d: Date.now() };
@@ -351,7 +430,7 @@ const Quarks = {
     el.style.display = 'none'; G.paused = false;
     if (this.res && !this.advanced) { this.advanced = true; this.res = null; advance(); }
   },
-  cheat() { this.t = Math.max(this.t, 20); this.cheated = true; },
+  cheat() { this.t = Math.max(this.t, 20); this.cheated = true; this.handN = Math.max(this.handN, HAND_Q); this.kn += CONF_COST; },
 
   // ---------- рисование ----------
   tube(x1, y1, x2, y2, c, w, al) {
@@ -386,6 +465,12 @@ const Quarks = {
           label(grp.kind === 'p' ? 'p⁺' : 'n⁰', cx, cy - 1.05 * z, 12, [255, 255, 255], .7 * al, 700);
         }
       } else if (pts.length === 2) this.tube(pts[0][0], pts[0][1], pts[1][0], pts[1][1], c, w, al * flick);
+    }
+    // тройка, которую стягивает Вселенная: тонкие зелёные нити к центру
+    if (this.asm) {
+      const c = centroid(this.asm.m), [cx, cy] = W2S(c.x, c.y), k = Math.min(1, this.asm.t * 2);
+      for (const o of this.asm.m) { const [ox, oy] = W2S(o.x, o.y); ctx.setLineDash([3, 4]); line(cx, cy, ox, oy, [140, 235, 170], .6 * k * al, 1.5); ctx.setLineDash([]); }
+      glow(cx, cy, .6 * z, [140, 235, 170], .25 * k * al);
     }
     // треки вылета из детектора: как в пузырьковой камере уровня частиц, гаснут за пару секунд
     for (const q of this.q) {
@@ -455,9 +540,9 @@ const Quarks = {
     if (!G.started || this.advanced) return;
     const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
     const n = this.made.p + this.made.n, all = n + this.spare();
-    hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > Q_PAR ? [190, 190, 205] : [255, 255, 255], Math.round(this.kn), []);
+    hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > Q_PAR ? [190, 190, 205] : [255, 255, 255], this.bal(), []);
     if (this.stars) hudTask(al, this.tk, 'УРОВЕНЬ 2', this.steps(), this.stars, `Собрано: ${n} p⁺/n⁰`);
-    hudBanner(this.banner, 'УРОВЕНЬ 2 · 10⁻⁶ с', 'Адроны', this.nSaved ? `${this.nSaved} сбережённых кварков → протоны и нейтроны` : 'собери из кварков протоны и нейтроны', al);
+    hudBanner(this.banner, 'УРОВЕНЬ 2 · 10⁻⁶ с', 'Адроны', this.nSaved ? `${this.nSaved} сбережённых кварков → протоны и нейтроны — научи Вселенную делать это сама` : 'собери из кварков протоны и нейтроны — и научи Вселенную делать это сама', al);
     ctx.globalAlpha = 1;
   },
   viewR() { return 3.6 + this.hr * 1.4; },

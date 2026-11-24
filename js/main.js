@@ -6,8 +6,9 @@ const TRANS_DUR = 3;
 // Переход: старый этап продолжает жить и гаснет, новый проявляется и забирает его частицы.
 function advance() {
   if (G.stageI >= STAGES.length - 1) return;
+  Tally.show(G.stage);
   G.prev = G.stage; G.stageI++; G.stage = STAGES[G.stageI]; G.trans = 0; Sfx.hum(0); Sfx.play('segment');
-  G.stage.enter(G.prev);
+  G.stage.enter(G.prev); G.stage.scoreAt = G.score;
 }
 function endGame(text) {
   if (G.ended) return;
@@ -108,6 +109,13 @@ document.getElementById('go').onclick = () => {
 // ---------- цикл ----------
 function update(dt) {
   G.T += dt; P.dashCd -= dt; P.dashT -= dt;
+  // каждый добытый ✦ уровня — 10 очков забега (kn у уровней только растёт; траты — отдельно)
+  const kn = G.stage.kn;
+  if (typeof kn === 'number') {
+    if (G.knOf !== G.stage) { G.knOf = G.stage; G.knSeen = kn; }
+    if (kn > G.knSeen) { addScore((kn - G.knSeen) * 10); G.knSeen = kn; }
+  }
+  Tally.tick(dt);
   G.stage.update(dt, true);
   if (G.prev) {
     G.trans += dt / TRANS_DUR;
