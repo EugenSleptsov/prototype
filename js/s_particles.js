@@ -12,8 +12,8 @@
    - ✦ знания добываются ловлей фотонов и снимками и тратятся на исследования мира прямо в игре.
    - Улучшения детектора — отдельный пул: очки ★ (выполнил эпоху — 1, каждое испытание ★ — ещё 1),
      тратятся на карточке итогов эпохи (клавиши 1–4).
-   - Пролог «Разогрев»: инфляция кончилась, вокруг детектора колеблется поле-инфлатон (кольцо то сжимается,
-     то расширяется). Его надо раскачать, как качели: зажимать, пока кольцо сжимается, и отпускать в самой
+   - Пролог «Разогрев»: инфляция кончилась, поле-инфлатон — шарик в чаше потенциала V(φ), катается туда-сюда.
+     Его надо раскачать, как качели: зажатое поле толкает шарик влево — зажимать, пока он катится влево, и отпускать в самой
      узкой точке (золотой круг). Зажал не вовремя — раскачка гаснет. На каждом отскоке поле отдаёт энергию в
      свет: из кольца вылетают пары фотонов, тем жёстче, чем сильнее размах, и остаются в мире эпохи 1.
      Чем сильнее размах — тем быстрее ритм; кольцо дошло до красной черты — срыв, раскачка пропадает.
@@ -50,11 +50,12 @@ const RES_MAX = 4; // исследований в панели ✦ одновр�
 // Три спектра разогрева на выбор: диапазон k (T = k·1 ТэВ), имя и цвет отметок
 // h — с какой доли шкалы разогрева начинается этот разогрев
 const PROF = [{ n: 'холодный', k: [.82, .92], c: [130, 195, 255], h: 0 }, { n: 'тёплый', k: [1.05, 1.18], c: [255, 215, 110], h: .4 }, { n: 'горячий', k: [1.38, 1.5], c: [255, 120, 200], h: .75 }];
-// Пролог — резонанс инфлатона. Размах A (0…1), фаза θ: радиус кольца R0·(1 + amp·A·cos θ), θ ∈ (0, π) — сжимается.
+// Пролог — резонанс инфлатона: шарик в чаше V(φ) ∝ φ². Размах A (0…1), фаза θ: φ = A·cos θ, θ ∈ (0, π) — катится влево.
+// Зажал — толчок влево. Свет рождается, когда шарик проходит дно (φ = 0). R — полуширина чаши в радиусах детектора.
 // Зажатое поле тянет внутрь: dA/dt = f·ω·sin θ — на сжатии раскачивает, на расширении гасит (как качели).
 // Отскок (θ = π) отдаёт долю eta размаха в свет: шкала += kap·A². Ритм ω = w0·(1 + wk·A). A > crit — срыв до snapA.
 // life — сколько секунд живёт поле после первого нажатия (или после wait секунд без нажатий).
-const INF = { A0: .2, w0: TAU / 1.8, wk: 1, f: .08, damp: .03, eta: .06, kap: .09, crit: 1, snapA: .15, life: 18, wait: 8, amp: .65, R: 3.2 };
+const INF = { A0: .2, w0: TAU / 1.8, wk: 1, f: .08, damp: .03, eta: .06, kap: .09, crit: 1, snapA: .15, life: 18, wait: 8, R: 2.6, deep: .75, low: .4 };
 // Классы фотонов по энергии относительно температуры (x = E/T, тепловой спектр): доля, ⚡, ✦ за первую находку (k)
 // и ✦ за каждый пойманный (kn) — главный «клик» экономики: больше света в мире → быстрее копятся ✦
 const PH_CLS = [
@@ -244,36 +245,36 @@ const Particles = {
     if (I.hold) { const d = INF.f * w * Math.sin(I.th) * dt; I.A += d; if (d > 0) I.gain += d; else I.loss -= d; }
     I.A = Math.max(.08, I.A * (1 - INF.damp * dt));
     const th2 = I.th + w * dt;
-    if (Math.floor((th2 - Math.PI) / TAU) > Math.floor((I.th - Math.PI) / TAU)) this.infBounce();
+    if (Math.floor((th2 - Math.PI / 2) / Math.PI) > Math.floor((I.th - Math.PI / 2) / Math.PI)) this.infBounce();
     I.th = th2;
     if (I.A > INF.crit) this.infSnap();
     Sfx.hum(I.hold ? .15 + .85 * Math.min(1, I.A) : 0);
     if (I.go && I.t >= INF.life) this.ignite(this.profOf(I.H));
   },
-  // Радиус кольца (в мире) в самой узкой точке качания
-  infRin() { return this.hr() * INF.R * (1 - INF.amp * Math.min(1, this.inf.A)); },
-  // Отскок: поле отдаёт часть размаха в свет — из кольца разлетаются пары фотонов, тем жёстче, чем сильнее размах
+  // Чаша (в мире): полуширина, глубина до черты срыва, дно — под центром детектора
+  infBowl() { const w = this.hr() * INF.R; return { w, d: w * INF.deep, bx: P.x, by: P.y + w * INF.low }; },
+  // Проход дна: поле отдаёт часть размаха в свет — со дна разлетаются пары фотонов, тем жёстче, чем сильнее размах
   infBounce() {
     const I = this.inf, A = Math.min(1, I.A); I.flash = 1;
-    if (!I.go) return; // пока не тронул — кольцо только показывает ритм
-    I.H = Math.min(1, I.H + INF.kap * A * A); I.A -= INF.eta * I.A;
-    const c0 = A < .3 ? 0 : A < .55 ? 1 : A < .8 ? 2 : 3, n = 1 + (A > .5) + (A > .85), R = this.infRin();
+    if (!I.go) return; // пока не тронул — шарик только показывает ритм
+    I.H = Math.min(1, I.H + INF.kap * A * A / 2); I.A -= INF.eta / 2 * I.A;
+    const c0 = A < .3 ? 0 : A < .55 ? 1 : A < .8 ? 2 : 3, n = 1 + (A > .7), B = this.infBowl(), R = this.hr() * .4;
     for (let k = 0; k < n; k++) {
       const c = Math.random() < .3 ? Math.max(0, c0 - 1) : c0, C = PH_CLS[c], hi = c < 3 ? PH_CLS[c + 1].x : 11;
       const a = Math.random() * TAU, p = this.T * rnd(Math.max(.6, C.x + .2), hi - .2);
-      for (const s of [0, Math.PI]) { const o = this.mk('ph', false, P.x + Math.cos(a + s) * R, P.y + Math.sin(a + s) * R, a + s, p); o.cd = .6; }
+      for (const s of [0, Math.PI]) { const o = this.mk('ph', false, B.bx + Math.cos(a + s) * R, B.by + Math.sin(a + s) * R, a + s, p); o.cd = .6; }
     }
-    const C = PH_CLS[c0]; this.kn += 1;
-    fxRing(P.x, P.y, R, C.c, R + this.hr() * (1 + A), .5); Sfx.play('pert', c0);
+    const C = PH_CLS[c0]; this.kn += .5;
+    fxRing(B.bx, B.by, R * .5, C.c, R + this.hr() * (.6 + A), .5); Sfx.play('pert', c0);
     const z = this.profOf(I.H).i;
     if (z > I.zone) { I.zone = z; const p = PROF[z]; Sfx.play('goal'); this.float(P.x, P.y - this.hr() * 2.2, `${p.n} разогрев`, p.c, 16); }
   },
   // Срыв: размах дошёл до красной черты — поле дробится в мягкий свет, раскачку начинать заново
   infSnap() {
     const I = this.inf; I.A = INF.snapA; I.snaps++; I.snapFx = 2.5; I.hold = false; I.gain = I.loss = 0;
-    const R = this.hr() * INF.R * (1 - INF.amp);
-    for (let k = 0; k < 3; k++) fxRing(P.x, P.y, R * (.6 + .3 * k), [255, 90, 80], this.hr() * (2.5 + .6 * k), .5 + .1 * k);
-    fxFlash(P.x, P.y, this.hr() * 2, [255, 80, 70], .4); Sfx.play('overheat');
+    const B = this.infBowl(), x = B.bx + B.w * Math.sign(Math.cos(I.th) || 1), y = B.by - B.d; // шарик вылетел за край
+    for (let k = 0; k < 3; k++) fxRing(x, y, this.hr() * (.3 + .3 * k), [255, 90, 80], this.hr() * (1.5 + .6 * k), .5 + .1 * k);
+    fxFlash(x, y, this.hr(), [255, 80, 70], .4); Sfx.play('overheat');
     this.float(P.x, P.y - this.hr() * 2.2, 'срыв резонанса', [255, 120, 110], 15);
   },
   // Поле распалось — Вселенная разогрета до набранной температуры; света в ней до конца уровня ∝ T^1,5
@@ -1049,7 +1050,7 @@ const Particles = {
     const buy = sp => touch ? 'в лавке за ✦' : `за ✦, клавиша ${this.keyOf(sp) || '?'}`, tap = touch ? 'коснись' : 'кликни';
     switch (this.ep) {
       case 0: return [
-        { t: 'Раскачай поле', h: 'зажимай, пока кольцо сжимается, отпускай у золотого круга. Сильнее размах — горячее Вселенная', s: `${this.inf.pick ? this.inf.pick.n : ''} разогрев · ${fmtGeV(this.T0)}`, d: this.lit },
+        { t: 'Раскачай поле, как качели', h: 'зажатое поле толкает шарик влево: держи, пока он катится влево, отпускай на краю. Каждый проход дна — свет; выше размах — горячее Вселенная', s: `${this.inf.pick ? this.inf.pick.n : ''} разогрев · ${fmtGeV(this.T0)}`, d: this.lit },
         { t: 'Исследуй свет', h: `${buy('ph')} — Вселенная начнёт рождать γ сама`, s: 'свет рождается сам', d: this.rs.ph > 0 },
         { t: 'Измерь спектр', h: 'лови фотоны кругом — пойманный измерен; найди 3 класса из 4', items: PH_CLS.map((c, i) => [c.n, this.phSeen.has(i)]), s: 'спектр измерен', d: this.phSeen.size >= 3 },
         { t: this.gOn ? 'Сними глюон' : 'Исследуй глюоны', h: this.gOn ? 'глюоны уже в мире — поймай один' : `${buy('g')} — и сними глюон`, s: 'глюон открыт', d: has('g') },
@@ -1349,7 +1350,7 @@ const Particles = {
     }
     for (const tr of this.tracks) if (Math.hypot(tr.x - P.x, tr.y - P.y) < this.hr() && tr.sps.some(sp => !Codex.has(sp))) unk++;
     this.drawField(sx, sy, r);
-    this.drawInflaton(sx, sy, r);
+    this.drawInflaton(sx, sy);
     // вспышка затвора
     if (this.shotFx > 0) glow(sx, sy, r, [255, 255, 255], .14 * this.shotFx / .35);
     glow(sx, sy, r, [255, 255, 255], ready ? .05 : .02);
@@ -1370,28 +1371,35 @@ const Particles = {
     }
     ctx.globalAlpha = 1;
   },
-  // Пролог: кольцо поля вокруг детектора. Золотой круг — самая узкая точка качания (здесь отпускать),
-  // красный пунктир — черта срыва; на сжатии — стрелки внутрь. Зажал — клин: толще, чем больше раскачал;
-  // красный и дрожит, если держишь на расширении (гасишь раскачку).
-  drawInflaton(sx, sy, r) {
+  // Пролог: чаша потенциала V(φ) с шариком-полем. Красный пунктир — черта срыва, золотые риски — размах.
+  // Шарик катится влево — под ним золотая стрелка «←» (сейчас толкать); вправо — серая «→» (отпусти).
+  // Зажал — стрелка толчка: золотая, если шарик катится влево; красная и дрожит, если вправо (гасишь).
+  drawInflaton(sx, sy) {
     if (this.lit || this.ep) return;
-    const I = this.inf, A = Math.min(1.05, I.A), R0 = r * INF.R, am = INF.amp, th = I.th;
-    const R = R0 * (1 + am * A * Math.cos(th)), Rin = R0 * (1 - am * A), Rc = R0 * (1 - am * INF.crit), inward = Math.sin(th) > 0;
-    const c = PH_CLS[A < .3 ? 0 : A < .55 ? 1 : A < .8 ? 2 : 3].c, dang = smooth(.6, 1, A);
-    ring(sx, sy, Rc, [255, 80, 70], .12 + .6 * dang, 1.5 + 1.5 * dang, [4, 5]);
-    ring(sx, sy, R0 * (1 + am * A), [255, 255, 255], .1, 1, [3, 6]);
-    ring(sx, sy, Rin, GOLD, inward ? .45 + .4 * smooth(.5, 1, th % TAU / Math.PI) : .25, inward ? 2 : 1.2);
-    glow(sx, sy, R * 1.1, c, .04 + .08 * A + .14 * I.flash);
-    ring(sx, sy, R, mixc(c, [255, 255, 255], .5 * I.flash), .45 + .45 * A, 2 + 4 * A);
-    if (inward) for (let k = 0; k < 6; k++) { // сжимается — стрелки внутрь
-      const an = k * TAU / 6 + G.T * .2, ux = Math.cos(an), uy = Math.sin(an), vx = -uy, vy = ux, x = sx + ux * (R + 9), y = sy + uy * (R + 9);
-      line(x + ux * 8 + vx * 7, y + uy * 8 + vy * 7, x, y, c, .85, 2.2); line(x + ux * 8 - vx * 7, y + uy * 8 - vy * 7, x, y, c, .85, 2.2);
-    }
-    if (I.hold) {
-      const lose = Math.sin(th) < 0, k = clamp((I.gain - I.loss) / .16, 0, 1), a0 = -Math.PI / 2, jit = lose ? Math.sin(G.T * 50) * 2.5 : 0;
-      wedge(sx, sy, r + 10, a0, a0 + TAU, 2, 16, [255, 255, 255], .07);
-      wedge(sx + jit, sy, r + 10, a0, a0 + TAU * Math.max(.02, k), 2, 2 + 14 * k, lose ? [255, 80, 70] : GOLD, .95);
-    }
+    const I = this.inf, A = Math.min(1.05, I.A), z = cam.z, B = this.infBowl(), w = B.w * z, d = B.d * z;
+    const [bx, by] = W2S(B.bx, B.by), th = I.th, u = A * Math.cos(th), left = Math.sin(th) > 0;
+    const Y = v => by - d * v * v, c = PH_CLS[A < .3 ? 0 : A < .55 ? 1 : A < .8 ? 2 : 3].c, dang = smooth(.6, 1, A);
+    // чаша
+    ctx.beginPath();
+    for (let k = 0; k <= 40; k++) { const v = -1.12 + 2.24 * k / 40; k ? ctx.lineTo(bx + w * v, Y(v)) : ctx.moveTo(bx + w * v, Y(v)); }
+    ctx.strokeStyle = rgb([200, 215, 255], .55); ctx.lineWidth = 2.5; ctx.stroke();
+    // черта срыва
+    ctx.setLineDash([5, 5]); line(bx - w * 1.12, Y(INF.crit), bx + w * 1.12, Y(INF.crit), [255, 80, 70], .25 + .6 * dang, 1.5 + 1.5 * dang); ctx.setLineDash([]);
+    label('срыв', bx + w * 1.12 + 4, Y(INF.crit), 11, [255, 110, 100], .5 + .5 * dang, 700); ctx.textAlign = 'center';
+    // размах: золотые риски, докуда шарик долетает
+    for (const sg of [-1, 1]) { const x = bx + sg * w * A, y = Y(A); line(x, y - 7, x, y + 7, GOLD, .7, 2); }
+    // дно — где рождается свет
+    glow(bx, by, w * .25, c, .1 + .5 * I.flash); ball(bx, by, 2.5, [255, 255, 255], .5 + .5 * I.flash);
+    // шарик
+    const x = bx + w * u, y = Y(u), br = Math.max(6, w * .09);
+    glow(x, y, br * 2.6, c, .25 + .2 * A); ball(x, y, br, mixc(c, [255, 255, 255], .35), 1);
+    // куда толкать: под шариком стрелка
+    const push = I.hold, lose = push && !left, col = push ? (lose ? [255, 80, 70] : GOLD) : left ? GOLD : [170, 175, 195];
+    const dir = push ? -1 : left ? -1 : 1, ax = x + (lose ? Math.sin(G.T * 50) * 2.5 : 0), ay = y + br + 16, L = push ? 30 : 20;
+    const al = push ? .95 : left ? .55 + .4 * Math.abs(Math.sin(G.T * 6)) * (I.go ? .5 : 1) : .35;
+    line(ax - dir * L / 2, ay, ax + dir * L / 2, ay, col, al, push ? 4 : 2.5);
+    line(ax + dir * L / 2, ay, ax + dir * (L / 2 - 8), ay - 6, col, al, push ? 4 : 2.5);
+    line(ax + dir * L / 2, ay, ax + dir * (L / 2 - 8), ay + 6, col, al, push ? 4 : 2.5);
   },
   // Поле: пунктир захвата, ядро, нити к захваченным квантам и кольцо-шкала энергии с порогами
   drawField(sx, sy, r) {
@@ -1485,11 +1493,11 @@ const Particles = {
     else if (!this.lit && this.ep === 0) {
       const I = this.inf;
       if (I.hold) t = null;
-      else if (I.snapFx > 0) t = 'срыв! не доводи кольцо до красной черты';
-      else if (!I.go) t = 'зажми, когда кольцо начнёт сжиматься';
-      else if (I.late >= 2 && I.late > I.good) t = 'отпускай у золотого круга — в самой узкой точке';
-      else if (I.good < 2) t = 'зажми на сжатии · отпусти у золотого круга';
-      else if (I.A > .8 && !I.snaps) t = 'у красной черты — зажимай короче';
+      else if (I.snapFx > 0) t = 'срыв! не доводи шарик до красной черты';
+      else if (!I.go) t = 'зажми, когда шарик покатится влево ←';
+      else if (I.late >= 2 && I.late > I.good) t = 'отпускай на левом краю — вправо не толкай';
+      else if (I.good < 2) t = 'держи, пока катится влево · отпусти на краю';
+      else if (I.A > .8 && !I.snaps) t = 'у красной черты — толкай короче';
     }
     else if (this.ep === 0 && this.lit && !this.rs.ph) t = this.bal() >= 10 ? `клавиша ${this.keyOf('ph')} — свет сам` : null;
     else if (this.ep === 0 && this.phSeen.size >= 3 && !this.gOn) t = this.keyOf('g') && this.bal() >= RES_COST.g[0] ? `клавиша ${this.keyOf('g')} — исследуй глюоны` : `лови фотоны — ✦ на глюоны: ${this.bal()}/${RES_COST.g[0]}`;
@@ -1533,7 +1541,7 @@ const Particles = {
   },
   // Заголовок эпохи: всплывает и гаснет, игру не останавливает
   drawBanner(alpha) {
-    if (!this.lit && !this.ep) return hudBanner(this.banner, 'ПРОЛОГ · 10⁻³² с', 'Разогрев', 'Инфляция кончилась — раскачай поле, пусть его энергия станет светом', alpha);
+    if (!this.lit && !this.ep) return hudBanner(this.banner, 'ПРОЛОГ · 10⁻³² с', 'Разогрев', 'Инфляция кончилась — раскачай поле, как качели: его энергия станет светом', alpha);
     const E = EPOCHS[this.ep];
     hudBanner(this.banner, `ЭПОХА ${this.ep + 1} · ${E.when}`, E.name, this.ep ? E.line : `${this.inf.pick ? this.inf.pick.n[0].toUpperCase() + this.inf.pick.n.slice(1) : ''} разогрев: ${fmtGeV(this.T0)}, света ×${this.heat.toFixed(1)} — научи её светить самой`, alpha);
   },
