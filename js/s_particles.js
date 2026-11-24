@@ -97,11 +97,12 @@ const EPOCHS = [
   { name: 'Чистая энергия', floor: 165, tau: 36, startT: Infinity, when: '10⁻¹² с', line: 'Сначала нет ничего — только вакуум' },
   { name: 'Поле Хиггса', floor: 90, tau: 14, startT: 160, when: '10⁻¹¹ с', line: 'Поле застывает — у частиц появляется масса' },
   { name: 'Распады', floor: 3, tau: 14, startT: Infinity, when: '10⁻¹⁰ с', line: 'Тяжёлое распадается — сними цепочки' },
-  { name: 'Аннигиляция', floor: 0, tau: 20, startT: 3, when: '10⁻⁷ с', line: 'Вещество против антивещества' },
+  { name: 'Аннигиляция', floor: 0, tau: 36, startT: 3, when: '10⁻⁷ с', line: 'Вещество против антивещества' },
 ];
 const CHAINS = [['t', 'b', 'c'], ['ta', 'mu']]; // чьи распады нужно снять в эпохе 3
 const COL_N = ['красный', 'зелёный', 'синий']; // цвет кварка; у глюона — цвет и антицвет
-const STOCK_GOAL = 12, TRIO_GOAL = 4; // цель эпохи 4 — четыре будущих бариона (по кварку каждого цвета)
+const STOCK_GOAL = 15, TRIO_GOAL = 5; // цель эпохи 4 — пять будущих барионов (по кварку каждого цвета)
+const TRIO_W = TRIO_GOAL < 5 ? 'тройки' : 'троек';
 // Сколько барионов можно собрать из кварков [{fl, col}]: три разных цвета, не uuu/ddd (жадно)
 function baryonTrios(list) {
   const cnt = {};
@@ -996,9 +997,17 @@ const Particles = {
     this.soupCd = 1.3;
     const n = this.p.filter(o => !o.dead && !this.isQ(o)).length;
     if (n > 34) return;
-    const a = Math.random() * TAU, d = rnd(this.hr() + 2, viewRadius() * .95), sp = pick(['u', 'd']);
+    // часть пар рождается прямо рядом с детектором (кванты ещё рождают кварки) — успей забрать кварк, пока
+    // антикварк его не нашёл; остальное приходит издалека
+    const near = Math.random() < .45, a = Math.random() * TAU, sp = pick(['u', 'd']);
+    const d = near ? rnd(this.hr() * 1.5, this.hr() + 1.6) : rnd(this.hr() + 2, viewRadius() * .95);
     const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
-    if (Math.random() < .68) this.pair(sp, x, y, rnd(.1, .4)).forEach(o => o.cd = 2.5);
+    if (near) {
+      // пару рождает глюон: кварк получает его цвет, антикварк — антицвет
+      const c = Math.random() * 3 | 0, c2 = (c + 1 + (Math.random() * 2 | 0)) % 3;
+      this.pair(sp, x, y, rnd(.15, .35), c, c2).forEach(o => o.cd = 2.5);
+      fxRing(x, y, .05, [255, 245, 220], .5, .45); fxFlash(x, y, .35, [255, 245, 220], .25);
+    } else if (Math.random() < .68) this.pair(sp, x, y, rnd(.1, .4)).forEach(o => o.cd = 2.5);
     else this.mk(sp, false, x, y, Math.atan2(P.y - y, P.x - x) + rnd(-.8, .8), rnd(.1, .4));
   },
   // Эпоха 4: вещество и антивещество аннигилируют повсюду, а не только в детекторе
@@ -1069,7 +1078,7 @@ const Particles = {
         : `Сними распад ${sym(sp)}: сделай ${sym(sp)} столкновением (выше риски ${sym(sp)}) и кликни по вершине распада — или исследуй «${sym(sp)} сам»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp) }));
       default: {
         const t = baryonTrios(this.stockQ);
-        return [{ t: `Собери ${TRIO_GOAL} тройки R·G·B (${Math.min(t, TRIO_GOAL)}/${TRIO_GOAL}): лови кварки недостающего цвета или глюон, что перекрасит лишний; зажми — щит`, s: `${TRIO_GOAL} тройки`, d: t >= TRIO_GOAL }];
+        return [{ t: `Собери ${TRIO_GOAL} ${TRIO_W} R·G·B (${Math.min(t, TRIO_GOAL)}/${TRIO_GOAL}): лови кварки недостающего цвета или глюон, что перекрасит лишний; зажми — щит`, s: `${TRIO_GOAL} ${TRIO_W}`, d: t >= TRIO_GOAL }];
       }
     }
   },
@@ -1082,8 +1091,8 @@ const Particles = {
       case 1: return [thr, fast(45), { t: 'и W, и Z', ok: () => Codex.has('W') && Codex.has('Z') },
         { t: 'открой t-кварк', ok: () => Codex.has('t'), can: () => !Codex.has('t') }, { t: 'не остаться без ⚡', bad: () => st.dry > 0, atEnd: true }];
       case 2: return [thr, clean, fast(35), { t: 'снимок с 4 видами', ok: () => st.kinds >= 4 }];
-      default: return [{ t: '5 троек', ok: () => baryonTrios(this.stockQ) >= 5 }, { t: 'перекрась кварк глюоном', ok: () => st.recol > 0 }, { t: 'антикварки не съели ни одного', bad: () => st.eaten > 0, atEnd: true },
-        { t: '16 кварков в детекторе', ok: () => this.stock >= 16 }];
+      default: return [{ t: '7 троек', ok: () => baryonTrios(this.stockQ) >= 7 }, { t: 'перекрась кварк глюоном', ok: () => st.recol > 0 }, { t: 'антикварки не съели ни одного', bad: () => st.eaten > 0, atEnd: true },
+        { t: '20 кварков в детекторе', ok: () => this.stock >= 20 }];
     }
   },
   winStar() { this.kn += 15; this.float(P.x, P.y - this.hr() - .4, '★ +15 ✦', [255, 215, 110], 17); },
@@ -1223,27 +1232,29 @@ const Particles = {
         const amp = o.amp * clamp(.09 * z, 2.5, 6);
         // Волна неподвижна в пространстве: фаза привязана к мировой координате вдоль луча
         const phase = o.ph - (o.x * o.dx + o.y * o.dy) * z / per * TAU;
+        // головка кванта сидит на самой волне (в её текущем отклонении), а не на оси
+        const hw = Math.sin(phase) * amp, hx = sx - o.dy * hw, hy = sy + o.dx * hw;
         if (o.thrown) { ctx.lineCap = 'round'; line(sx, sy, sx - o.dx * 34, sy - o.dy * 34, GOLD, .5 * a, 4); }
         if (!known) {
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [c], .6 * a, 1.6);
-          ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,32,.85)'; ctx.beginPath(); ctx.arc(sx, sy, 7.5, 0, TAU); ctx.fill();
-          ring(sx, sy, 7.5, [235, 245, 255], .9, 1.3); label('?', sx, sy + .5, 10, [255, 255, 255], 1, 800); ctx.globalAlpha = 1;
+          ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,32,.85)'; ctx.beginPath(); ctx.arc(hx, hy, 7.5, 0, TAU); ctx.fill();
+          ring(hx, hy, 7.5, [235, 245, 255], .9, 1.3); label('?', hx, hy + .5, 10, [255, 255, 255], 1, 800); ctx.globalAlpha = 1;
         } else if (o.sp === 'ph') {
           const cc = mixc([255, 200, 120], [220, 235, 255], hot);
-          if (this.enOn() && (this.en < 3 || !this.full) && !o.cap) ring(sx, sy, 10 + 2 * Math.sin(G.T * 8 + o.ph), PH_C, .7 * a, 1.6);
+          if (this.enOn() && (this.en < 3 || !this.full) && !o.cap) ring(hx, hy, 10 + 2 * Math.sin(G.T * 8 + o.ph), PH_C, .7 * a, 1.6);
           // редкие классы — вращающиеся дуги цвета класса
           const pc = this.lit ? this.phClass(o) : 0;
-          if (pc === 3 || (pc === 2 && !this.phSeen.has(2))) { const s0 = G.T * 3; for (let k = 0; k < 3; k++) arc(sx, sy, 15, s0 + k * TAU / 3, s0 + k * TAU / 3 + 1, PH_CLS[pc].c, .9 * a, 2); }
+          if (pc === 3 || (pc === 2 && !this.phSeen.has(2))) { const s0 = G.T * 3; for (let k = 0; k < 3; k++) arc(hx, hy, 15, s0 + k * TAU / 3, s0 + k * TAU / 3 + 1, PH_CLS[pc].c, .9 * a, 2); }
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [cc], .75 * a, 1.8);
-          glow(sx, sy, 4 + 5 * hot, cc, .45 * a);
+          glow(hx, hy, 4 + 5 * hot, cc, .45 * a);
         } else {
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [c, QANTI[o.col2]], .8 * a, 1.8);
-          glow(sx, sy, 3 + 4 * hot, c, .4 * a);
+          glow(hx, hy, 3 + 4 * hot, c, .4 * a);
           // эпоха 4: что глюон сделает с кварком в детекторе — «антицвет → цвет»; полезный — в золотом кольце
           if (this.ep === 3 && !this.stockOut) {
-            const help = this.helpGlu(o), y = sy - 13;
+            const help = this.helpGlu(o), y = sy - 15; // метка — на оси, чтобы не прыгала с волной
             ball(sx - 7, y, 3.2, QCOL[o.col2]); line(sx - 3, y, sx + 3, y, [235, 240, 250], .8 * a, 1.2); ball(sx + 7, y, 3.2, QCOL[o.col]);
-            if (help && !this.advanced) ring(sx, sy - 5, 15 + 1.5 * Math.sin(G.T * 8), GOLD, .85 * a, 2);
+            if (help && !this.advanced) ring(hx, hy - 5, 15 + 1.5 * Math.sin(G.T * 8), GOLD, .85 * a, 2);
           }
         }
         continue;
