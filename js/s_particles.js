@@ -35,7 +35,7 @@ const UPG = [
   { key: 'fr', name: 'Захват', ic: '◌', val: [2.6, 3.2, 3.9], fmt: v => '×' + v, about: 'тянет издалека' },
 ];
 const NEED0 = ['u', 'd', 'e']; // эпоха 1: первое поколение; следующие открываются по порядку (GEN_PREV в codex.js)
-const HIT_R = .42, H_WIN = 20, Z_WIN = 14; // радиус встречи; полуширина окна резонанса H (ГэВ)
+const HIT_R = .42, Z_WIN = 14; // радиус встречи; полуширина окна резонанса Z (ГэВ)
 // Тепловая масса в плазме до перехода Хиггса: m ≈ g·T (сильное взаимодействие — кварки ≈ 0,5 T, топ ещё и юкавское ≈ 0,6 T;
 // электрослабое — лептоны ≈ 0,2 T). Поэтому и без поля Хиггса у рождения пары есть порог 2m.
 const TH_M = { quark: .5, t: .6, lepton: .2 };
@@ -124,9 +124,18 @@ const TUT_GOOD = 3, TUT_ABS = 4, TUT_IDLE = 2.5;
 // первое нажатие проявляет поле и сразу становится первым толчком.
 const VOID_MIN = 1.5, VOID_STEP = 1.3;
 const VOID_TXT = ['Ничего нет. Ни частиц, ни света.', 'Только поле, растянутое инфляцией, —', 'в нём вся энергия будущей Вселенной.', 'Всё, что появится, создашь ты.', 'И только из этого будет строиться мир.'];
-// Глюон тоже создаёт игрок: кварковая пара с запасом энергии излучает глюон — третью струю (так глюон открыли
-// на PETRA в 1979). Впервые — гарантированно, если √s ≥ GLU_K · 2m(q); потом — с вероятностью, растущей с √s.
-const GLU_K = 1.5;
+// Сила удара — ступени: чем дольше держишь пару квантов, тем выше ступень (LV_T с на ступень), каждая ступень
+// стоит 1 ⚡ — удар на k ступеней стоит k ⚡. Отпустил до первой — слабый удар, ничего не родится.
+const LV_N = 4, LV_T = .75;
+// Матрица рождения: пара квантов × ступень. Ступень — поколение (тяжелее — дольше держать):
+//   γ + γ — фотон чувствует только заряд: лептоны e, μ, τ; 4 ⚡ — три струи (u ū + глюон; так глюон открыли на
+//           PETRA в 1979), после перехода Хиггса — W⁺W⁻;
+//   γ + g — заряд и цвет: up-кварки u, c, t (заряд 2/3 — фотон рождает их вчетверо охотнее down); 4 ⚡ — t t̄ + глюон;
+//   g + g — только цвет: down-кварки d, s, b (в природе g + g к аромату безразличен — в игре закреплено ради ясности);
+//           4 ⚡ — после перехода Хиггса бозон H.
+// Клетка закрыта (поколение ещё не открыто, энергии на массу не хватает) — рождается клетка ниже по строке.
+const MATRIX = { phph: ['e', 'mu', 'ta', 'jets'], gph: ['u', 'c', 't', 'tg'], gg: ['d', 's', 'b', 'H'] };
+const PAIR_N = { phph: 'γ + γ', gph: 'γ + g', gg: 'g + g' };
 // Сколько барионов можно собрать из кварков [{fl, col}]: три разных цвета, не uuu/ddd (жадно)
 function baryonTrios(list) {
   const cnt = {};
@@ -339,7 +348,6 @@ const Particles = {
   madeCls() { return [0, 1, 2, 3].filter(c => this.inf.made[c] > 0); },
   // свой свет измерен: каждый созданный класс пойман хоть раз
   measured() { return this.lit && this.madeCls().every(c => this.phSeen.has(c)); },
-  gluE() { return GLU_K * 2 * this.mThr('u'); },
   phClass(o) { const x = o.p / Math.max(this.T, 1e-9); let c = 0; for (let i = 0; i < PH_CLS.length; i++) if (x >= PH_CLS[i].x) c = i; return c; },
   // Родился легендарный фотон — вспышка-метка, чтобы его заметили
   pingRare(o) {
@@ -437,12 +445,45 @@ const Particles = {
       this.holding = false; const f = this.focus, tap = !f; this.release(); if (tap) this.snapshot();
       if (this.ep === 3 && f && f.t > .25 && this.shield > .08 && !this.advanced) this.shieldPulse();
     }
-    if (this.holding) { this.hold += dt; if (this.hold > .18 && !this.focus && this.fieldOn()) this.focus = { cap: [], q: 0, E: 0, ang: Math.random() * TAU, t: 0 }; }
+    if (this.holding) { this.hold += dt; if (this.hold > .18 && !this.focus && this.fieldOn()) this.focus = { cap: [], q: 0, E: 0, lv: 0, ang: Math.random() * TAU, t: 0 }; }
   },
   Emax() { return 2 * this.T * this.up('pow'); },
   // Энергия столкновения растёт, пока держишь поле: от почти нуля до 2·T·сила
   chargeE(q) { return this.Emax() * (.02 + .98 * q); },
   qOf(E) { return (E / this.Emax() - .02) / .98; },
+  lvE(k) { return this.Emax() * k / LV_N; }, // √s удара на ступени k
+  lvOf(rs) { return clamp(Math.floor(rs * LV_N / this.Emax() + 1e-6), 0, LV_N); }, // ступень случайной встречи
+  // Клетки матрицы на ступени k (по порядку предпочтения)
+  cellsAt(kinds, k) {
+    const sp = (MATRIX[kinds] || [])[k - 1];
+    if (!sp) return [];
+    if (sp === 'jets') return [{ c: 'WW' }, { c: 'u', glu: true }]; // до Хиггса W⁺W⁻ закрыт — три струи
+    if (sp === 'tg') return [{ c: 't', glu: true }];
+    return [{ c: sp }];
+  },
+  // Почему клетка не рождается ('' — рождается): поколение закрыто, мало энергии на массу, Вселенная ещё не умеет
+  cellWhy(x, rs, spont) {
+    const c = x.c;
+    if (c === 'WW' || c === 'H') {
+      if (this.hig <= .5) return 'после Хиггса';
+      if (rs < (c === 'WW' ? 2 * SM.W.m : SM.H.m) * this.hig) return 'мало энергии';
+      return spont && !Codex.auto.has(c === 'WW' ? 'W' : 'H') ? 'auto' : '';
+    }
+    if (!genOpen(c)) return `сначала ${genNeed(c).map(sp => SM[sp].sym).join(' и ')}`;
+    if (rs < 2 * this.mThr(c)) return 'мало энергии';
+    return spont && !Codex.auto.has(c) ? 'auto' : '';
+  },
+  // Что родит удар: клетка ступени k, а если она закрыта — ближайшая ниже по строке
+  pickCell(kinds, k, rs, spont) {
+    let why = '';
+    for (let j = k; j >= 1; j--) for (const x of this.cellsAt(kinds, j)) {
+      const w = this.cellWhy(x, rs, spont);
+      if (!w) return { ...x, k: j, why };
+      if (!why) why = `${SM[x.c === 'WW' ? 'W' : x.c] ? (x.c === 'WW' ? 'W' : SM[x.c].sym) : x.c}: ${w}`;
+    }
+    return { c: null, why };
+  },
+  cellSym(x) { return !x ? 'слабо' : (x.c === 'WW' ? 'W⁺W⁻' : SM[x.c].sym) + (x.glu ? ' + g' : ''); },
   tickFocus(dt) {
     const f = this.focus; if (this.lit || this.ep) Sfx.hum(f && f.cap.length && this.ep !== 3 ? .1 + .9 * f.q : 0); if (!f || this.ep === 3) return;
     f.t += dt;
@@ -461,8 +502,15 @@ const Particles = {
       if (best) { best.cap = true; best.v = undefined; f.cap.push(best); Sfx.play('grab'); if (!this.isQ(best)) { this.learn.heavy = true; if (best.trail) best.trail = []; } }
     }
     const two = f.cap.length === 2;
-    if (f.cap.length && (two || this.isQ(f.cap[0]))) { // вещество разгоняется, только когда пара в поле
-      const bd = two && (this.band(f) || (this.leptonWin() && [2 * this.mThr('e'), 2 * this.mThr('u')])), inB = bd && f.E > bd[0] && f.E < bd[1];
+    if (two && this.isQ(f.cap[0])) { // пара квантов: ступени удара, каждая — 1 ⚡
+      let q = Math.min(1, f.q + dt / (LV_N * LV_T)); const lv = f.lv || 0, nk = Math.min(LV_N, Math.floor(q * LV_N + 1e-9));
+      if (nk > lv) {
+        if (this.enOn() && this.en < 1) { q = Math.min(q, (lv + 1) / LV_N - 1e-4); if (!f.dry) { f.dry = true; this.noEnergy(); } }
+        else { if (this.enOn()) this.en -= 1; f.lv = nk; Sfx.play('pert', nk - 1); fxRing(P.x, P.y, this.hr() * .9, nk === LV_N ? GOLD : FIELD_C, this.hr() * 1.15, .3); }
+      }
+      f.q = q; f.E = this.chargeE(f.q);
+    } else if (two) { // вещество разгоняется, только когда пара в поле
+      const bd = this.band(f), inB = bd && f.E > bd[0] && f.E < bd[1];
       let dq = Math.min(dt / CHARGE_T * (inB ? .3 : 1), 1 - f.q); // на резонансе стрелка замедляется — успей отпустить
       if (this.enOn()) { dq = Math.min(dq, this.en / E_FIELD); this.en -= dq * E_FIELD; if (dq <= 0 && f.q < 1) this.noEnergy(); }
       f.q += dq; f.E = this.chargeE(f.q);
@@ -481,11 +529,10 @@ const Particles = {
     });
   },
   thrownReady() { return Math.hypot(P.vx, P.vy) > THROW_V; },
-  // Резонанс, на котором стоит отпустить: два глюона — H, частица + античастица — Z
+  // Резонанс, на котором стоит отпустить: частица + античастица — Z (H — у g + g на 4 ⚡)
   band(f) {
     if (this.hig <= .5 || f.cap.length < 2) return null;
     const [a, b] = f.cap;
-    if (a.sp === 'g' && b.sp === 'g') return [SM.H.m - H_WIN, SM.H.m + H_WIN];
     if (this.antiPair(a, b)) { const m = this.meff(a), E = rs => 2 * Math.sqrt(Math.max(0, (rs / 2) ** 2 - m * m)); return SM.Z.m - Z_WIN > 2 * m ? [E(SM.Z.m - Z_WIN), E(SM.Z.m + Z_WIN)] : null; }
     return null;
   },
@@ -496,6 +543,7 @@ const Particles = {
     const f = this.focus; this.focus = null; if (!f) return;
     const c = f.cap.filter(o => !o.dead); c.forEach(o => { o.cap = false; });
     if (!c.length || this.ep === 3) return;
+    if (this.isQ(c[0])) { f.E = f.lv ? this.lvE(f.lv) : this.chargeE(0); for (const o of c) { o.lv = f.lv || 0; o.lvAt = this.t; } if (f.lv >= 2) this.learn.lv = true; }
     // Рогатка: отпустил на разгоне — кванты летят вперёд и бьют всё, что встретят
     if (this.thrownReady()) {
       const base = Math.atan2(P.vy, P.vx);
@@ -551,56 +599,34 @@ const Particles = {
     const px = a.dx * a.p + b.dx * b.p, py = a.dy * a.p + b.dy * b.p;
     return Math.sqrt(Math.max(0, (Ea + Eb) ** 2 - px * px - py * py));
   },
-  // Какие пары может родить столкновение двух квантов (веса ~ квадрат заряда × число цветов)
-  // spont — столкнула сама Вселенная: рождает только то, что исследовано «X сам» (руками — всё, на что хватает энергии)
-  channels(a, b, rs, spont) {
-    const ch = [], post = this.hig > .5, kinds = [a.sp, b.sp].sort().join('');
-    const ok = sp => rs >= 2 * this.mThr(sp) && (!spont || Codex.auto.has(sp)) && genOpen(sp);
-    for (const sp of ['u', 'c', 't', 'd', 's', 'b', 'e', 'mu', 'ta']) {
-      const s = SM[sp], quark = s.kind === 'quark';
-      if (!ok(sp)) continue;
-      let w = 0;
-      if (kinds === 'phph') w = s.q * s.q * (quark ? 3 : 1);
-      else if (kinds === 'gph') w = quark ? s.q * s.q * 3 : 0;
-      else if (kinds === 'gg') w = quark ? 1 : 0;
-      if (!Codex.has(sp)) w *= quark ? 5 : 3; // ещё не виденное (но уже открытое поколение) рождается охотнее
-      if (w > 0) ch.push([sp, w]);
-    }
-    if (post && kinds === 'phph' && rs >= 2 * SM.W.m && (!spont || Codex.auto.has('W'))) ch.push(['WW', 1.5]);
-    if (post && kinds === 'gg' && Math.abs(rs - SM.H.m) < H_WIN && (!spont || Codex.auto.has('H'))) ch.push(['H', 10]);
-    return ch;
-  },
-  pickW(ch) { let s = 0; for (const c of ch) s += c[1]; let r = Math.random() * s; for (const c of ch) if ((r -= c[1]) <= 0) return c[0]; return ch[ch.length - 1][0]; },
+  // Столкновение двух квантов — по матрице (MATRIX): пара × ступень удара. spont — столкнула сама Вселенная:
+  // ступень по √s встречи, рождает только исследованное «X сам» (руками — всё, что открыто).
   collide(a, b, spont) {
     const rs = this.sqrtS(a, b), x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
+    const lvOf = o => o.lv != null && this.t - o.lvAt < 3 ? o.lv : null, k = lvOf(a) ?? lvOf(b) ?? this.lvOf(rs);
+    a.lv = b.lv = null;
     a.cd = b.cd = .5; a.mate = b.mate = null; a.thrown = b.thrown = false;
-    const ch = this.channels(a, b, rs, spont);
-    if (!ch.length) {
+    const kinds = [a.sp, b.sp].sort().join(''), r = k > 0 ? this.pickCell(kinds, k, rs, spont) : { c: null, why: 'слабый удар' };
+    if (!r.c) {
       // энергии мало (или Вселенной нечего рождать — не исследовано): кванты разлетаются
       const t = a.dx; a.dx = b.dx; b.dx = t; const u = a.dy; a.dy = b.dy; b.dy = u;
       a.flung = b.flung = 0; a.v = b.v = undefined;
-      if (spont && this.channels(a, b, rs).length && onScreen(...W2S(x, y), 0)) fxRing(x, y, .05, [255, 240, 200], .35, .3); // искра: могло бы родить, но не исследовано
-      if (!spont) { fxRing(x, y, .1, [255, 160, 140], .6, .4); this.float(x, y, 'мало энергии', [255, 160, 140], 12); Sfx.play('fizzle'); if (this.tut) this.tut.weak++; }
+      if (spont && k > 0 && this.pickCell(kinds, k, rs, false).c && onScreen(...W2S(x, y), 0)) fxRing(x, y, .05, [255, 240, 200], .35, .3); // искра: могло бы родить, но не исследовано
+      if (!spont) { fxRing(x, y, .1, [255, 160, 140], .6, .4); this.float(x, y, r.why || 'мало энергии', [255, 160, 140], 12); Sfx.play('fizzle'); if (this.tut) this.tut.weak++; }
       return;
     }
-    // обучение: выше риски q первое столкновение — кварки (иначе подсказка «хватит на кварки» обманет)
-    // первый глюон: удар сильнее риски g — кварковая пара (с третьей струёй) наверняка
-    const wantG = !spont && !this.tut && this.ep === 0 && !Codex.has('g') && rs >= this.gluE();
-    const tq = ((this.tut && !spont && !this.tut.q) || wantG) && ch.filter(x => SM[x[0]] && SM[x[0]].kind === 'quark');
-    const c = tq && tq.length ? this.pickW(tq) : this.pickW(ch);
+    const c = r.c;
+    if (!spont && r.k < k) this.float(x, y - .45, `${k} ⚡ → ${r.k} ⚡ · ${r.why}`, [255, 190, 140], 12); // клетка закрыта — родилось то, что ниже
     a.dead = b.dead = true;
     if (this.tut && !spont && SM[c]) { if (SM[c].kind === 'lepton') this.tut.lep++; else if (SM[c].kind === 'quark') this.tut.q++; }
     let made;
     if (c === 'H') { made = [this.mk('H', false, x, y, Math.random() * TAU, rs * .05)]; }
     else if (c === 'WW') { const pe = Math.sqrt(Math.max(.01, (rs / 2) ** 2 - SM.W.m ** 2)); made = this.pair('W', x, y, pe); }
     else { const m = this.mThr(c), pe = Math.sqrt(Math.max(.0001, (rs / 2) ** 2 - m * m)); const gl = [a, b].filter(o => o.sp === 'g'); made = this.pair(c, x, y, pe, gl.length ? gl[0].col : undefined, gl.length ? gl[gl.length - 1].col2 : undefined); }
-    // три струи: кварк излучает глюон — тем чаще, чем больше запас энергии над порогом пары
-    if (SM[c] && SM[c].kind === 'quark' && (!spont || Codex.auto.has('g'))) {
-      const k = rs / (2 * this.mThr(c)), pg = wantG ? 1 : clamp((k - 1.15) * .8, 0, .7);
-      if (Math.random() < pg) {
-        const an = Math.random() * TAU, g = this.mk('g', false, x, y, an, rs * .2); g.cd = .6; made.push(g);
-        if (!Codex.has('g')) this.float(x, y - .5, 'третья струя!', [255, 150, 190], 14);
-      }
+    // три струи: кварк излучает глюон (клетки 4 ⚡)
+    if (r.glu && (!spont || Codex.auto.has('g'))) {
+      const g = this.mk('g', false, x, y, Math.random() * TAU, rs * .2); g.cd = .6; made.push(g);
+      if (!Codex.has('g')) this.float(x, y - .5, 'третья струя — глюон!', [255, 150, 190], 14);
     }
     fxFlash(x, y, .7, [255, 250, 220], .35);
     for (let i = 0; i < 8; i++) { const an = i * TAU / 8; fxRing(x + Math.cos(an) * .25, y + Math.sin(an) * .25, .02, [255, 240, 200], .06, .35); }
@@ -1197,21 +1223,21 @@ const Particles = {
         { t: 'Создай свет', h: 'раскачай поле: держи, пока шарик катится влево, отпускай на краю. Сильнее размах — жёстче свет. Какой свет создашь — только такой и будет во Вселенной', items: PH_CLS.map((c, i) => [c.n, this.inf.made[i] > 0]), s: `создано классов света: ${this.madeCls().length} · ${fmtGeV(this.T0)}`, d: this.lit },
         { t: 'Исследуй свет', h: `${buy('ph')} — Вселенная начнёт светить твоим светом`, s: 'свет', d: this.rs.ph > 0, res: 'ph' },
         { t: 'Измерь свой свет', h: 'лови фотоны кругом — пойманный измерен; поймай каждый созданный класс', items: this.madeCls().map(c => [PH_CLS[c].n, this.phSeen.has(c)]), s: 'свет измерен', d: this.measured() },
-        { t: 'Столкни кванты', h: 'зажми рядом с двумя фотонами и отпусти', s: 'первое столкновение', d: this.pairs > 0 },
-        { t: 'Создай глюон', h: `сталкивай сильнее, за риску g: кварк излучит глюон — третью струю. ${tap} по нему — снимок`, s: 'глюон создан', d: has('g') },
+        { t: 'Столкни кванты', h: `зажми у двух фотонов: держишь дольше — сильнее удар, 1–${LV_N} ⚡. Отпусти на 1 ⚡ — родятся лептоны`, s: 'первое столкновение', d: this.pairs > 0 },
+        { t: 'Создай глюон', h: `два фотона на ${LV_N} ⚡ — три струи: кварки и глюон. ${tap} по глюону — снимок`, s: 'глюон создан', d: has('g') },
         { t: 'Отдай глюоны Вселенной', h: `исследуй глюоны ${buy('g')}`, s: 'глюоны в мире', d: this.rs.g > 0, res: 'g' },
-        { t: 'Открой первое поколение', h: 'сталкивай кванты и снимай, что родилось. Тяжёлые поколения откроются следом' + (this.need0.some(sp => SM[sp].kind === 'lepton' && !has(sp)) ? '. Лептоны — из γ + γ: наведись на фотон и отпусти в синем окне, до риски q' : ''),
+        { t: 'Открой первое поколение', h: this.need0.filter(sp => !has(sp)).map(sp => `${sym(sp)}: ${this.recipe(sp)}`).join(' · ') + ' — столкни и сними',
           items: this.need0.map(sp => [sym(sp), has(sp)]), s: 'частицы открыты', d: this.need0.every(has) },
       ];
       case 1: return [
         { t: 'Жди: поле Хиггса застывает', h: 'частицы тяжелеют и замедляются…', s: 'у частиц есть масса', d: this.hig >= 1 },
-        { t: 'Роди бозон H', h: 'два глюона в поле, отпусти в золотой полосе (≈125 ГэВ) — и сними', s: 'бозон Хиггса', d: has('H') },
+        { t: 'Роди бозон H', h: `два глюона в поле на ${LV_N} ⚡ — и сними`, s: 'бозон Хиггса', d: has('H') },
         { t: 'Удержи вещество', h: 'с массой его можно поймать: сделай пару столкновением и возьми полем частицу и её античастицу', s: 'вещество в поле', d: this.learn.pair2 || has('W') || has('Z') },
         { t: 'Открой Z', h: 'столкни пару, когда шкала в золотой полосе (≈91 ГэВ), и сними', s: 'Z открыт', d: has('W') || has('Z') },
       ];
       case 2: return this.need2.map(sp => ({ t: `Сними распад ${sym(sp)}`, h: !genOpen(sp) ? `сначала открой ${genNeed(sp).map(sym).join(' и ')} — поколения открываются по порядку: столкни кванты и сними`
         : Codex.auto.has(sp) ? `жди вспышку и ${tap} по золотой вершине следа`
-        : `сделай ${sym(sp)} столкновением (выше риски ${sym(sp)}) и ${tap} по вершине распада — или исследуй «Рождение ${sym(sp)}»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? sp : null }));
+        : `сделай ${sym(sp)} (${this.recipe(sp)}) и ${tap} по вершине распада — или исследуй «Рождение ${sym(sp)}»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? sp : null }));
       default: {
         const t = baryonTrios(this.stockQ);
         const a = this.safe.length;
@@ -1222,6 +1248,11 @@ const Particles = {
       }
     }
   },
+  // Рецепт частицы по матрице: «γ + g · 3 ⚡»
+  recipe(sp) {
+    for (const kinds in MATRIX) { const k = MATRIX[kinds].indexOf(sp); if (k >= 0) return `${PAIR_N[kinds]} · ${k + 1} ⚡`; }
+    return sp === 'W' ? `γ + γ · ${LV_N} ⚡` : '';
+  },
   // ---------- обучение ----------
   startTut() { this.enter(); this.inVoid = false; this.cheated = true; this.tut = { i: 0, t: 0, abs: 0, weak: 0, lep: 0, q: 0, end: -1 }; },
   tutSteps() {
@@ -1230,14 +1261,15 @@ const Particles = {
       { t: 'Попади в такт', h: 'зажми, когда шарик покатится влево, и отпусти на левом краю. Каждый проход дна рождает свет', p: [Math.min(this.inf.good, TUT_GOOD), TUT_GOOD], s: 'свет родился', d: T.i > 0 },
       { t: 'Зарегистрируй фотон', h: `наведи круг детектора на волну света и ${tap} — снимок`, s: 'фотон в кодексе', d: T.i > 1 },
       { t: 'Собери свет', h: 'пролетай кругом сквозь фотоны — каждый даёт энергию ⚡', p: [Math.min(T.abs, TUT_ABS), TUT_ABS], s: 'энергия есть', d: T.i > 2 },
-      { t: 'Столкни с разной силой', h: 'зажми у двух волн — энергия растёт, пока держишь. Отпусти: сразу · у риски ℓ · у риски q', items: [['слабо', T.weak > 0], ['ℓ лептоны', T.lep > 0], ['q кварки', T.q > 0]], s: 'обучение пройдено', d: T.i > 3 },
+      { t: 'Столкни с разной силой', h: `зажми у двух волн — держишь дольше, удар сильнее. Отпусти: сразу · на 1 ⚡ · на ${LV_N} ⚡`, items: [['слабо', T.weak > 0], ['1 ⚡ лептоны', T.lep > 0], [`${LV_N} ⚡ три струи`, T.q > 0]], s: 'обучение пройдено', d: T.i > 3 },
     ];
   },
   tickTut(dt) {
     const T = this.tut; T.t += dt;
     if (T.i === 0 && this.lit) { T.i = 1; this.rs.ph = 1; Codex.auto.add('ph'); } // свет в мире — есть что снимать и собирать
     if (T.i === 1 && Codex.has('ph')) T.i = 2;
-    if (T.i === 2 && T.abs >= TUT_ABS) { T.i = 3; this.en = Math.max(this.en, 4); }
+    if (T.i === 2 && T.abs >= TUT_ABS) T.i = 3;
+    if (T.i === 3) this.en = Math.max(this.en, LV_N); // в обучении на удары хватает всегда
     if (T.i === 3 && T.weak && T.lep && T.q) { T.i = 4; T.end = 3; this.release(); this.holding = false; }
     if (T.end > 0 && (T.end -= dt) <= 0) endTut(true);
   },
@@ -1249,10 +1281,10 @@ const Particles = {
     if (T.i !== 3) return null;
     if (!f && this.en < .3) return 'нет энергии — пролети сквозь свет';
     if (!f || f.cap.length < 2) return f ? 'держи — поле тянет вторую волну' : 'зажми у двух волн света';
-    const E = f.E, l = 2 * this.mThr('e'), q = 2 * this.mThr('u');
-    if (!T.weak && E < l) return 'отпусти сейчас — слабый удар';
-    if (!T.lep && E < q) return E < l ? 'держи… до риски ℓ' : 'отпусти — хватит на лептоны';
-    if (!T.q) return E < q ? 'держи… до риски q' : 'отпусти — хватит на кварки';
+    const k = f.lv || 0;
+    if (!T.weak && !k) return 'отпусти сейчас — слабый удар';
+    if (!T.lep && k <= 1) return k < 1 ? 'держи… до 1 ⚡' : 'отпусти — 1 ⚡: лептоны';
+    if (!T.q) return k < LV_N ? `держи… ${k} ⚡ из ${LV_N}` : `отпусти — ${LV_N} ⚡: три струи`;
     return 'для слабого удара отпускай сразу';
   },
   // Испытания ★: два случайных на эпоху, за каждое +15 ✦
@@ -1773,7 +1805,7 @@ const Particles = {
     if (f.cap.length < 2) { wedge(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), 2, 2 + 12 * f.q, FIELD_C, .6); return; }
     const kinds = f.cap.map(o => o.sp).sort().join(''), bd = this.band(f), inH = !!bd && f.E > bd[0] && f.E < bd[1];
     wedge(sx, sy, Rg, a0, a0 + TAU, 2, 14, [255, 255, 255], .08); // сколько можно набрать
-    // золотая полоса — резонанс: два глюона — H, частица + античастица — Z
+    // золотая полоса — резонанс Z: частица + античастица
     if (bd) {
       const q1 = this.qOf(bd[0]), q2 = this.qOf(bd[1]);
       if (q2 > 0 && q1 < 1) {
@@ -1783,29 +1815,20 @@ const Particles = {
       }
     }
     if (this.isQ(f.cap[0])) {
-      // риски — пороги 2m рождения пар; до перехода Хиггса — тепловые массы: ℓ (лептоны) и q (кварки)
-      const pre = this.hig < .5, ph2 = kinds === 'phph';
-      const list = pre ? (ph2 ? ['e', 'u', 't'] : ['u', 't']) : kinds === 'gg' || kinds === 'gph' ? ['c', 'b', 't'] : ['c', 'ta', 'b', 't'];
-      const th = list.map(sp => [sp, 2 * this.mThr(sp)]);
-      if (pre && this.ep === 0 && !Codex.has('g') && this.pairs > 0) th.push(['g', this.gluE()]); // за ней — третья струя
-      if (ph2 && !pre) th.push(['W', 2 * SM.W.m * this.hig]);
-      const sym = sp => pre && sp === 'e' ? 'ℓ' : pre && sp === 'u' ? 'q' : sp === 'g' ? 'g' : Codex.has(sp) ? SM[sp].sym : '?';
-      // окно лептонов: γ + γ между порогами ℓ и q рождает только лептоны
-      if (pre && ph2) {
-        const q1 = this.qOf(th[0][1]), q2 = this.qOf(th[1][1]);
-        if (q2 > .02 && q1 < 1) arc(sx, sy, Rg, a0 + TAU * Math.max(0, q1), a0 + TAU * Math.min(1, q2), LEP_C[0], .4, 9);
-      }
-      let lastA = -9;
-      for (const [sp, E] of th.sort((x, y) => x[1] - y[1])) {
-        const q = this.qOf(E); if (q < .02 || q > 1) continue;
-        const an = a0 + TAU * q, c = Math.cos(an), s = Math.sin(an);
-        line(sx + c * (Rg - 7), sy + s * (Rg - 7), sx + c * (Rg + 7), sy + s * (Rg + 7), [255, 255, 255], .9, 2);
-        if (an - lastA > .22) { label(sym(sp), sx + c * (Rg + 17), sy + s * (Rg + 17), 11, sp === 'e' ? LEP_C[0] : sp === 'g' ? [255, 150, 190] : [255, 255, 255], .9, 700); lastA = an; }
+      // ступени удара: деление на каждой четверти круга, у деления — что родит эта ступень (клетка матрицы)
+      for (let k = 1; k <= LV_N; k++) {
+        const an = a0 + TAU * k / LV_N, c = Math.cos(an), s = Math.sin(an), got = (f.lv || 0) >= k;
+        const xs = this.cellsAt(kinds, k), x = xs.find(v => !this.cellWhy(v, this.lvE(k), false)) || xs[0], open = !!x && !this.cellWhy(x, this.lvE(k), false);
+        line(sx + c * (Rg - 8), sy + s * (Rg - 8), sx + c * (Rg + 8), sy + s * (Rg + 8), got ? GOLD : [255, 255, 255], got ? 1 : .7, 2);
+        const R = Rg + (Math.abs(c) > .5 ? 30 : 22), lx = sx + c * R, ly = sy + s * R; // сбоку надпись шире — дальше от круга
+        label(`${k}⚡`, lx, ly - 8, 10, got ? GOLD : [200, 210, 230], .85, 600);
+        label(x ? this.cellSym(x) : '—', lx, ly + 7, 13, got ? GOLD : open ? [255, 255, 255] : [150, 150, 165], open ? .95 : .5, 800);
       }
     }
     // энергия столкновения — клин: чем больше набрал, тем толще линия; нити к квантам тоже толстеют
     wedge(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), 2, 2 + 12 * f.q, inH ? GOLD : FIELD_C, .95);
-    label(`√s ${fmtGeV(this.rsOf(f))}`, sx, sy - Rg - 32, 12, inH ? GOLD : [142, 229, 255], .95, 700);
+    if (this.isQ(f.cap[0])) { const k = f.lv || 0, x = k ? this.pickCell(kinds, k, this.lvE(k), false) : null; label(k ? `${k} ⚡ → ${x && x.c ? this.cellSym(x) : '—'}` : 'слабо', sx, sy + Rg + 50, 15, k ? (k === LV_N ? GOLD : [142, 229, 255]) : [200, 205, 220], .95, 800); }
+    else label(`√s ${fmtGeV(this.rsOf(f))}`, sx, sy - Rg - 32, 12, inH ? GOLD : [142, 229, 255], .95, 700);
   },
   // Энергия детектора — дуга из делений под кругом; пустая и нужна — мигает красным
   drawEnergy(sx, sy, r) {
@@ -1819,11 +1842,6 @@ const Particles = {
       if (fill > 0) { ctx.fillStyle = rgb(PH_C, .35 + .65 * fill); ctx.beginPath(); ctx.arc(x, y, 3.5 * Math.sqrt(fill), 0, TAU); ctx.fill(); }
     }
     label('⚡', sx, sy + R + 10, 11, this.en < E_SHOT ? [255, 140, 120] : PH_C, .9, 700);
-  },
-  // Держишь два фотона до перехода Хиггса, а загаданный лептон ещё не открыт — подсказка про синее окно
-  leptonWin() {
-    const f = this.focus;
-    return !!f && this.ep === 0 && this.hig < .5 && f.cap.length === 2 && f.cap.every(o => o.sp === 'ph') && this.need0.some(sp => SM[sp].kind === 'lepton' && !Codex.has(sp));
   },
   // Подсказка в одну строку — пока действие не освоено
   drawHint(sx, sy, r) {
@@ -1850,12 +1868,12 @@ const Particles = {
     else if (this.enOn() && (!this.full || this.en < E_SHOT + .5)) t = 'лови фотоны — энергия';
     else if (!this.learn.snap) t = 'клик — снимок';
     else if (this.focus && this.focus.cap.length === 2 && !this.learn.smash) t = 'отпусти — столкнуть';
-    else if (this.ep === 0 && this.pairs > 0 && !Codex.has('g') && this.focus && this.focus.cap.length === 2 && this.isQ(this.focus.cap[0]))
-      t = this.focus.E < this.gluE() ? 'держи за риску g — кварк излучит глюон' : 'отпусти — три струи';
-    else if (this.leptonWin()) t = this.focus.E < 2 * this.mThr('e') ? 'держи — мало энергии для ℓ' : this.focus.E < 2 * this.mThr('u') ? 'отпусти — синее окно: лептон' : 'выше q — уже в основном кварки';
+    else if (this.ep === 0 && this.pairs > 0 && !Codex.has('g') && this.focus && this.focus.cap.length === 2 && this.focus.cap.every(o => o.sp === 'ph'))
+      t = (this.focus.lv || 0) < LV_N ? `держи до ${LV_N} ⚡ — три струи` : 'отпусти — кварк излучит глюон';
+    else if (this.focus && this.focus.cap.length === 2 && this.isQ(this.focus.cap[0]) && !this.learn.lv) t = 'держишь дольше — сильнее удар: смотри, что родится';
     else if (this.focus && this.focus.cap.length === 1 && !this.isQ(this.focus.cap[0]) && !this.learn.ann) t = `тяжёлое тянется медленно — нужна античастица ${this.lab({ ...this.focus.cap[0], anti: !this.focus.cap[0].anti })}`;
     else if (this.focus && this.focus.cap.length === 2 && !this.isQ(this.focus.cap[0]) && !this.learn.ann) t = this.band(this.focus) ? 'отпусти в золотой полосе' : 'отпусти — аннигиляция';
-    else if (this.ep === 1 && this.hig >= 1 && !Codex.has('H') && this.focus && this.focus.cap.length === 2 && this.isQ(this.focus.cap[0])) t = this.focus.cap.every(o => o.sp === 'g') ? 'отпусти в золотой полосе — H' : 'для H нужны два глюона';
+    else if (this.ep === 1 && this.hig >= 1 && !Codex.has('H') && this.focus && this.focus.cap.length === 2 && this.isQ(this.focus.cap[0])) t = this.focus.cap.every(o => o.sp === 'g') ? ((this.focus.lv || 0) < LV_N ? `держи до ${LV_N} ⚡ — H` : 'отпусти — H') : 'для H нужны два глюона';
     else if (this.ep === 1 && Codex.has('H') && !this.learn.heavy && this.hig >= 1) t = this.p.some(o => !o.dead && !this.isQ(o) && this.grabbable(o) && onScreen(...W2S(o.x, o.y), 0)) ? 'зажми возле частицы — с массой её можно удержать' : 'вещества нет — сделай пару: столкни кванты';
     else if (this.focus && this.focus.cap.length && this.learn.smash && !this.learn.throw && this.epT > 6) t = this.thrownReady() ? 'отпусти на ходу — бросок' : 'разгонись с квантами';
     else if (!this.learn.hold && this.ep === 0 && this.fieldOn()) t = 'зажми — притянуть кванты';
@@ -1863,7 +1881,8 @@ const Particles = {
     else if (!this.learn.buy && this.canBuy()) t = 'хватает ✦ — исследуй: клавиши внизу';
     if (!t) return;
     if (!this.learn.snap && this.lit || (!this.lit && this.ep === 0 && !this.inf.go)) { const ph = (G.T % 1.4) / 1.4; ring(sx, sy, r * (1 + .25 * ph), [255, 255, 255], .5 * (1 - ph), 2); }
-    label(t, sx, sy + r + 36, 14, [255, 255, 255], .75 + .2 * Math.sin(G.T * 4), 700);
+    const two = this.focus && this.focus.cap.length === 2 && this.isQ(this.focus.cap[0]); // под шкалой ступеней — ниже
+    label(t, sx, sy + r + (two ? 86 : 36), 14, [255, 255, 255], .75 + .2 * Math.sin(G.T * 4), 700);
   },
   // Стрелки у края экрана — к тому, что нужно снять, если оно за кадром
   drawArrows() {
