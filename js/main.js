@@ -40,14 +40,14 @@ addEventListener('pointerdown', e => {
   touchMode();
   if (e.target !== cv) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; }
-  else if (ptrs.size === 2) { const [p, q] = [...ptrs.values()]; pinch0 = { d: Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)), z: G.zoom || 1 }; mouse.idle = true; }
+  if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; if (G.stage.sling) mouse.down = true; } // рогатка: палец — сам жест
+  else if (ptrs.size === 2) { const [p, q] = [...ptrs.values()]; pinch0 = { d: Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)), z: G.zoom || 1 }; mouse.idle = true; if (G.stage.sling && mouse.down) { mouse.cancel = true; mouse.down = false; } }
 }, true);
 function ptrUp(e) {
   if (e.pointerType === 'mouse') { mouse.down = false; return; }
   if (!ptrs.delete(e.pointerId)) return;
   if (ptrs.size < 2) pinch0 = null;
-  if (e.pointerId === steerId) { steerId = null; mouse.idle = true; } // отпустил — детектор тормозит
+  if (e.pointerId === steerId) { steerId = null; mouse.idle = true; if (G.stage.sling) mouse.down = false; } // отпустил — детектор тормозит (рогатка — бросок)
 }
 addEventListener('pointerup', ptrUp); addEventListener('pointercancel', ptrUp);
 cv.addEventListener('contextmenu', e => e.preventDefault());

@@ -9,7 +9,11 @@
    - Оболочки квантованы: 2, 8, 8. Внешние электроны связаны слабее.
    - Фотоны с энергией выше энергии ионизации выбивают электрон обратно.
    - Вселенная остывает: электроны медленнее, фотоны слабее, туман рассеивается.
-   Глагол игрока: поймать (подстроить скорость). */
+   Глагол игрока: рогатка. Зажми электрон — он замирает, но помнит, куда летел (голубой пунктир): бросок
+   прибавляет к этой скорости толчок. Чтобы ядро его поймало, толчок должен погасить тепловую скорость
+   и мягко направить электрон к ядру — пунктир показывает кулоновскую орбиту, у цели — «захват» или «пролетит».
+   Брошенный электрон 2,5 с летит свободно (без теплового блуждания) — как показал пунктир. */
+const E_FREE = 2.5;
 const SHELL_R = [6, 11, 16], SHELL_CAP = [2, 8, 8];
 const shellOf = k => k < 2 ? 0 : k < 10 ? 1 : 2;
 const KE = 200, SOFT = 3;
@@ -17,7 +21,8 @@ function shellFill(n) { return [Math.min(n, 2), clamp(n - 2, 0, 8), clamp(n - 10
 
 const Atoms = {
   key: 'atoms', name: 'Рекомбинация', bg: [10, 14, 42],
-  controls: 'Мышь — двигаться · Пробел — рывок · Лети рядом с электроном, чтобы погасить относительную скорость',
+  controls: 'Зажми электрон, оттяни, отпусти — рогатка: погаси его скорость и мягко брось к ядру',
+  sling: true,
 
   enter(prev) {
     this.t = 0; this.Ta = 1; this.el = []; this.ph = []; this.ions = []; this.neutralT = 0; this.phT = 0;
@@ -33,6 +38,37 @@ const Atoms = {
     }
     for (let i = 0; i < 50; i++) this.spawnE(true);
     for (let i = 0; i < 10; i++) this.spawnIon(true);
+    this.sl = new Sling(this);
+  },
+  // ---------- рогатка ----------
+  bodies() { return this.el; },
+  grabR() { return 30 / cam.z; },
+  full() { return 150 / cam.z; },
+  vmax() { return 1.4 * this.vth() + 8; },
+  carry(b) { return [b.cvx || 0, b.cvy || 0]; },
+  hold(b) { b.held = true; b.cvx = b.vx; b.cvy = b.vy; if (!this.slMsg) { this.slMsg = true; msg('Электрон замер, но помнит, куда летел (голубой пунктир). Оттяни так, чтобы погасить эту скорость и мягко бросить его к ядру'); } },
+  launch(b, vx, vy) { b.held = false; b.vx = vx; b.vy = vy; b.free = E_FREE; },
+  // Кулоновская орбита броска (только поле игрока, без теплового блуждания) и вердикт
+  predict(b, vx, vy) {
+    const Q = this.Z - this.ne, pts = [[b.x, b.y]], dt = 1 / 60;
+    if (Q <= 0) return { pts, x: P.x, y: P.y, label: 'атом уже нейтрален', c: [200, 205, 225] };
+    let x = b.x, y = b.y, ux = vx, uy = vy;
+    const sh = shellOf(this.ne), E0 = .5 * (ux * ux + uy * uy) - KE * Q / Math.sqrt((x - P.x) ** 2 + (y - P.y) ** 2 + SOFT * SOFT);
+    let best = Infinity, bx = x, by = y;
+    for (let n = 0; n < E_FREE * 60; n++) {
+      const dx = P.x - x, dy = P.y - y, d2 = dx * dx + dy * dy, d = Math.sqrt(d2) || 1e-6, f = KE * Q / (d2 + SOFT * SOFT);
+      if (d < SHELL_R[sh] * 1.6) {
+        const Einf = .5 * ((ux - P.vx) ** 2 + (uy - P.vy) ** 2) - KE * Q / Math.sqrt(d2 + SOFT * SOFT);
+        if (Einf < this.bindE(Q, sh)) { pts.push([x, y]); return { pts, x, y, label: 'захват', c: [120, 240, 160], hit: true }; }
+      }
+      if (d < best) { best = d; bx = x; by = y; }
+      ux += dx / d * f * dt; uy += dy / d * f * dt;
+      const s = Math.hypot(ux, uy); if (s > 60) { ux *= 60 / s; uy *= 60 / s; }
+      x += ux * dt; y += uy * dt;
+      if (n % 3 === 2) pts.push([x, y]);
+    }
+    return E0 >= this.bindE(Q, sh) ? { pts, x: bx, y: by, label: 'пролетит — слишком быстро', c: [255, 110, 100] }
+      : { pts, x: bx, y: by, label: 'мимо — целься в ядро', c: [255, 200, 110] };
   },
   mkIon(Z, x, y) { return { Z, ne: 0, x, y, vx: randn(), vy: randn(), dead: false, age: 1 }; },
   vth() { return 3 + 25 * this.Ta; },
@@ -65,7 +101,7 @@ const Atoms = {
 
   update(dt, act) {
     this.t += dt; this.Ta = Math.max(0, 1 - this.t / 90);
-    if (act) { steer(P, 10, 2.5, dt); P.x += P.vx * dt; P.y += P.vy * dt; }
+    if (act) { this.sl.update(); const dr = Math.exp(-dt * 1.5); P.vx *= dr; P.vy *= dr; P.x += P.vx * dt; P.y += P.vy * dt; }
     const Q = this.Z - this.ne, vth = this.vth();
     if (act && !this.cleared && this.Ta < .3) { this.cleared = true; msg('Рекомбинация: Вселенная стала прозрачной. Этот свет — будущее реликтовое излучение'); }
 
@@ -75,6 +111,7 @@ const Atoms = {
     }
     for (const e of this.el) {
       e.age += dt;
+      if (e.held) continue; // взят рогаткой — замер
       let ax = 0, ay = 0;
       if (act && Q > 0) {
         const dx = P.x - e.x, dy = P.y - e.y, d2 = dx * dx + dy * dy, d = Math.sqrt(d2) || 1e-6, f = KE * Q / (d2 + SOFT * SOFT);
@@ -101,13 +138,16 @@ const Atoms = {
         if (d < 4) { const rv2 = (e.vx - io.vx) ** 2 + (e.vy - io.vy) ** 2; if (rv2 < 80 * qi && Math.random() < 1 - Math.exp(-dt * 4)) { e.dead = true; io.ne++; break; } }
       }
       if (e.dead) continue;
-      // баллистика: своя скорость ~ тепловой, направление плавно блуждает
+      // баллистика: своя скорость ~ тепловой, направление плавно блуждает (брошенный рогаткой — пока летит свободно)
       e.vx += ax * dt; e.vy += ay * dt;
-      const tw = randn() * .6 * Math.sqrt(dt), cs = Math.cos(tw), sn = Math.sin(tw);
-      [e.vx, e.vy] = [e.vx * cs - e.vy * sn, e.vx * sn + e.vy * cs];
       let s = Math.hypot(e.vx, e.vy) || 1e-6;
-      const target = (e.k || 1) * vth, ns = s + (target - s) * Math.min(1, dt * .6);
-      e.vx *= ns / s; e.vy *= ns / s; s = ns;
+      if (e.free > 0) e.free -= dt;
+      else {
+        const tw = randn() * .6 * Math.sqrt(dt), cs = Math.cos(tw), sn = Math.sin(tw);
+        [e.vx, e.vy] = [e.vx * cs - e.vy * sn, e.vx * sn + e.vy * cs];
+        const target = (e.k || 1) * vth, ns = s + (target - s) * Math.min(1, dt * .6);
+        e.vx *= ns / s; e.vy *= ns / s; s = ns;
+      }
       if (s > 60) { e.vx *= 60 / s; e.vy *= 60 / s; }
       e.x += e.vx * dt; e.y += e.vy * dt;
     }
@@ -134,7 +174,7 @@ const Atoms = {
     else this.neutralT = 0;
 
     const R = viewRadius();
-    for (const e of this.el) if (Math.hypot(e.x - P.x, e.y - P.y) > R * 2.3) e.dead = true;
+    for (const e of this.el) if (!e.held && Math.hypot(e.x - P.x, e.y - P.y) > R * 2.3) e.dead = true;
     for (const io of this.ions) if (Math.hypot(io.x - P.x, io.y - P.y) > R * 2.3) io.dead = true;
     for (const p of this.ph) if (Math.hypot(p.x - P.x, p.y - P.y) > R * 1.6) p.dead = true;
     this.el = this.el.filter(e => !e.dead); this.ions = this.ions.filter(e => !e.dead); this.ph = this.ph.filter(e => !e.dead);
@@ -144,7 +184,6 @@ const Atoms = {
       for (let i = 0; i < 2 && this.ions.length + i < 12; i++) this.spawnIon(false);
     }
   },
-  dash() { tryDash(P, 12); },
   cheat() { this.ne = this.Z; this.t = Math.max(this.t, 55); this.Ta = .2; this.neutralT = 1.9; },
 
   draw(al) {
@@ -161,12 +200,14 @@ const Atoms = {
       const a = al * Math.min(1, e.age * 2);
       line(sx, sy, sx - e.vx * .04 * z, sy - e.vy * .04 * z, [120, 190, 255], .35 * a, Math.max(1, .25 * z));
       glow(sx, sy, Math.max(3, .9 * z), [120, 200, 255], .7 * a); ball(sx, sy, Math.max(1, .3 * z), [200, 235, 255], a);
+      if (e.held) ring(sx, sy, 9, [255, 215, 110], .9 * al, 2);
     }
     for (const p of this.ph) {
       const [sx, sy] = W2S(p.x, p.y);
       const c = p.E > 25 ? [210, 200, 255] : p.E > 12 ? [255, 255, 240] : p.E > 5 ? [255, 210, 140] : [255, 130, 90];
       line(sx, sy, sx - p.vx * .06 * z, sy - p.vy * .06 * z, c, .7 * al, Math.max(1.2, .2 * z));
     }
+    if (this.sl) this.sl.draw(al);
   },
   drawPlayer(al) {
     const [sx, sy] = W2S(P.x, P.y), z = cam.z;
@@ -205,9 +246,9 @@ const Atoms = {
       title: this.name,
       sub: `T ≈ ${Math.round(1500 + 6000 * this.Ta)} K · ${this.Ta > .3 ? 'Вселенная непрозрачна' : 'Вселенная прозрачна'}`,
       lines: [['Атом', `${el[1]} ${Q > 0 ? `(ион, заряд +${Q})` : '(нейтральный)'}`], ['Электроны', `${this.ne} / ${this.Z}`],
-        ['Захват', Q > 0 ? `относительная скорость ≲ ${vcap.toFixed(1)} (сейчас электроны ≈ ${this.vth().toFixed(0)})` : '—'],
+        ['Захват', Q > 0 ? `скорость у оболочки ≲ ${vcap.toFixed(1)} (электроны летят ≈ ${this.vth().toFixed(0)})` : '—'],
         ['Ионизация', this.ne ? `${this.ionE().toFixed(1)} эВ` : '—'], ['Химия', `валентность ${el[2]} — оранжевые вакансии станут связями`]],
-      goal: 'Собери электроны до нейтрального атома. Быстрые электроны пролетают мимо по гиперболам — <b>лети рядом</b>, гася относительную скорость. Жёсткие фотоны выбивают электроны; Вселенная остывает, и ловить становится легче. Чем больше заряд ядра, тем жаднее оно ловит.',
+      goal: 'Собери электроны до нейтрального атома. <b>Рогатка</b>: зажми электрон — он замрёт, но запомнит, куда летел (голубой пунктир); оттяни и отпусти — толчок прибавится к его скорости. Быстрый электрон пролетит мимо ядра по гиперболе: погаси его скорость и брось мягко — пунктир покажет орбиту, у ядра — «захват». Жёсткие фотоны выбивают электроны; Вселенная остывает, и ловить становится легче.',
       laws: [['Электромагнетизм (кулон)', 1], ['Квантованные оболочки', 1], ['Фотоионизация', this.Ta], ['Тепловое движение', .2 + .8 * this.Ta]],
     };
   },

@@ -10,7 +10,9 @@
    - Стерика: атомы не могут налезать друг на друга — связь, которая так сделает, не возникает.
    - Очень сильный удар рвёт связь.
    - Насыщенная молекула (свободных связей нет) больше не растёт.
-   Глагол игрока: совместить (повернуть и ударить). */
+   Глагол игрока: рогатка — зажми атом (или свою молекулу), поверни (Q / E), оттяни и отпусти: связь выйдет,
+   если свободные связи встретятся лицом к лицу и удар сильнее энергии активации. Пунктир показывает путь,
+   у цели — вердикт: «связь C–H», «слабо», «не той стороной», «порвёт связь». */
 const CHEM = {
   H: { r: 5.4, c: [235, 235, 240], s: [0], m: 1 },
   He: { r: 6, c: [220, 255, 255], s: [], m: 4 },
@@ -33,7 +35,8 @@ const GOALS = [
 
 const Mols = {
   key: 'molecules', name: 'Химия', bg: [6, 24, 44],
-  controls: 'Мышь — двигаться · Q / E или Shift + колесо — вращать · колесо — зум · Пробел — рывок · X — отщепить атом',
+  controls: 'Зажми атом, оттяни, отпусти — рогатка · Q / E или Shift + колесо — вращать взятое · колесо — зум · X — отщепить атом',
+  sling: true,
 
   enter(prev) {
     this.m = []; this.t = 0; this.goalI = 0; this.first = true; this.hints = []; this.lowEMsgT = 0; this.satMsg = false;
@@ -42,6 +45,53 @@ const Mols = {
     this.pm = this.newMol(el, P.x, P.y); this.pm.player = true; this.pm.vx = P.vx; this.pm.vy = P.vy; this.pm.age = 1;
     if (prev && prev.ions) for (const io of prev.ions) if (io.ne >= io.Z) { const m = this.newMol(io.Z === 1 ? 'H' : 'He', io.x, io.y); m.age = 0; }
     for (let i = 0; i < 32; i++) this.spawn(true);
+    this.sl = new Sling(this);
+    msg('Рогатка: зажми атом, оттяни назад и отпусти — брось его в свою молекулу');
+  },
+  // ---------- рогатка ----------
+  bodies() { return this.m; },
+  grabR(b) { return b.R + 14 / cam.z; },
+  full() { return 150 / cam.z; },
+  vmax() { return 40; },
+  hold(b) { b.held = true; b.vx = b.vy = 0; b.w = 0; },
+  launch(b, vx, vy) { b.held = false; b.vx = vx; b.vy = vy; b.thrown = 0; },
+  damp(b) { return b.player ? .8 : .3; },
+  // Полёт брошенного (без поворота и теплового дрожания): первый касающийся атом — и что выйдет
+  predict(b, vx, vy) {
+    const pts = [[b.x, b.y]], dt = 1 / 60, k = Math.exp(-this.damp(b) * dt);
+    let x = b.x, y = b.y, ux = vx, uy = vy;
+    for (let n = 0; n < 240; n++) {
+      x += ux * dt; y += uy * dt; ux *= k; uy *= k;
+      if (n % 4 === 3) pts.push([x, y]);
+      const ox = x - b.x, oy = y - b.y;
+      for (const T of this.m) {
+        if (T === b || T.dead || Math.hypot(T.x - x, T.y - y) > T.R + b.R) continue;
+        for (let ia = 0; ia < b.atoms.length; ia++) for (let ib = 0; ib < T.atoms.length; ib++) {
+          const pa = [b.wp[ia][0] + ox, b.wp[ia][1] + oy], pb = T.wp[ib], ra = CHEM[b.atoms[ia].el].r, rb = CHEM[T.atoms[ib].el].r;
+          const dx = pb[0] - pa[0], dy = pb[1] - pa[1], d = Math.hypot(dx, dy);
+          if (d >= ra + rb) continue;
+          pts.push([x, y]);
+          const th = Math.atan2(dy, dx), vn = ((ux - T.vx) * dx + (uy - T.vy) * dy) / (d || 1);
+          // у своей молекулы свободные связи доворачиваются друг к другу («магнит»): там допуск шире
+          const tolA = T === this.pm ? 1.2 : TOL, tolB = b === this.pm ? 1.2 : TOL;
+          const sa = this.slotNear(b, ia, th, tolA), sb = this.slotNear(T, ib, th + Math.PI, tolB);
+          const ea = EA(b.atoms[ia].el, T.atoms[ib].el), hit = [pa[0] + dx * ra / (ra + rb), pa[1] + dy * ra / (ra + rb)];
+          let label, c;
+          if (!this.freeSlots(T) || !this.freeSlots(b)) { label = 'насыщена — отскочит'; c = [170, 175, 195]; }
+          else if (sa >= 0 && sb >= 0 && vn >= ea) { label = `связь ${b.atoms[ia].el}–${T.atoms[ib].el}`; c = [120, 240, 160]; }
+          else if (sa >= 0 && sb >= 0) { label = 'слабо — оттяни сильнее'; c = [255, 200, 110]; }
+          else if (vn > BREAK_V && (b.bonds.length || T.bonds.length)) { label = 'порвёт связь'; c = [255, 90, 80]; }
+          else { label = sa < 0 ? 'не той стороной — поверни (Q / E)' : 'мимо свободной связи — целься в штрих'; c = [200, 205, 225]; }
+          return { pts, x: hit[0], y: hit[1], label, c, hit: true };
+        }
+      }
+    }
+    return { pts, x, y, label: '', c: [200, 205, 225] };
+  },
+  slotNear(mol, i, th, tol) {
+    const a = mol.atoms[i]; let best = -1, bd = tol;
+    for (let k = 0; k < a.b.length; k++) if (a.b[k] < 0) { const d = Math.abs(angDiff(this.slotAng(mol, i, k), th)); if (d < bd) { bd = d; best = k; } }
+    return best;
   },
   newMol(el, x, y) {
     const d = CHEM[el];
@@ -227,13 +277,18 @@ const Mols = {
     this.t += dt; this.lowEMsgT -= dt;
     const pm = this.pm;
     if (act) {
-      steer(pm, 14, 2.5, dt);
+      this.sl.update();
+      // Q / E вращают то, что держишь, иначе — свою молекулу
+      const rm = this.sl.held || pm;
       let wt = 0; if (keys.has('KeyQ')) wt -= 2.6; if (keys.has('KeyE')) wt += 2.6;
-      if (wt) pm.w += (wt - pm.w) * Math.min(1, dt * 3); else pm.w *= Math.exp(-dt * 2);
+      if (wt) rm.w += (wt - rm.w) * Math.min(1, dt * 3); else rm.w *= Math.exp(-dt * 2);
     }
     for (const mol of this.m) {
-      mol.age += dt;
-      if (!mol.player) {
+      mol.age += dt; mol.thrown = (mol.thrown ?? 9) + dt;
+      if (mol.held) { mol.vx = mol.vy = 0; mol.a += mol.w * dt; mol.wp = mol.atoms.map((_, i) => this.wpos(mol, i)); continue; }
+      if (mol.player) { const dr = Math.exp(-dt * this.damp(mol)); mol.vx *= dr; mol.vy *= dr; }
+      else if (mol.thrown < 3) { const dr = Math.exp(-dt * this.damp(mol)); mol.vx *= dr; mol.vy *= dr; } // брошенный летит, как показал пунктир
+      else {
         const j = 3.2 * Math.sqrt(dt); mol.vx += randn() * j; mol.vy += randn() * j; mol.w += randn() * .6 * Math.sqrt(dt);
         const dr = Math.exp(-dt * .3); mol.vx *= dr; mol.vy *= dr; mol.w *= dr;
       }
@@ -260,8 +315,7 @@ const Mols = {
     this.m = this.m.filter(m => !m.dead);
     if (act) { for (let i = 0; i < 2 && this.m.length + i < 42; i++) this.spawn(false); }
   },
-  dash() { tryDash(this.pm, 16); },
-  wheel(dy) { this.pm.w += Math.sign(dy) * .9; },
+  wheel(dy) { (this.sl.held || this.pm).w += Math.sign(dy) * .9; },
   detach() {
     const pm = this.pm;
     for (let i = pm.atoms.length - 1; i > 0; i--) {
@@ -297,6 +351,7 @@ const Mols = {
       const [x1, y1] = W2S(h[0], h[1]), [x2, y2] = W2S(h[2], h[3]);
       ctx.setLineDash([4, 4]); line(x1, y1, x2, y2, h[4] ? [140, 255, 170] : [255, 220, 150], .7 * al, 1.5); ctx.setLineDash([]);
     }
+    if (this.sl) this.sl.draw(al);
   },
   drawPlayer(al) {
     const pm = this.pm;
@@ -314,7 +369,7 @@ const Mols = {
       lines: [['Молекула', this.formula(pm)], ['Атомов', pm.atoms.length],
         ['Свободные связи', free ? free : '<span style="color:#ff9a7a">0 — насыщена, X — отщепить</span>'],
         ['Цели', GOALS.map((g, i) => `${i < this.goalI ? '✓' : i === this.goalI ? '→' : '·'} ${g.t}`).join('<br>')]],
-      goal: 'Связь возникает, только если <b>свободные связи</b> (оранжевые штрихи) смотрят друг на друга и удар сильнее <b>энергии активации</b>. Вращай молекулу (Q/E), целься и толкай. Зелёный пунктир — связи совпали. Слишком сильный удар рвёт связи; насыщенная молекула больше не растёт.',
+      goal: '<b>Рогатка</b>: зажми атом, оттяни назад и отпусти — он полетит в обратную сторону. Связь возникает, только если <b>свободные связи</b> (оранжевые штрихи) смотрят друг на друга и удар сильнее <b>энергии активации</b>. Пока держишь — Q/E поворачивают атом, пунктир показывает путь, у цели — что выйдет. Слишком сильный удар не той стороной рвёт связи; насыщенная молекула больше не растёт. Свою молекулу тоже можно взять и бросить.',
       laws: [['Ковалентная связь', 1], ['Геометрия орбиталей', 1], ['Энергия активации', .6], ['Тепловое движение', .4]],
     };
   },
