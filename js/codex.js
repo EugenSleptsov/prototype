@@ -31,7 +31,7 @@ const Codex = {
       if (!k) return '<div></div>';
       const s = SM[k], st = this.run.has(k) ? 'on' : this.known.has(k) ? 'old' : 'off';
       if (st === 'on') n++;
-      return `<div class="cx ${s.kind} ${st}" title="${st === 'off' ? '?' : s.name}">${st === 'off' ? '?' : s.sym}</div>`;
+      return `<div class="cx ${s.kind} ${st}${st === 'on' && this.auto && this.auto.has(k) ? ' auto' : ''}" title="${st === 'off' ? '?' : s.name}">${st === 'off' ? '?' : s.sym}</div>`;
     }).join('');
     el.innerHTML = `<b>Стандартная модель · ${n}/17</b><div class="cxg">${cells}</div>`;
   },

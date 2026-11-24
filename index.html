@@ -31,6 +31,8 @@
   .cxg{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
   .cx{height:34px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:15px;font-weight:600;border:1px solid #ffffff18}
   .cx.off{opacity:.25}
+  .cx.auto{position:relative;box-shadow:inset 0 0 0 1px #ffd27a}
+  .cx.auto::after{content:'⟳';position:absolute;right:3px;top:0;font-size:10px;color:#ffd27a}
   .cx.old{opacity:.5;border-style:dashed}
   .cx.quark.on{background:#7a3d9a88;border-color:#c48be8}
   .cx.lepton.on{background:#2f7a4e88;border-color:#7fdca4}
@@ -47,7 +49,10 @@
   #upg .xp i{display:block;height:100%;background:#8fd0ff;border-radius:2px}
   #upg .lv{display:flex;justify-content:space-between;opacity:.8;margin:2px 0}
   #upg .lv span{color:#8fd0ff;letter-spacing:1px}
-  #shop{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);display:none;gap:6px;z-index:4}
+  #shop{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);display:none;gap:6px;z-index:4;flex-wrap:wrap-reverse;justify-content:center;width:max-content;max-width:96vw}
+  #shop.many i{display:none}
+  #shop.many button{padding:4px 7px}
+  #shop.many .ic{font-size:16px}
   #shop button{display:grid;grid-template-columns:auto auto 1fr;grid-template-rows:auto auto;column-gap:6px;align-items:center;white-space:nowrap;padding:5px 9px;border-radius:10px;border:1px solid #ffffff22;background:#0b0f1ccc;color:#dde3f0;font:inherit;font-size:12px;cursor:pointer;text-align:left}
   #shop .k{grid-row:span 2;background:#ffffff22;border-radius:4px;padding:1px 6px;font-size:11px}
   #shop .ic{grid-row:span 2;font-size:20px;color:#8fd0ff}
@@ -57,6 +62,7 @@
   #shop button.ok{border-color:#ffd27a;background:#2a2210dd;box-shadow:0 0 12px #ffd27a44}
   #shop button.ok:hover{background:#3a2e12ee}
   #shop button.no{opacity:.55;cursor:default}
+  #shop button.res .ic{color:#ffd27a;font-weight:700}
   #shop button.max{opacity:.45;cursor:default}
   #shop button.max em{color:#8fe8b0}
   #epoch .st{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
@@ -130,15 +136,15 @@
   <p style="opacity:.75"><kbd>R</kbd> — начать заново</p>
 </div></div>
 
-<script src="js/util.js?v=52"></script>
-<script src="js/core.js?v=52"></script>
-<script src="js/universe.js?v=52"></script>
-<script src="js/codex.js?v=52"></script>
-<script src="js/s0_quarks.js?v=52"></script>
-<script src="js/s_particles.js?v=52"></script>
-<script src="js/s1_nuclei.js?v=52"></script>
-<script src="js/s2_atoms.js?v=52"></script>
-<script src="js/s3_molecules.js?v=52"></script>
-<script src="js/main.js?v=52"></script>
+<script src="js/util.js?v=53"></script>
+<script src="js/core.js?v=53"></script>
+<script src="js/universe.js?v=53"></script>
+<script src="js/codex.js?v=53"></script>
+<script src="js/s0_quarks.js?v=53"></script>
+<script src="js/s_particles.js?v=53"></script>
+<script src="js/s1_nuclei.js?v=53"></script>
+<script src="js/s2_atoms.js?v=53"></script>
+<script src="js/s3_molecules.js?v=53"></script>
+<script src="js/main.js?v=53"></script>
 </body>
 </html>
