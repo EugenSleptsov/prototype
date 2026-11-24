@@ -4,7 +4,7 @@
    Project Settings → API → Project URL и ключ anon (public). Ключ anon публичный: таблицу защищают правила в SQL.
    Доски: 'run' — очки всего забега (отправляются в конце игры), 'heat' — температура разогрева, ГэВ.
    v — версия правил: поменялся подсчёт очков — подними v, и таблица начнётся заново (старые строки остаются в базе). */
-const ONLINE = { url: '', key: '', v: 1 };
+const ONLINE = { url: 'https://yisephxhvbxufceveaza.supabase.co', key: 'sb_publishable_THyZn9xV012fKZE7Sentlw_3v87Ck7s', v: 1 };
 
 const Online = {
   on() { return !!(ONLINE.url && ONLINE.key) && typeof fetch === 'function'; },
@@ -13,7 +13,8 @@ const Online = {
     try {
       const r = await fetch(ONLINE.url.replace(/\/+$/, '') + '/rest/v1/' + path, {
         ...opt, signal: ac.signal,
-        headers: { apikey: ONLINE.key, Authorization: 'Bearer ' + ONLINE.key, 'Content-Type': 'application/json', ...(opt.headers || {}) },
+        // старый ключ anon — JWT, его шлём и в Authorization; новый sb_publishable_… — только в apikey
+        headers: { apikey: ONLINE.key, ...(ONLINE.key.startsWith('eyJ') ? { Authorization: 'Bearer ' + ONLINE.key } : {}), 'Content-Type': 'application/json', ...(opt.headers || {}) },
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const t = await r.text();
