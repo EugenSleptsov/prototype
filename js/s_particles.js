@@ -67,7 +67,7 @@ const PH_CLS = [
   { n: 'сверхжёсткий', r: 'легендарный', x: 8, e: 4, k: 20, kn: 10, c: [210, 170, 255] },
 ];
 // Цены исследований: новое в мире (новый вид частиц) — дорого, автоматизация уже имеющегося — дешевле
-const RES_COST = { ph: [10, 30, 60], g: [40], coll: [60], cp: [60] }, resNew = (/** @type {number} */ v) => 60 + 20 * v;
+const RES_COST = { ph: [10, 30, 60], g: [40], coll: [60], cp: [60] }, resNew = (/** @type {number} */ v) => 40 + 15 * v;
 const LB_KEY = 'proto.lb.v1', LB_TOP = 5;
 // Таблица рекордов — в браузере игрока (localStorage)
 const LB = {
@@ -115,11 +115,12 @@ const EPOCHS = [
 ];
 const CHAINS = [['t', 'b', 'c'], ['ta', 'mu']]; // чьи распады нужно снять в эпохе 3
 // Роль семейства: зачем отдавать Вселенной рождение частицы (исследование «Рождение X»)
-//  e      — e⁻ и e⁺ притягиваются и гаснут в γγ: свет для детектора и ✦ за каждую вспышку в кадре
-//  u, d   — копятся в запас (до UD_MAX) и в эпохе 4 сразу ложатся в детектор: фора к барионам
-//  c s b μ τ — каждый снятый распад даёт ✦ по массе (не только первый)
-//  t      — распался у детектора: ⚡ заряжается до полного
-const E_PULL = 2.5, UD_MAX = 6, DEC_PAY = ['c', 's', 'b', 'mu', 'ta', 't'];
+//  e      — e⁻ и e⁺ притягиваются и гаснут в γγ: каждая вспышка +1 ✦, на виду — ещё и +1 ⚡
+//  u, d   — Вселенная откладывает по кварку раз в UD_EVERY с (до UD_MAX, поровну u и d);
+//           в эпохе 4 запас сразу ложится в детектор готовыми тройками — фора к барионам
+//  c s b μ τ — каждый снятый распад платит ✦ (вдвое против массы) и возвращает ⚡ снимка; такие частицы не уходят в фон
+//  t      — t, рожденный Вселенной, распадается в кадре: ⚡ до полного (не чаще раза в T_CD с; твой t — не в счёт)
+const E_PULL = 2.5, UD_MAX = 6, UD_EVERY = 8, T_CD = 20, DEC_PAY = ['c', 's', 'b', 'mu', 'ta'];
 const COL_N = ['красный', 'зелёный', 'синий']; // цвет кварка; у глюона — цвет и антицвет
 const STOCK_GOAL = 15, TRIO_GOAL = 5; // цель эпохи 4 — пять будущих барионов (по кварку каждого цвета)
 const TRIO_W = TRIO_GOAL < 5 ? 'тройки' : 'троек';
@@ -235,7 +236,7 @@ const Particles = {
     this.learn = {}; this.coach = { idle: 0, t: 0, kind: null }; this.en = 0; this.enFx = 0; this.shotCd = 0; this.shotFx = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.bannerFor = -1; this.banner = 99; this.epT = 0;
-    this.pairs = 0; this.decSeen = new Set(); this._pk = null; this.hot = []; this.hotCd = 3; this.stock = 0; this.stockQ = []; this.udRes = []; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
+    this.pairs = 0; this.decSeen = new Set(); this._pk = null; this.hot = []; this.hotCd = 3; this.stock = 0; this.stockQ = []; this.udRes = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
     Codex.run = new Set(); Codex.dirty = true;
     // цели этого забега: что открыть в эпохе 1 и чьи распады снять в эпохе 3
     this.need0 = [...NEED0];
@@ -714,7 +715,7 @@ const Particles = {
   },
   // Аннигиляция частицы и своей античастицы → кванты (или Z на резонансе)
   // spont — встретились сами: Z — только если исследован «Z сам»
-  /** @param {Q} a @param {Q} b @param {boolean} [spont] */
+  /** @param {Q} a @param {Q} b @param {boolean} [spont] @returns {Q[]} */
   annihilate(a, b, spont) {
     const rs = this.sqrtS(a, b), x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
     a.dead = b.dead = true;
@@ -728,6 +729,7 @@ const Particles = {
     }
     fxFlash(x, y, .9, [255, 255, 255], spont ? .25 : .4); if (!spont || onScreen(...W2S(x, y), 0)) Sfx.play('annih');
     this.event(made, x, y);
+    return made;
   },
   // Эпохи 1–3: частица и её античастица, сблизившись, аннигилируют сами (не в поле и не брошенные).
   // Только сходящиеся: только что рождённая пара разлетается и друг друга не трогает; вернуть их друг к другу
@@ -740,8 +742,8 @@ const Particles = {
       const dx = b.x - a.x, dy = b.y - a.y; if (dx * dx + dy * dy > .16) continue;
       const va = this.speed(a), vb = this.speed(b);
       if (dx * (a.dx * va - b.dx * vb) + dy * (a.dy * va - b.dy * vb) <= 0) continue; // расходятся
-      this.annihilate(a, b, true); this.st.ann = (this.st.ann || 0) + 1;
-      if (a.sp === 'e' && Codex.auto.has('e')) this.eFlash((a.x + b.x) / 2, (a.y + b.y) / 2);
+      const made = this.annihilate(a, b, true); this.st.ann = (this.st.ann || 0) + 1;
+      if (a.sp === 'e' && Codex.auto.has('e') && made[0].sp === 'ph') this.eFlash((a.x + b.x) / 2, (a.y + b.y) / 2);
     }
   },
   // «Рождение e» исследовано: e⁻ и e⁺ (разноимённые заряды) поворачивают друг к другу — встретятся и погаснут в γγ.
@@ -760,14 +762,20 @@ const Particles = {
       a.dx = Math.cos(na); a.dy = Math.sin(na);
     }
   },
-  // вспышка e⁺e⁻ → γγ: фотоны — свет для детектора; на виду — ещё и ✦
+  // вспышка e⁺e⁻ → γγ: +1 ✦ всегда (свет Вселенной копит знание и за кадром); на виду — ещё и +1 ⚡
   /** @param {number} x @param {number} y */
   eFlash(x, y) {
-    if (!onScreen(...W2S(x, y), 0)) return;
     this.kn += 1;
-    this.float(x, y - .3, 'e⁺e⁻ → γγ +1 ✦', PH_C, 12);
+    if (!onScreen(...W2S(x, y), 0)) return;
+    const en = this.enOn(); if (en) this.en = Math.min(E_CAP, this.en + 1);
+    this.float(x, y - .3, en ? 'e⁺e⁻ → γγ +1 ✦ +1 ⚡' : 'e⁺e⁻ → γγ +1 ✦', PH_C, 12);
     fxRing(x, y, .1, PH_C, .9, .5);
   },
+  // распад этого вида оплачивается («Рождение X» для c s b μ τ) и сколько он платит
+  /** @param {string} sp */
+  paidDec(sp) { return DEC_PAY.includes(sp) && Codex.auto.has(sp); },
+  /** @param {string} sp */
+  decPay(sp) { return 2 * this.value(sp); },
   // Распады — только когда у частиц есть масса (после перехода Хиггса)
   /** @param {Q} o @returns {[string, boolean][] | null} */
   decayProducts(o) {
@@ -808,8 +816,8 @@ const Particles = {
     });
     fxRing(o.x, o.y, .1, this.dcol(o), .5, .5);
     if (onScreen(...W2S(o.x, o.y), 0)) Sfx.play('decay');
-    if (o.sp === 't' && Codex.auto.has('t') && this.enOn() && Math.hypot(o.x - P.x, o.y - P.y) < this.fr() * 1.5) { // 173 ГэВ у детектора
-      this.en = E_CAP; this.full = true;
+    if (o.sp === 't' && o.uni && Codex.auto.has('t') && this.enOn() && this.t - this.tAt >= T_CD && onScreen(...W2S(o.x, o.y), 0)) { // 173 ГэВ на виду
+      this.en = E_CAP; this.full = true; this.tAt = this.t;
       fxRing(P.x, P.y, this.hr(), PH_C, this.hr() * 1.8, .8);
       this.float(P.x, P.y + this.hr() + .3, 't → ⚡ полный заряд', PH_C, 15, -.3);
     }
@@ -833,6 +841,7 @@ const Particles = {
     if (paid) this.en -= E_SHOT;
     this.shotCd = this.up('sh'); this.learn.snap = true; Sfx.play('snap');
     const R0 = this.hr(), got = new Map(); // вид → где его видно (частица или след)
+    let refund = false; // снят оплачиваемый распад — ⚡ снимка вернётся
     for (const o of this.p) if (!o.dead && this.inHand(o) && !got.has(o.sp)) got.set(o.sp, { x: o.x, y: o.y });
     this.shotFx = .35;
     for (const tr of this.tracks) {
@@ -844,12 +853,13 @@ const Particles = {
           this.decSeen.add(tr.parent); this.kn += 5; Sfx.play('goal');
           this.float(tr.x, tr.y + .4, `${SM[tr.parent].sym}→ ✓ +5`, [255, 215, 110], 15, -.3);
           fxRing(tr.x, tr.y, .2, GOLD, .9, .6);
-        } else if (DEC_PAY.includes(tr.parent) && Codex.auto.has(tr.parent)) {
-          const v = this.value(tr.parent); this.kn += v;
+        } else if (this.paidDec(tr.parent)) {
+          const v = this.decPay(tr.parent); this.kn += v; refund = true;
           this.float(tr.x, tr.y + .4, `${SM[tr.parent].sym}→ +${v} ✦`, [140, 220, 255], 14, -.3);
         }
       }
     }
+    if (refund && paid) this.en = Math.min(E_CAP, this.en + E_SHOT);
     if (!got.size) { this.st.empty++; this.float(P.x, P.y - R0, 'пусто', [200, 200, 210]); return; }
     this.acted();
     // комбо: чем больше разных частиц (не квантов) в одном кадре, тем ценнее снимок
@@ -908,10 +918,10 @@ const Particles = {
   /** @param {string} sp */
   role(sp) {
     if (sp === 'H') return 'всплески поля рождают H';
-    if (sp === 'e') return 'e⁺e⁻ гаснут в γγ: свет и ✦';
-    if (sp === 'u' || sp === 'd') return `копятся к эпохе 4: фора ${this.udRes.length}/${UD_MAX} ◉`;
-    if (sp === 't') return 'распад у детектора — ⚡ полный';
-    if (DEC_PAY.includes(sp)) return `каждый снятый распад +${this.value(sp)} ✦`;
+    if (sp === 'e') return 'e⁺e⁻ гаснут в γγ: +1 ✦, на виду +1 ⚡';
+    if (sp === 'u' || sp === 'd') { const o = sp === 'u' ? 'd' : 'u'; return `запас к эпохе 4: ${this.udRes.length}/${UD_MAX} ◉` + (Codex.auto.has(o) ? '' : ` — тройке нужен и ${o}`); }
+    if (sp === 't') return `t Вселенной в кадре — ⚡ полный (раз в ${T_CD} с)`;
+    if (DEC_PAY.includes(sp)) return `снятый распад +${this.decPay(sp)} ✦, снимок бесплатно`;
     return `столкновения рождают ${SM[sp].sym}`;
   },
   /** @param {string} k */
@@ -971,7 +981,7 @@ const Particles = {
         return `<button data-i="${k}" class="det sec ok" title="${u.name}: ${u.fmt(u.val[l])} → ${u.fmt(u.val[l + 1])} · ${u.about}"><span class="k">${k + 1}</span><span class="ic">${u.ic}</span><b>${u.name}</b></button>`;
       }
       const { r, c } = x, sec = !x.pri && (anyPri || k > 0 && items.length > 2);
-      return `<button data-i="${k}" class="res ${b >= c ? 'ok' : 'no'}${x.pri ? ' pri' : sec ? ' sec' : ''}">${x.pri ? '<u>для задания</u>' : ''}<span class="k">${k + 1}</span>` +
+      return `<button data-i="${k}" class="res ${b >= c ? 'ok' : 'no'}${x.pri ? ' pri' : sec ? ' sec' : ''}" title="${r.name}: ${r.about(this.rLvl(r.k))}">${x.pri ? '<u>для задания</u>' : ''}<span class="k">${k + 1}</span>` +
         `<span class="ic">${r.ic}</span><b>${r.name}</b><i>${r.about(this.rLvl(r.k))}</i><em>${c} ✦</em></button>`;
     }).join('') + (this.upPts > 0 ? `<div class="sh-h">детектор · ★ ${this.upPts}</div>` : '');
     if (el._h !== html) { el._h = html; el.innerHTML = html; }
@@ -991,18 +1001,31 @@ const Particles = {
       const s = SM[sp], base = s.kind === 'quark' || s.kind === 'lepton' ? .6 : .4, target = base * this.weight(sp);
       const have = cnt[sp] || 0, auto = Codex.has(sp) && Codex.auto.has(sp) && (sp === 'H' || this.rs.coll > 0); // вещество — из столкновений
       if (auto && Math.random() < dt * .25 * (have === 0 ? Math.min(1, target * 1.5) : have < target - .5 ? 1 : 0)) {
-        const [x, y] = this.randPos(true), pp = this.thermalP(this.T);
-        if (s.kind === 'boson' && sp !== 'W') this.mk(sp, false, x, y, Math.random() * TAU, pp);
-        else this.pair(sp, x, y, pp);
-        if ((sp === 'u' || sp === 'd') && this.udRes.length < UD_MAX) { // вещество Вселенной копится к эпохе адронов
-          this.udRes.push(sp);
-          this.float(P.x, P.y + this.hr() + .3, `+${sp} в запас · ${this.udRes.length}/${UD_MAX} ◉`, [140, 235, 170], 11);
-        }
+        const [x, y] = sp === 't' ? this.inViewPos() : this.randPos(true), pp = this.thermalP(this.T);
+        if (s.kind === 'boson' && sp !== 'W') this.mk(sp, false, x, y, Math.random() * TAU, pp).uni = true;
+        else for (const q of this.pair(sp, x, y, pp)) q.uni = true;
       } else if (have > target * 1.5 + 1) this.thin(o => o.sp === sp, have - Math.ceil(target * 1.5 + 1));
     }
+    this.reserve(dt);
     if (this.ep === 3 && (cnt.g || 0) > G_MAX4) this.thin(o => o.sp === 'g' && !o.cap, cnt.g - G_MAX4);
     const nq = (cnt.ph || 0) + (cnt.g || 0), capQ = Math.ceil((this.ep === 3 ? this.qCap() : this.nQ()) * 1.1);
     if (nq > capQ) this.thin(o => this.isQ(o) && !o.cap, nq - capQ);
+  },
+  // «Рождение u/d»: Вселенная откладывает кварк в запас к эпохе 4 — поровну u и d, чтобы сложились тройки
+  /** @param {number} dt */
+  reserve(dt) {
+    const fl = ['u', 'd'].filter(f => Codex.auto.has(f));
+    if (this.ep >= 3 || !this.rs.coll || !fl.length || this.udRes.length >= UD_MAX || (this.udT += dt) < UD_EVERY) return;
+    this.udT = 0;
+    const nu = this.udRes.filter(f => f === 'u').length, f = fl.length === 1 ? fl[0] : nu * 2 <= this.udRes.length ? 'u' : 'd';
+    this.udRes.push(f);
+    this.float(P.x, P.y + this.hr() + .3, `+${f} в запас · ${this.udRes.length}/${UD_MAX} ◉`, [140, 235, 170], 11);
+  },
+  // точка в кадре, не у самого детектора
+  /** @returns {[number, number]} */
+  inViewPos() {
+    const a = Math.random() * TAU, d = rnd(this.hr() * 1.8, Math.max(this.hr() * 2, viewRadius() * .75));
+    return [P.x + Math.cos(a) * d, P.y + Math.sin(a) * d];
   },
   // Лишние частицы уходят: за экраном — сразу, на экране — плавно гаснут, дальние от детектора первыми
   /** @param {(o: Q) => boolean} pred @param {number} extra */
@@ -1225,7 +1248,11 @@ const Particles = {
       for (let k = 0; k < 4; k++) { const [x, y] = this.randPos(false); this.mk(pick(['u', 'd']), false, x, y, Math.random() * TAU, rnd(.1, .4)); }
       // запас: u и d, что Вселенная накопила за прошлые эпохи, сразу в детекторе — цвета поровну, чтобы сложились тройки
       if (this.udRes.length) {
-        for (const fl of this.udRes) { this.stockQ.push({ fl, col: this.stock % 3 }); this.stock++; }
+        let u = this.udRes.filter(f => f === 'u').length, d = this.udRes.length - u;
+        const order = [];
+        while (u >= 1 && d >= 1 && u + d >= 3) { if (u >= d) { order.push('u', 'u', 'd'); u -= 2; d--; } else { order.push('u', 'd', 'd'); u--; d -= 2; } }
+        order.push(...Array(u).fill('u'), ...Array(d).fill('d'));
+        order.forEach((fl, i) => { this.stockQ.push({ fl, col: i % 3 }); this.stock++; });
         fxRing(P.x, P.y, this.hr() * .3, [140, 235, 170], this.hr() * 1.6, .8);
         this.float(P.x, P.y - this.hr() - .3, `запас Вселенной: +${this.udRes.length} ◉`, [140, 235, 170], 16);
         this.udRes = [];
@@ -1788,6 +1815,7 @@ const Particles = {
   isBg(o) {
     if (this.ep === 3 || this.isQ(o) || !Codex.has(o.sp) || o.mine > 0 || o.cap || this.wanted(o.sp, o)) return false;
     if (this.willTell(o)) return false;
+    if (this.hig > .5 && o.life < Infinity && this.paidDec(o.sp)) return false; // его распад оплачивается
     const f = this.focus, f0 = f && f.cap.length === 1 && f.cap[0];
     if (f0 && !this.isQ(f0) && this.antiPair(f0, o)) return false; // держишь частицу — её античастица нужна
     if (this.hig >= .5 && this.grabbable(o) && Math.hypot(o.x - P.x, o.y - P.y) < this.fr()) return false; // в зоне поля — можно взять
@@ -1795,20 +1823,20 @@ const Particles = {
   },
   // Облик семейства (поверх — сам шар): кварк — свой цветной заряд кружит рядом, лептон — искра со светящимся хвостом,
   // второе и третье поколение — одно и два кольца (тяжелее — богаче), бозоны — без украшений
-  /** @param {Q} o @param {number} sx @param {number} sy @param {number} r @param {RGB} c */
-  drawLook(o, sx, sy, r, c) {
+  /** @param {Q} o @param {number} sx @param {number} sy @param {number} r @param {RGB} c @param {boolean} bg */
+  drawLook(o, sx, sy, r, c, bg) {
     const s = SM[o.sp], gen = s.gen ?? 0, t = G.T + o.ph;
     if (s.kind === 'quark') {
-      glow(sx, sy, r * 2, c, .25);
-      for (let k = 0; k < 2; k++) { const an = t * (o.anti ? -2.6 : 2.6) + k * Math.PI; ball(sx + Math.cos(an) * (r + 4), sy + Math.sin(an) * (r + 4), k ? 1.6 : 2.4, c, k ? .55 : .95); }
+      if (!bg) glow(sx, sy, r * 2, c, .25);
+      for (let k = 0; k < 2; k++) { const an = t * (o.anti ? -2.6 : 2.6) + k * Math.PI; ball(sx + Math.cos(an) * (r + 2.5), sy + Math.sin(an) * (r + 2.5), k ? 1.4 : 2.1, c, k ? .55 : .95); }
     } else if (s.kind === 'lepton') {
-      glow(sx, sy, r * 2.6, c, .4);
+      if (!bg) glow(sx, sy, r * 2.6, c, .4);
       const v = this.speed(o) / C_LIGHT; // искра: короткий яркий хвост за спиной
       const L = r * (1.6 + 1.8 * v);
       line(sx - o.dx * r * .6, sy - o.dy * r * .6, sx - o.dx * L, sy - o.dy * L, mixc(c, [255, 255, 255], .5), .5, Math.max(1, r * .22));
     }
-    if (gen >= 2 && s.kind !== 'nu') for (let k = 0; k < gen - 1; k++) {
-      const rr = r + 6.5 + k * 3.5, sp = t * (k ? -1.4 : 1.1);
+    if (gen >= 2 && s.kind !== 'nu' && !bg) for (let k = 0; k < gen - 1; k++) {
+      const rr = r + 9 + k * 3.5, sp = t * (k ? -1.4 : 1.1);
       arc(sx, sy, rr, sp, sp + Math.PI * 1.5, c, .5, 1.1);
     }
   },
@@ -1819,11 +1847,11 @@ const Particles = {
   drawParticle(o, sx, sy, r, a, known, c) {
     const s = SM[o.sp], bg = this.isBg(o);
     // нестабильное мерцает — тем чаще и глубже, чем ближе распад
-    if (o.life < Infinity && this.hig > .5) { const f = clamp(o.age / o.life, 0, 1); a *= 1 - .45 * f * f * (.5 + .5 * Math.sin(G.T * (8 + 40 * f) + o.ph)); }
+    if (o.life < Infinity && this.hig > .5) { const f = clamp(o.age / o.life, 0, 1); a *= 1 - .45 * f * f * (.5 + .5 * Math.sin(o.age * (8 + 20 * f) + o.ph)); } // частота растёт к распаду: 8 → 48 рад/с
     // фон (открытое и сейчас не нужное) — тот же облик, только мельче, тише и без подписи
-    if (bg) { r *= .72; a *= .6; }
+    if (bg) { r *= .72; a *= .5; }
     ctx.globalAlpha = a;
-    if (known && s.kind !== 'nu') this.drawLook(o, sx, sy, r, c);
+    if (known && s.kind !== 'nu') this.drawLook(o, sx, sy, r, c, bg);
     if (bg) {
       if (s.kind === 'nu') ring(sx, sy, r * .95, NU_C, .3, 1.2, [2.5, 3.5]);
       else if (o.anti && s.kind !== 'boson') ring(sx, sy, r, c, .9, 2);
@@ -1833,10 +1861,10 @@ const Particles = {
     }
     if (o.mine > 0) glow(sx, sy, r * 2.8, [255, 255, 255], .2 * Math.min(1, o.mine));
     if (known && this.willTell(o)) label('→ ?', sx + r + 12, sy - r - 3, 10, [255, 255, 255], .8, 800);
-    if (o.life < Infinity && this.hig > .5) arc(sx, sy, r + 4, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(1 - o.age / o.life, 0, 1), [255, 255, 255], .4, 1.6);
+    if (o.life < Infinity && this.hig > .5) arc(sx, sy, r + 5.5, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(1 - o.age / o.life, 0, 1), [255, 255, 255], .4, 1.6);
     if (this.wanted(o.sp, o)) {
       const sp = G.T * 2;
-      for (let k = 0; k < 4; k++) arc(sx, sy, r + 10, sp + k * Math.PI / 2, sp + k * Math.PI / 2 + .9, this.ep === 0 ? [255, 255, 255] : GOLD, .9, 2.2);
+      for (let k = 0; k < 4; k++) arc(sx, sy, r + 16, sp + k * Math.PI / 2, sp + k * Math.PI / 2 + .9, this.ep === 0 ? [255, 255, 255] : GOLD, .9, 2.2);
     }
     const fs = Math.max(9, r * .95);
     if (s.kind === 'nu') {
@@ -1892,6 +1920,7 @@ const Particles = {
     label(tr.rec ? sym : known || want ? sym + '→' : '?→', x, y - rr - 9, want ? 13 : 11, col, aa, 700);
     if (want && Math.hypot(tr.x - P.x, tr.y - P.y) < this.hr() && this.canShot())
       label('клик!', x, y + rr + 12, 13, GOLD, aa * (.7 + .3 * Math.sin(G.T * 10)), 800);
+    else if (!tr.rec && !want && this.paidDec(tr.parent) && this.decSeen.has(tr.parent)) label(`+${this.decPay(tr.parent)} ✦`, x, y + rr + 11, 11, [140, 220, 255], aa, 700);
   },
   /** @param {number} alpha */
   drawPlayer(alpha) {

@@ -94,6 +94,8 @@ interface Q {
   lv: number | null; lvAt: number;
   /** гаснет (−1 — нет); «твоё» на виду, секунды; отброшен щитом; втягивается щитом */
   fade: number; mine: number; rep: number; pull: number;
+  /** рождена самой Вселенной (исследованное «Рождение X»), а не тобой */
+  uni?: boolean;
   /** антикварк волны эпохи 4 */
   wave?: boolean;
 }
@@ -204,6 +206,8 @@ interface ParticlesState {
   stock: number; stockQ: Stored[]; soupCd: number;
   /** u и d, что Вселенная накопила к эпохе 4 (фора) */
   udRes: string[];
+  /** таймер запаса u/d; когда t Вселенной последний раз зарядил ⚡ (время уровня) */
+  udT: number; tAt: number;
   handoff: Handoff[] | null; stockOut: boolean; finale: number;
   /** цели забега: эпоха 1 — что открыть, эпоха 3 — чьи распады снять */
   need0: string[]; need2: string[];
