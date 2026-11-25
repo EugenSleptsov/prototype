@@ -82,17 +82,19 @@ test('частицы: подвёл детектор к другому квант
   assert.ok(!g.ev('__g.cap'), 'глюон не взят');
 });
 
-test('частицы: горячая область — новые кванты там гуще и жёстче, удар в ней набирается быстрее', () => {
+test('частицы: свет рождается в основном в горячей области — у неё гуще, вдали остывает; там жёстче, удар в ней набирается быстрее', () => {
   const g = lit();
   const r = g.ev(`(() => { const S = G.stage; S.tut = null; S.autoT = 99; S.hz = [{ x: P.x + 6, y: P.y, r: HZ_R, t: 10, L: 99 }]; const z = S.hz[0];
     for (const o of S.p) o.dead = true; S.p = []; P.x += 3; // детектор рядом с областью
-    for (let i = 0; i < 60 * 8; i++) update(1 / 60); // кванты летят со скоростью света: область — их источник
-    const ph = S.p.filter(o => !o.dead && o.sp === 'ph'), inZ = ph.filter(o => Math.hypot(o.x - z.x, o.y - z.y) < z.r);
-    const zA = Math.PI * z.r ** 2, wA = Math.PI * S.wr() ** 2;
+    // кванты летят со скоростью света: область — их источник, вдали свет остывает; доля у области — в среднем за 12 с
+    let n = 0, nZ = 0;
+    for (let i = 0; i < 60 * 20; i++) { update(1 / 60); if (i < 60 * 8 || i % 30) continue;
+      const ph = S.p.filter(o => !o.dead && o.sp === 'ph' && !(o.fade >= 0)); n += ph.length; nZ += ph.filter(o => Math.hypot(o.x - z.x, o.y - z.y) < z.r * 2.5).length; }
+    const zA = Math.PI * (z.r * 2.5) ** 2, wA = Math.PI * S.wr() ** 2;
     // жёсткость: квант из области против обычного
     const avg = hp => { let s = 0, n = 0; for (let i = 0; i < 300; i++) { const k = S.p.length; S.spawnQuantum(true, hp); const o = S.p[k]; if (o && o.sp === 'ph') { s += o.p; n++; } } return s / n; };
-    return { share: inZ.length / ph.length, area: zA / wA, pIn: avg([z.x, z.y]), pOut: avg(null) }; })()`);
-  assert.ok(r.share > r.area * 2.5, `в области ${Math.round(r.share * 100)} % квантов при ${Math.round(r.area * 100)} % площади`);
+    return { share: nZ / n, area: zA / wA, pIn: avg([z.x, z.y]), pOut: avg(null) }; })()`);
+  assert.ok(r.share > r.area * 1.6 && r.share > .45, `у области ${Math.round(r.share * 100)} % квантов при ${Math.round(r.area * 100)} % площади`);
   assert.ok(r.pIn > r.pOut * 1.3, `свет жёстче: ${r.pIn.toFixed(2)} против ${r.pOut.toFixed(2)}`);
   const q = inZone => g.ev(`(() => { const S = G.stage; for (const o of S.p) o.dead = true; S.p = []; S.en = 99;
     if (${inZone}) { S.hz[0].x = P.x; S.hz[0].y = P.y; } else { S.hz[0].x = P.x + 50; }

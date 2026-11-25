@@ -262,10 +262,15 @@
   #shop button.ok:hover{background:#3a2e12ee}
   #shop button.no{opacity:.55;cursor:default}
   #shop button.res .ic{color:#ffd27a;font-weight:700}
+  /* «Рождение» по поколениям: I — зелёный, II — жёлтый, III — красный */
+  #shop button.g1{--gc:#7fe08e}#shop button.g2{--gc:#ffd27a}#shop button.g3{--gc:#ff7a66}
+  #shop button.res.g1 .ic,#shop button.res.g2 .ic,#shop button.res.g3 .ic{color:var(--gc)}
   #shop button.max{opacity:.45;cursor:default}
   #shop button.max em{color:#8fe8b0}
   #shop button.pri{border-color:#ffd27a;border-width:2px;padding:12px 18px;box-shadow:0 0 18px #ffd27a55}
   #shop button.pri.no{opacity:.85}
+  #shop button.ok.g1,#shop button.ok.g2,#shop button.ok.g3,#shop button.pri.g1,#shop button.pri.g2,#shop button.pri.g3{border-color:var(--gc);box-shadow:0 0 12px color-mix(in srgb,var(--gc) 30%,transparent)}
+  #shop button.ok.g1{background:#10241add}#shop button.ok.g3{background:#2a1210dd}
   #shop u{position:absolute;top:-9px;left:14px;text-decoration:none;font-size:10px;font-weight:800;letter-spacing:.04em;background:#ffd27a;color:#1a1208;border-radius:6px;padding:1px 7px}
   /* призрачный курсор подсказки нажимает кнопку лавки (s_particles: drawCoach) */
   #shop button.coach{box-shadow:0 0 0 2px #ffffffaa,0 0 22px #ffffff55}
@@ -282,12 +287,6 @@
   #shop button.sec b{font-size:13px}
   #shop button.sec em{font-size:13px;padding-left:6px}
   #shop button.sec .k{font-size:11px;padding:1px 6px}
-  #shop button.det{border-color:#8fd0ff88;background:#0b1a2add;box-shadow:none}
-  #shop button.det .ic{color:#8fd0ff}
-  #shop button.det{padding:4px 8px;order:50}
-  #shop button.det b{font-size:12px;font-weight:600;opacity:.85}
-  #shop button.det .ic{font-size:15px}
-  #shop .sh-h{order:49;align-self:center;font-size:11px;color:#8fd0ff;opacity:.8;letter-spacing:.06em;text-transform:uppercase}
   @media (max-width:700px),(max-height:720px){
     #shop{gap:6px;bottom:40px}
     #shop button{min-width:0;padding:7px 11px;font-size:12px;column-gap:7px}
@@ -296,7 +295,6 @@
     #shop b{font-size:14px}
     #shop .ic{font-size:20px}
     #shop em{font-size:14px;padding-left:6px}
-    #shop button.det b{display:none}
     #codex{transform:scale(.85);transform-origin:top right}
   }
   @media (max-width:700px){#shop button.sec b{display:none}#card{left:12px;right:12px;transform:none;max-width:none;padding:8px 12px}#card .cn{font-size:15px}#card .cf{font-size:12px}}
@@ -434,20 +432,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=124"></script>
-<script src="js/gestures.js?v=124"></script>
-<script src="js/audio.js?v=124"></script>
-<script src="js/core.js?v=124"></script>
-<script src="js/universe.js?v=124"></script>
-<script src="js/codex.js?v=124"></script>
-<script src="js/sling.js?v=124"></script>
-<script src="js/s0_quarks.js?v=124"></script>
-<script src="js/s_particles.js?v=124"></script>
-<script src="js/s1_nuclei.js?v=124"></script>
-<script src="js/s_stars.js?v=124"></script>
-<script src="js/s2_atoms.js?v=124"></script>
-<script src="js/s3_molecules.js?v=124"></script>
-<script src="js/online.js?v=124"></script>
-<script src="js/main.js?v=124"></script>
+<script src="js/util.js?v=125"></script>
+<script src="js/gestures.js?v=125"></script>
+<script src="js/audio.js?v=125"></script>
+<script src="js/core.js?v=125"></script>
+<script src="js/universe.js?v=125"></script>
+<script src="js/codex.js?v=125"></script>
+<script src="js/sling.js?v=125"></script>
+<script src="js/s0_quarks.js?v=125"></script>
+<script src="js/s_particles.js?v=125"></script>
+<script src="js/s1_nuclei.js?v=125"></script>
+<script src="js/s_stars.js?v=125"></script>
+<script src="js/s2_atoms.js?v=125"></script>
+<script src="js/s3_molecules.js?v=125"></script>
+<script src="js/online.js?v=125"></script>
+<script src="js/main.js?v=125"></script>
 </body>
 </html>

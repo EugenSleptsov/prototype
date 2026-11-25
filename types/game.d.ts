@@ -110,7 +110,7 @@ interface Q {
   /** держит поле детектора */
   cap?: boolean;
   /** летит после отпускания/броска: секунды полёта (0 — не летит), своя скорость */
-  flung: number; p0?: number; v?: number; thrown?: boolean; sib?: Q | null; mate?: Q | null;
+  flung: number; p0?: number; qt?: number; ql?: number; v?: number; thrown?: boolean; sib?: Q | null; mate?: Q | null;
   /** ступень удара при отпускании (действует 3 с с lvAt) */
   lv: number | null; lvAt: number;
   /** гаснет (−1 — нет); «твоё» на виду, секунды; отброшен щитом; втягивается щитом */
@@ -180,11 +180,10 @@ interface Learn {
 }
 /** Статистика эпохи для испытаний */
 interface EpochStat { pairs: number; thr: number; empty: number; kinds: number; dry: number; eaten: number; recol: number; waves: number; ann?: number }
-type Upg = typeof UPG[number];
 /** Исследование в лавке ✦ */
 interface Research { k: string; ic: string; name: string; cost: number[]; about: (l: number) => string }
 /** Строка лавки: исследование (r) или улучшение детектора за ★ (up); c — цена, pri — нужно для задания */
-type ShopItem = { r: Research; up?: undefined; c: number; pri: boolean } | { r?: undefined; up: Upg; c: number; pri?: undefined };
+type ShopItem = { r: Research; c: number; pri: boolean };
 
 /** Состояние уровня частиц: всё, что заводят enter() и эпохи. Объявлено здесь, чтобы tsc ловил опечатки в this.поле. */
 interface ParticlesState {
@@ -208,7 +207,6 @@ interface ParticlesState {
   inf: Inf;
   heatBest: LBEntry | null; heatRes: { T0: number; pts: number; place: number; n: number; rec: boolean } | null;
   heatWorld: { score: number } | null;
-  upPts: number;
   /** поймано фотонов по классам; последний пойманный — для вспышки в трекере */
   caught: number[]; caughtFx: number; caughtAt: number;
   phSeen: Set<number>;
@@ -219,8 +217,6 @@ interface ParticlesState {
   cheated: boolean;
   tut: Tut | null;
   inVoid: boolean; voidT: number;
-  /** уровни улучшений детектора по ключам UPG */
-  lvl: Record<string, number>;
   focus: Focus | null; holding: boolean; hold: number; shield: number;
   learn: Learn; coach: Coach;
   /** что уже показано стоп-кадром (Spot) в этом забеге; когда жест «зажми у двух» не вышел */

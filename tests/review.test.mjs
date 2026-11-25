@@ -94,3 +94,20 @@ for (const key of ['quarks', 'nuclei', 'atoms']) test(`чит ]: ${key} — ур
   g.step(30);
   assert.notEqual(g.ev('G.stage.doneAt'), null, g.ev('G.stage.steps().map(s => +s.d).join("")'));
 });
+
+test('частицы: «Рождение» поколений — по лестнице: μ только после e, τ после μ; c, s — после u и d; цвет кнопки — поколение', () => {
+  const g = toStage('particles');
+  g.ev(`(() => { const S = G.stage; S.ep = 1; S.rs.coll = 1; S.kn += 9999; for (const sp of ['e', 'u', 'd', 'mu', 'ta', 's', 'c']) { Codex.see(sp); Codex.run.add(sp); } })()`);
+  const list = () => g.ev(`G.stage.resList().map(r => r.k)`);
+  assert.ok(list().includes('e') && !list().includes('mu') && !list().includes('ta') && !list().includes('c'), list().join());
+  assert.equal(g.ev(`G.stage.buyNext('ta')`), 'e', 'к τ — сначала e');
+  assert.match(g.ev(`G.stage.ladder('ta')`), /«Рождение e», потом «Рождение μ», потом «Рождение τ»/);
+  g.ev(`G.stage.rs.e = 1`);
+  assert.ok(list().includes('mu') && !list().includes('ta'));
+  g.ev(`G.stage.rs.u = 1`);
+  assert.ok(!list().includes('c'), 'c — после u и d');
+  g.ev(`G.stage.rs.d = 1; G.stage.rs.mu = 1`);
+  assert.ok(list().includes('c') && list().includes('s') && list().includes('ta'));
+  const html = g.ev(`(() => { const el = document.getElementById('shop'); G.started = true; el._h = ''; G.stage._pk = null; G.stage.renderShop(el); return el.innerHTML; })()`);
+  assert.match(html, /class="res[^"]* g2"/, 'второе поколение — жёлтое');
+});
