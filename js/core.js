@@ -143,6 +143,41 @@ function drawFx() {
   }
 }
 
+// ---------- стоп-кадр со стрелкой: важное родилось на поле — время на миг стоит, вокруг темнеет ----------
+// Светлое пятно на цели, золотая стрелка к ней и короткая строка «что сделать» — для тех, кто не читает,
+// хватает стрелки. Сам уходит через dur с; клик, тап или клавиша — дальше (не раньше 0,5 с), потом миг замедления.
+/** @type {RGB} */ const SPOT_C = [255, 222, 120];
+const Spot = {
+  on: false, t: 0, dur: 0,
+  /** @type {{ x: number, y: number } | null} */ o: null,
+  txt: '', sub: '',
+  /** @param {{ x: number, y: number }} o — цель в мире @param {string} txt @param {string} sub @param {number} [dur] */
+  show(o, txt, sub, dur = 2.8) { this.on = true; this.t = 0; this.dur = dur; this.o = o; this.txt = txt; this.sub = sub; byId('card').style.opacity = '0'; }, // карточка открытия поверх холста — не мешает
+  /** время стоит, пока true @param {number} dt */
+  tick(dt) { if (!this.on) return false; if ((this.t += dt) >= this.dur) this.end(); return this.on; },
+  skip() { if (this.on && this.t > .5) this.end(); },
+  end() { if (!this.on) return; this.on = false; this.o = null; G.slowT = Math.max(G.slowT || 0, 1); },
+  draw() {
+    if (!this.on || !this.o || Cine.on) return;
+    const [x, y] = W2S(this.o.x, this.o.y), a = smooth(0, .25, this.t) * (1 - smooth(this.dur - .3, this.dur, this.t)), R = 34;
+    // темнота вокруг, светлое пятно на цели
+    ctx.save(); ctx.globalAlpha = .55 * a; ctx.fillStyle = '#04060d';
+    ctx.beginPath(); ctx.rect(0, 0, G.W, G.H); ctx.arc(x, y, R + 10, 0, TAU, true); ctx.fill('evenodd'); ctx.restore();
+    const p = (G.T * 1.6) % 1;
+    ring(x, y, R + 4 * Math.sin(G.T * 6), SPOT_C, .9 * a, 2.5);
+    ring(x, y, R + 30 * p, SPOT_C, .5 * a * (1 - p), 2);
+    // строка — над целью (у верха экрана — под ней), стрелка от строки к цели «кивает»
+    const up = y > G.H * .35, ty = clamp(up ? y - R - 96 : y + R + 96, 60, G.H - 80), tx = clamp(x, 160, G.W - 160);
+    const bob = 6 * Math.sin(G.T * 7), ay0 = up ? ty + 30 : ty - 30, ay1 = up ? y - R - 10 - bob : y + R + 10 + bob;
+    const an = Math.atan2(ay1 - ay0, x - tx);
+    line(tx, ay0, x, ay1, SPOT_C, a, 3.5);
+    ctx.fillStyle = rgb(SPOT_C, a); ctx.beginPath(); ctx.moveTo(x, ay1);
+    ctx.lineTo(x - Math.cos(an - .45) * 16, ay1 - Math.sin(an - .45) * 16); ctx.lineTo(x - Math.cos(an + .45) * 16, ay1 - Math.sin(an + .45) * 16); ctx.fill();
+    label(this.txt, tx, ty - 9, 22, [255, 255, 255], a, 800);
+    label(this.sub, tx, ty + 15, 15, SPOT_C, a, 700);
+  },
+};
+
 // ---------- ✦ летят в копилку: заработанное — искрами от места к счётчику «знания» ----------
 // Всплыла надпись «+N ✦» — от неё к счётчику наверху летят 1–5 маленьких ✦ (тихо, без звука).
 // Счётчик показывает баланс без того, что ещё в полёте, и чуть вспыхивает, когда искра долетела.

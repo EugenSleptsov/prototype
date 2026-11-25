@@ -41,3 +41,15 @@ const GEST = {
 // значок + подпись для строки управления
 /** @param {string} svg @param {string} label */
 const gestItem = (svg, label) => `<span class="gest">${svg}<span>${label}</span></span>`;
+// тот же значок — на холсте (подсказки у детектора): картинка из SVG, собирается один раз
+/** @type {Record<string, HTMLImageElement>} */
+const gestImgs = {};
+/** @param {'move' | 'click' | 'hold' | 'release' | 'wheel'} k @param {number} x @param {number} y — центр @param {number} h — высота, px @param {number} a */
+function gestDraw(k, x, y, h, a) {
+  if (typeof Image === 'undefined') return;
+  let im = gestImgs[k];
+  if (!im) { im = gestImgs[k] = new Image(); im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(GEST[k]()); }
+  if (!im.complete || !im.naturalWidth) return;
+  const w = h * im.naturalWidth / im.naturalHeight;
+  ctx.globalAlpha = a; ctx.drawImage(im, x - w / 2, y - h / 2, w, h); ctx.globalAlpha = 1;
+}

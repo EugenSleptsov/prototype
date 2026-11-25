@@ -75,6 +75,7 @@ addEventListener('pointermove', e => {
 addEventListener('pointerdown', e => {
   Sfx.unlock(); // звук включается первым жестом игрока (так требует браузер)
   if (Cine.on) { Cine.skip(); if (e.pointerType !== 'mouse') touchMode(); return; } // кадр-пауза: касание — дальше, в игру не идёт
+  if (Spot.on) { Spot.skip(); return; } // стоп-кадр со стрелкой: так же
   if (e.pointerType === 'mouse') {
     if (e.button !== 0 && G.stage.sling) { if (e.target === cv) mpan = { x: e.clientX, y: e.clientY }; return; } // правая/средняя — тянуть карту
     mouse.down = true; if (e.target === cv && G.started) mouse.clicked = true; return;
@@ -127,6 +128,7 @@ addEventListener('keydown', e => {
   keys.add(e.code); Sfx.unlock();
   if (e.code === 'KeyM' && document.activeElement !== pname) { const m = Sfx.toggle(); if (G.started) msg(m ? 'звук выкл. · M' : 'звук вкл. · M', 1.2); }
   if (Cine.on) { if (e.code !== 'KeyM') { e.preventDefault(); Cine.skip(); } return; } // кадр-пауза: любая клавиша — дальше
+  if (Spot.on && e.code !== 'KeyM') { e.preventDefault(); Spot.skip(); return; }
   // кодекс: C — открыть / закрыть, Esc — закрыть; пока открыт, игра стоит и клавиши не доходят до этапа
   if (Codex.isOpen) { if (e.code === 'KeyC' || e.code === 'Escape') Codex.close(); return; }
   if (e.code === 'KeyC' && G.started && document.activeElement !== pname) { Codex.open(); return; }
@@ -253,6 +255,7 @@ function render() {
   if (!G.stage.showLadder || G.stage.showLadder()) drawLadder(k); // путь Вселенной — когда он уже что-то значит
   Hint.draw();
   Fly.draw(); // ✦ летят к счётчику — поверх всего на холсте
+  Spot.draw();
 }
 
 const barsEl = document.getElementById('bars');
@@ -304,7 +307,7 @@ function frame(now) {
   // ошибка в расчёте кадра не останавливает отрисовку — иначе игра выглядит зависшей
   // сцена открытия: время на миг замедляется (как в кино — «это с тем столкнулось, и появилось вот это»)
   // кадр-пауза важного знания: время стоит, кадр рисуется
-  const hold = Cine.tick(dt);
+  const hold = Cine.tick(dt) || Spot.tick(dt); // стоп-кадр со стрелкой — тоже время стоит
   const slow = G.slowT > 0 && !G.paused && !hold ? (G.slowT -= dt, .3) : 1;
   try { if (!G.paused && !hold) update(dt * slow); else Sfx.hum(0); } catch (err) { recover(err); }
   try {

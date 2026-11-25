@@ -213,6 +213,8 @@ interface ParticlesState {
   lvl: Record<string, number>;
   focus: Focus | null; holding: boolean; hold: number; shield: number;
   learn: Learn; coach: Coach;
+  /** что уже показано стоп-кадром (Spot) в этом забеге; когда жест «зажми у двух» не вышел */
+  spotted: Set<string>; missT: number;
   /** энергия детектора ⚡ */
   en: number; enFx: number;
   shotCd: number; shotFx: number;
