@@ -98,3 +98,17 @@ test('атомы: туман — по доле нейтральных, а не �
   g.ev('__o.ne = 8');
   assert.equal(fog(), 0, 'все нейтральны — прозрачно');
 });
+
+test('атомы: «Красное смещение» — после первого перечёркнутого луча, необязательный; часть УФ слабеет сама (✦ — Вселенной)', () => {
+  const g = atoms();
+  assert.equal(g.ev(`G.stage.shopItems().some(it => it.k === 'red')`), false, 'пока не перечёркивал — нет');
+  g.ev('G.stage.st.cut = 1; G.stage.kn += 100');
+  assert.equal(g.ev(`G.stage.shopItems().find(it => it.k === 'red').opt`), true);
+  g.ev(`G.stage.buy(G.stage.shopItems().findIndex(it => it.k === 'red'))`);
+  assert.equal(g.ev('G.stage.rs.red'), 1);
+  g.ev(`G.stage.ph.push(globalThis.__p = { x: P.x + 5, y: P.y + 5, vx: 13, vy: 0, t: 0, hard: true, E: 20, life: 3.4, red: .5 })`);
+  g.step(40);
+  assert.equal(g.ev('__p.hard'), false, 'растянулся в видимый');
+  assert.equal(g.ev(`G.stage.uni.find(r => r.k === 'red').kn`), 1);
+  assert.equal(g.ev('G.stage.st.cut'), 1, 'это не перехват игрока');
+});

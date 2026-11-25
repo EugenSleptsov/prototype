@@ -14,8 +14,11 @@
    Глагол один — след (палец или мышь с зажатой кнопкой): поперёк электрона — тормозит (ион его ловит),
    через дрожащий атом — осаживает электрон, поперёк луча УФ — рассеивает его в безвредный свет.
    Исследование «Рекомбинация»: электроны у ионов тормозят сами (излучают), Вселенная нейтрализуется без тебя.
+   Необязательный закон «Красное смещение» (после первого перечёркнутого луча): Вселенная расширяется — часть УФ
+   сама слабеет в полёте до видимого света (и приносит ✦ в её строку).
    Мир без края: ионы — ядра твоей сверхновой там, куда их вынесло; Вселенная приносит ионы, электроны и свет из-за края кадра. */
 // обзор; ионы Вселенной: плотность и предел в кадре; электронов в кадре — не больше
+const A_RED = 25, RED_P = .55; // «Красное смещение»: цена и доля УФ, которая слабеет сама
 const A_VIEW = 14.5, A_DENS = .025, A_CAP = 40, A_ECAP = 30, A_COST = 30, A_GOAL = .9, TR_LIFE = 1.1, TR_W = .55; // TR_W — полуширина следа (мир)
 const AT_EL = { 1: ['H', [235, 235, 240]], 2: ['He', [200, 250, 255]], 3: ['Li', [200, 120, 255]], 6: ['C', [150, 150, 165]], 7: ['N', [110, 145, 255]], 8: ['O', [250, 95, 80]] };
 const atSym = Z => (AT_EL[Z] || [elemOf(Z)[0]])[0];
@@ -53,7 +56,7 @@ const Atoms = {
 
   enter(prev) {
     this.t = 0; this.clock = 0; this.Ta = 1; this.ions = []; this.el = []; this.ph = []; this.tr = []; this.floats = [];
-    this.kn = 0; this.uni = []; this.spent = 0; this.rs = { rec: 0 }; this.banner = -1.5; this.tk = {}; this.doneAt = null; this.endCd = -1;
+    this.kn = 0; this.uni = []; this.spent = 0; this.rs = { rec: 0, red: 0 }; this.banner = -1.5; this.tk = {}; this.doneAt = null; this.endCd = -1;
     this.advanced = false; this.cheated = false; this.seenN = new Set(); this.phT = 0; this.was = false; this.stroke = 0;
     this.st = { brakes: 0, ionized: 0, best: 0, relaxed: 0, cascade: 0, cut: 0, shield: 0 }; this.caps = { hand: 0, auto: 0 }; this.msgs = new Set();
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
@@ -198,7 +201,8 @@ const Atoms = {
         this.phT--;
         const hard = this.t > UV_T0 && Math.random() < .45 * this.Ta - .12, v = hard ? UV_V : PH_V; // первые секунды — без УФ: дать оглядеться
         const R = viewRadius() * (hard ? 1.15 : 1.05), a = Math.random() * TAU, h = a + Math.PI + randn() * .35;
-        this.ph.push({ x: P.x + Math.cos(a) * R, y: P.y + Math.sin(a) * R, vx: Math.cos(h) * v, vy: Math.sin(h) * v, t: 0, hard, E: hard ? rnd(11, 24) : rnd(1.5, 3.5), life: hard ? 3.4 : 2.4 });
+        this.ph.push({ x: P.x + Math.cos(a) * R, y: P.y + Math.sin(a) * R, vx: Math.cos(h) * v, vy: Math.sin(h) * v, t: 0, hard, E: hard ? rnd(11, 24) : rnd(1.5, 3.5), life: hard ? 3.4 : 2.4,
+          red: hard && this.rs.red && Math.random() < RED_P ? rnd(.5, 1.3) : 0 }); // red — когда растянется в видимый
       }
     }
     const nf = this.neutral();
@@ -206,6 +210,7 @@ const Atoms = {
       const ox = p.x, oy = p.y;
       p.x += p.vx * dt; p.y += p.vy * dt; p.t += dt;
       if (!act || p.dead) continue;
+      if (p.hard && p.red && p.t >= p.red) this.redshift(p);
       // мутная плазма: видимый свет блуждает на свободных электронах — пока Вселенная не нейтральна
       if (!p.hard && !p.res && Math.random() < dt * 3 * (1 - nf)) { const w = randn() * .8, c = Math.cos(w), s = Math.sin(w); [p.vx, p.vy] = [p.vx * c - p.vy * s, p.vx * s + p.vy * c]; }
       // перечеркнул УФ следом — рассеян в безвредный видимый свет
@@ -290,6 +295,14 @@ const Atoms = {
     fxRing(io.x, io.y, .5, [160, 240, 255], 1.2, .35);
     this.once('shield', io.Z === 2 ? 'Гелий держит жёсткий свет: его оболочка закрыта' : 'Закрытую K-оболочку жёсткий свет не берёт');
   },
+  // «Красное смещение»: пространство растянуло УФ — теперь это видимый свет (✦ — Вселенной)
+  redshift(p) {
+    p.hard = false; p.red = 0; p.E = rnd(1.5, 3); p.redT = p.t;
+    const s = Math.hypot(p.vx, p.vy) || 1; p.vx *= PH_V / s; p.vy *= PH_V / s; p.life = p.t + 1.2;
+    fxRing(p.x, p.y, .15, [255, 120, 90], .8, .35);
+    Uni.pay(this, 'red', 1);
+    if (inView(p.x, p.y, 0)) this.float(p.x, p.y - .4, 'УФ → свет +1 ✦', [255, 150, 120], 11);
+  },
   // след поперёк луча УФ: рассеян, теперь это безвредный видимый свет
   cutUV(p) {
     const a = Math.atan2(p.vy, p.vx) + (Math.random() < .5 ? -1 : 1) * rnd(.6, 1.4);
@@ -302,14 +315,21 @@ const Atoms = {
 
   // ---------- исследование ----------
   bal() { return Math.floor(this.kn - this.spent); },
-  shopItems() { return this.seenN.size >= 2 && !this.rs.rec && this.doneAt === null ? [{ ic: '◎', name: 'Рекомбинация', about: 'электроны у ионов тормозят сами', c: A_COST }] : []; },
+  shopItems() {
+    if (this.doneAt !== null) return [];
+    const L = [];
+    if (this.seenN.size >= 2 && !this.rs.rec) L.push({ k: 'rec', ic: '◎', name: 'Рекомбинация', about: 'электроны у ионов тормозят сами', c: A_COST });
+    if (this.st.cut >= 1 && !this.rs.red) L.push({ k: 'red', ic: '∿', name: 'Красное смещение', about: 'часть УФ сама слабеет в полёте', c: A_RED, opt: true });
+    return L;
+  },
   keyOf() { return this.shopItems().length ? 1 : null; },
   buy(i) {
     const it = this.shopItems()[i];
     if (!it || !G.started || G.paused) return;
     if (this.bal() < it.c) { this.float(P.x, P.y - 1, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
-    this.spent += it.c; this.rs.rec = 1; Sfx.play('upgrade'); Uni.learn(this, 'rec', '◎', 'Рекомбинация', UNI_LVL);
-    fxRing(P.x, P.y, 1, GOLD, viewRadius() * .8, 1.4); this.float(P.x, P.y - 1, '◎ Рекомбинация', GOLD, 16);
+    this.spent += it.c; this.rs[it.k] = 1; Sfx.play('upgrade'); Uni.learn(this, it.k, it.ic, it.name, UNI_LVL);
+    fxRing(P.x, P.y, 1, GOLD, viewRadius() * .8, 1.4); this.float(P.x, P.y - 1, `${it.ic} ${it.name}`, GOLD, 16);
+    if (it.k === 'red') msg('Вселенная расширяется: часть жёсткого света сама растягивается в видимый');
   },
   renderShop: Nuclei.renderShop,
 
@@ -350,6 +370,7 @@ const Atoms = {
         line(sx, sy, sx - p.vx * .09 * z, sy - p.vy * .09 * z, UV_C, .85 * al, Math.max(2, .14 * z));
         glow(sx, sy, Math.max(6, .5 * z), UV_C, (.45 + .25 * Math.sin(G.T * 18)) * al);
       } else if (p.res) { const c = atSpec(p.res); line(sx, sy, sx - p.vx * .06 * z, sy - p.vy * .06 * z, c, .7 * al, Math.max(1.5, .1 * z)); glow(sx, sy, Math.max(4, .3 * z), c, .5 * al); }
+      else if (p.redT != null && p.t - p.redT < .6) line(sx, sy, sx - p.vx * .06 * z, sy - p.vy * .06 * z, [255, 110, 90], .6 * al, Math.max(1.6, .1 * z));
       else line(sx, sy, sx - p.vx * .05 * z, sy - p.vy * .05 * z, p.cut ? UV_C : [255, 200, 140], (p.cut ? .4 : .25) * al, Math.max(1.2, .08 * z));
     }
     // след

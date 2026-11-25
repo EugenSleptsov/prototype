@@ -369,7 +369,7 @@ const Nuclei = {
     const items = this.shopItems();
     if (!G.started || this.advanced || !items.length) { el.style.display = 'none'; return; }
     const b = this.bal();
-    const html = items.map((r, k) => `<button data-i="${k}" class="res pri ${b >= r.c ? 'ok' : 'no'}"><u>для задания</u><span class="k">${k + 1}</span>` +
+    const html = items.map((r, k) => `<button data-i="${k}" class="res ${r.opt ? 'sec' : 'pri'} ${b >= r.c ? 'ok' : 'no'}">${r.opt ? '' : '<u>для задания</u>'}<span class="k">${k + 1}</span>` +
       `<span class="ic">${r.ic}</span><b>${r.name}</b><i>${r.about}</i><em>${r.c} ✦</em></button>`).join('');
     if (el._h !== html) { el._h = html; el.innerHTML = html; }
     if (!el.onclick) el.onclick = e => { const bt = e.target.closest('button'); if (bt && G.stage.buy) G.stage.buy(+bt.dataset.i); };
