@@ -27,6 +27,26 @@ const byId = (/** @type {string} */ id) => { const el = document.getElementById(
 const cv = /** @type {HTMLCanvasElement} */ (byId('c'));
 const ctx = /** @type {CanvasRenderingContext2D} */ (cv.getContext('2d'));
 
+// Кварк: аромат — форма, цвет — заливка. Верхние (u, c, t — заряд +⅔) — круг, нижние (d, s, b — −⅓) — ромб.
+// Антикварк — полый, той же формы и того же цвета (антицвет: «красный» + «полый красный» = бесцветный мезон).
+/** @param {number} x @param {number} y @param {number} r @param {boolean} down */
+function qPath(x, y, r, down) {
+  ctx.beginPath();
+  if (down) { const k = r * 1.2; ctx.moveTo(x, y - k); ctx.lineTo(x + k, y); ctx.lineTo(x, y + k); ctx.lineTo(x - k, y); ctx.closePath(); }
+  else ctx.arc(x, y, r, 0, TAU);
+}
+/** нижний аромат (заряд −⅓) @param {string} fl */
+const qDown = fl => fl === 'd' || fl === 's' || fl === 'b';
+/** @param {number} x @param {number} y @param {number} r @param {RGB} c @param {string} fl @param {boolean} anti @param {number} [a] */
+function quark(x, y, r, c, fl, anti, a = 1) {
+  if (!(r > 0)) return;
+  const down = qDown(fl);
+  if (anti) { ctx.strokeStyle = rgb(c, a); ctx.lineWidth = Math.max(1.5, r * .32); qPath(x, y, r * .82, down); ctx.stroke(); return; }
+  if (!down) { ball(x, y, r, c, a); return; }
+  const g = ctx.createRadialGradient(x - r * .35, y - r * .4, r * .05, x, y, r * 1.2);
+  g.addColorStop(0, rgb(mixc(c, [255, 255, 255], .6), a)); g.addColorStop(.6, rgb(c, a)); g.addColorStop(1, rgb(mixc(c, [0, 0, 0], .5), a));
+  ctx.fillStyle = g; qPath(x, y, r, true); ctx.fill();
+}
 function ball(x, y, r, c, a = 1) {
   if (!(r > 0)) return;
   if (r < 0.8) { ctx.fillStyle = rgb(c, a); ctx.fillRect(x - .7, y - .7, 1.4, 1.4); return; }

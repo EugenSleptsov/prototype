@@ -1804,7 +1804,7 @@ const Particles = {
   color(o) {
     const s = SM[o.sp];
     if (o.sp === 'g') return QCOL[o.col];
-    if (s.kind === 'quark') return o.anti ? QANTI[o.col] : QCOL[o.col];
+    if (s.kind === 'quark') return QCOL[o.col]; // антикварк — тот же цвет, но полый (форма — аромат)
     if (s.kind === 'lepton') return LEP_C[(s.gen ?? 1) - 1];
     if (s.kind === 'nu') return NU_C;
     return BOS_C[o.sp];
@@ -2003,6 +2003,7 @@ const Particles = {
     if (known && s.kind !== 'nu') this.drawLook(o, sx, sy, r, c, bg);
     if (bg) {
       if (s.kind === 'nu') ring(sx, sy, r * .95, NU_C, .3, 1.2, [2.5, 3.5]);
+      else if (s.kind === 'quark') quark(sx, sy, r, c, o.sp, !!o.anti, .9);
       else if (o.anti && s.kind !== 'boson') ring(sx, sy, r, c, .9, 2);
       else { ball(sx, sy, r * 1.15, c, .25); ball(sx, sy, r * .8, c, .95); }
       ctx.globalAlpha = 1;
@@ -2026,6 +2027,10 @@ const Particles = {
       ctx.fillStyle = 'rgba(210,226,255,.18)'; ctx.beginPath(); ctx.arc(sx, sy, r * 1.25 * pul, 0, TAU); ctx.fill();
       ring(sx, sy, r * pul, [235, 245, 255], .88, 1.8, [4, 3]);
       label('?', sx, sy + 1, fs, [255, 255, 255], 1, 800);
+    } else if (s.kind === 'quark') { // аромат — форма: верхние — круг, нижние — ромб; антикварк — полый того же цвета
+      if (!o.anti) glow(sx, sy, r * 1.6, c, .3);
+      quark(sx, sy, r * (o.anti ? 1.05 : .95), c, o.sp, !!o.anti, .95);
+      label(this.lab(o), sx, sy + .5, fs * (o.anti ? .9 : 1), o.anti ? c : [6, 9, 19], 1, 800);
     } else if (o.anti && s.kind !== 'boson') {
       ring(sx, sy, r, c, .95, 2.4);
       if (r > 7) { const sp = -G.T * 2.5; arc(sx, sy, r - 4, sp, sp + Math.PI * 1.4, [255, 255, 255], .8, 1.2, [4, 4]); }
@@ -2101,13 +2106,13 @@ const Particles = {
     }
     if (this.ep === 3 && this.stock > 0 && !this.stockOut) {
       // запас вещества кружит внутри детектора
-      for (let i = 0; i < this.stock; i++) { const p = this.stockPos(i), [bx, by] = W2S(p.x, p.y); ball(bx, by, 4.5, QCOL[this.stockQ[i].col]); }
+      for (let i = 0; i < this.stock; i++) { const p = this.stockPos(i), [bx, by] = W2S(p.x, p.y); quark(bx, by, 4.5, QCOL[this.stockQ[i].col], this.stockQ[i].fl, false); }
     }
     // тройки, что Вселенная сберегла сама: мягкое зелёное свечение, три цвета треугольником
     if (this.ep === 3 && !this.stockOut) for (const t of this.safe) {
       const a = Math.min(1, (G.T - t.t0) * 2), c = this.safePos(t), [cx, cy] = W2S(c.x, c.y);
       glow(cx, cy, .45 * z, [140, 235, 170], .25 * a);
-      for (let k = 0; k < 3; k++) { const p = this.safePos(t, k), [bx, by] = W2S(p.x, p.y); line(cx, cy, bx, by, [220, 255, 230], .35 * a, 1.2); ball(bx, by, 3.5, QCOL[k], a); }
+      for (let k = 0; k < 3; k++) { const p = this.safePos(t, k), [bx, by] = W2S(p.x, p.y); line(cx, cy, bx, by, [220, 255, 230], .35 * a, 1.2); quark(bx, by, 3.5, QCOL[k], t.q[k], false, a); }
     }
     if (this.ep === 3 && !this.stockOut) {
       // счётчик цветов справа от детектора: каких меньше всего — пульсирующее золотое кольцо
