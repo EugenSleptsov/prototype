@@ -6,8 +6,25 @@ const TRANS_DUR = 3;
 document.getElementById('gdesk').innerHTML = [[GEST.move(), 'вести'], [GEST.click(), 'снимок'], [GEST.hold(), 'зажать — притянуть кванты'],
   [GEST.release(), 'отпустить — столкнуть'], [GEST.wheel(), 'зум'], [GEST.key('M'), 'звук']].map(([s, l]) => gestItem(s, l)).join('');
 // Путь Вселенной на заставке: где ты сейчас и куда идёшь (дальше «Молекул» — ещё в разработке)
-document.getElementById('path').innerHTML = LADDER.map((n, i) => (i ? `<i style="animation-delay:${i * .12}s">→</i>` : '') +
-  `<span class="${i === 0 ? 'on' : i === LADDER.length - 1 ? 'goal' : i >= STAGES.length ? 'soon' : ''}" style="animation-delay:${i * .12}s"${i === 0 ? ' title="ты здесь"' : ''}>${n}</span>`).join('');
+// путь Вселенной в заставке; готовые уровни можно нажать — забег начнётся с него (проверить уровень, не проходя всё заново)
+G.fromI = 0;
+function drawPath() {
+  document.getElementById('path').innerHTML = LADDER.map((n, i) => (i ? `<i style="animation-delay:${i * .12}s">→</i>` : '') +
+    `<span data-i="${i}" class="${i === G.fromI ? 'on ' : ''}${i < STAGES.length ? 'pick' : i === LADDER.length - 1 ? 'goal' : 'soon'}" style="animation-delay:${i * .12}s"${i < STAGES.length ? ` title="начать с уровня «${n}»"` : ''}>${n}</span>`).join('') +
+    `<span class="from">${G.fromI ? `начнёшь с уровня «${LADDER[G.fromI]}» · счёт не пойдёт в общую таблицу` : 'нажми на уровень — начать с него'}</span>`;
+  document.getElementById('go').textContent = G.fromI ? `Начать: ${LADDER[G.fromI]}` : 'Начать';
+}
+drawPath();
+document.getElementById('path').onclick = e => {
+  const el = /** @type {HTMLElement} */ (e.target).closest('span.pick'); if (!el) return;
+  G.fromI = +el.dataset.i; drawPath();
+  document.getElementById('path').querySelectorAll('span, i').forEach(s => { s.style.animation = 'none'; }); // без повторного въезда
+};
+// забег не с начала: сразу нужный уровень (каждый умеет начаться и без предыдущего)
+function jumpTo(i) {
+  if (!(i > 0) || i >= STAGES.length) return;
+  G.stageI = i; G.stage = STAGES[i]; G.prev = null; G.trans = 1; G.stage.enter(null); G.stage.scoreAt = G.score;
+}
 
 // Переход: старый этап продолжает жить и гаснет, новый проявляется и забирает его частицы.
 function advance() {
@@ -21,7 +38,7 @@ function endGame(text) {
   G.ended = true;
   document.getElementById('endtext').textContent = text;
   // счёт забега: в таблицу браузера и (если включена) в общую
-  const cheated = STAGES.some(s => s.cheated), secs = (Date.now() - (G.runT0 || Date.now())) / 1000, el = document.getElementById('endlb');
+  const cheated = G.fromI > 0 || STAGES.some(s => s.cheated), secs = (Date.now() - (G.runT0 || Date.now())) / 1000, el = document.getElementById('endlb');
   const local = lbTable('total', { n: LB.name(), s: Math.round(G.score), t: Math.floor(secs), d: Date.now() }, cheated);
   const mine = local.replace('class="rk">', 'class="rk">в этом браузере · ');
   el.innerHTML = `<div class="rk big">${fmtScore(G.score)} очков за забег</div><div id="endon">${Online.on() ? '' : mine}</div>`;
@@ -134,12 +151,13 @@ try { pname.value = localStorage.getItem('proto.name') || ''; } catch (e) { /* �
 function startRun() {
   try { localStorage.setItem('proto.name', pname.value.trim() || 'Игрок'); } catch (e) { /* без хранилища */ }
   document.getElementById('intro').style.display = 'none'; G.started = true; G.runT0 = Date.now();
+  jumpTo(G.fromI);
 }
 document.getElementById('go').onclick = startRun;
 // Обучение — короткий забег до игры (уровень частиц в режиме tut). Впервые — главная кнопка на старте.
 const tutSeen = () => { try { return !!localStorage.getItem('proto.tut'); } catch (e) { return true; } };
 if (!tutSeen()) document.getElementById('intro').classList.add('fresh');
-document.getElementById('tutgo').onclick = () => { startRun(); G.tutor = true; document.body.classList.add('tut'); G.stage.startTut(); };
+document.getElementById('tutgo').onclick = () => { G.fromI = 0; startRun(); G.tutor = true; document.body.classList.add('tut'); G.stage.startTut(); };
 document.getElementById('tutskip').onclick = () => endTut(false);
 // Кончилось или пропущено — настоящий забег с начала: счёт, часы и кодекс забега обнуляются
 function endTut(done) {

@@ -58,3 +58,14 @@ test('×4: вся игра уровня частиц вчетверо быстр
   assert.ok(Math.abs(t4 / t1 - 4) < .01, `время уровня ×${(t4 / t1).toFixed(2)}`);
   assert.ok(c1 > 0 && Math.abs(c4 / c1 - 4) < .3, `остывание ×${(c4 / c1).toFixed(2)}`);
 });
+
+test('заставка: уровень на пути можно выбрать — забег начнётся с него и играется', () => {
+  for (const [i, key] of [[1, 'quarks'], [2, 'nuclei'], [3, 'stars'], [4, 'atoms'], [5, 'molecules']]) {
+    const g = loadGame();
+    g.ev(`G.fromI = ${i}; document.getElementById('go').onclick()`);
+    assert.equal(g.ev('G.stage.key'), key);
+    assert.equal(g.ev('G.started'), true);
+    g.step(240, true); // ни одного исключения: уровень живёт без предыдущего
+    assert.equal(g.ev('G.stage.key'), key);
+  }
+});

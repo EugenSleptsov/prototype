@@ -61,6 +61,10 @@
   #path span{padding:3px 9px;border-radius:999px;background:#ffffff10;border:1px solid #ffffff1c;animation:pathIn .5s both}
   #path span.on{background:#8fd0ff;color:#012;font-weight:700;border-color:#8fd0ff}
   #path span.soon{opacity:.45}
+  #path span.pick{cursor:pointer}
+  #path span.pick:hover{border-color:#8fd0ff;color:#fff}
+  #path span.pick.on:hover{color:#012}
+  #path span.from{flex-basis:100%;font-size:11px;opacity:.55;margin-top:6px;background:none;border:0;padding:0;border-radius:0}
   #path span.goal{border-color:#ffd27a;color:#ffd27a;opacity:1;font-weight:700}
   #path i{font-style:normal;opacity:.35;margin:0 3px;animation:pathIn .5s both}
   @keyframes pathIn{from{opacity:0;transform:translateY(4px)}}
@@ -147,11 +151,11 @@
   #cine .bar.t{top:0;transform:translateY(-100%)}
   #cine .bar.b{bottom:0;transform:translateY(100%)}
   #cine.show .bar{transform:none}
-  #cine .band{position:absolute;left:0;right:0;bottom:calc(9vh + 3vh);padding:18px 16px 14px;text-align:center;color:#eef2fa;background:linear-gradient(90deg,#04060c00,#04060cf2 14%,#04060cf2 86%,#04060c00);transform:scaleY(0);transition:transform .45s cubic-bezier(.2,.8,.2,1) .12s}
+  #cine .band{position:absolute;left:0;right:0;top:50%;padding:18px 16px 14px;text-align:center;color:#eef2fa;background:linear-gradient(90deg,#04060c00,#04060cf2 14%,#04060cf2 86%,#04060c00);transform:translateY(-50%) scaleY(0);transition:transform .45s cubic-bezier(.2,.8,.2,1) .12s}
   #cine .band::before,#cine .band::after{content:'';position:absolute;left:8%;right:8%;height:1px;background:linear-gradient(90deg,#0000,#ffd27acc,#0000)}
   #cine .band::before{top:0}
   #cine .band::after{bottom:0}
-  #cine.show .band{transform:none}
+  #cine.show .band{transform:translateY(-50%)}
   #cine .in{opacity:0;transition:opacity .35s .35s}
   #cine.show .in{opacity:1}
   #cine .ck{font-size:13px;font-weight:700;letter-spacing:.32em;text-transform:uppercase;color:#ffd27a}
@@ -176,7 +180,7 @@
   #cine .go{margin:14px auto 0;width:min(240px,60vw);display:flex;flex-direction:column;gap:6px;align-items:center;font-size:12px;opacity:.55}
   #cine .go b{display:block;height:2px;width:100%;background:#ffd27a;transform-origin:left;animation:cineT var(--d,6s) linear forwards}
   @keyframes cineT{from{transform:scaleX(1)}to{transform:scaleX(0)}}
-  @media (max-width:700px),(max-height:600px){#cine .bar{height:7vh}#cine .band{bottom:calc(7vh + 2vh);padding:12px 12px 10px}#cine .rx{font-size:20px;gap:5px}#cine .rx .cs{min-width:30px}#cine .cn{font-size:22px}#cine .cn.lvl{font-size:32px}#cine .pth{font-size:11px}#cine .cn .cs{font-size:18px}#cine .cp{font-size:15px}#cine .cg{font-size:13px}}
+  @media (max-width:700px),(max-height:600px){#cine .bar{height:7vh}#cine .band{padding:12px 12px 10px}#cine .rx{font-size:20px;gap:5px}#cine .rx .cs{min-width:30px}#cine .cn{font-size:22px}#cine .cn.lvl{font-size:32px}#cine .pth{font-size:11px}#cine .cn .cs{font-size:18px}#cine .cp{font-size:15px}#cine .cg{font-size:13px}}
   #card .ck{font-size:11px;opacity:.6;text-transform:uppercase;letter-spacing:.08em}
   #card .cn{font-size:17px;font-weight:600;margin:3px 0}
   #card .cf{font-size:13px;opacity:.85;line-height:1.4}
@@ -393,20 +397,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=103"></script>
-<script src="js/gestures.js?v=103"></script>
-<script src="js/audio.js?v=103"></script>
-<script src="js/core.js?v=103"></script>
-<script src="js/universe.js?v=103"></script>
-<script src="js/codex.js?v=103"></script>
-<script src="js/sling.js?v=103"></script>
-<script src="js/s0_quarks.js?v=103"></script>
-<script src="js/s_particles.js?v=103"></script>
-<script src="js/s1_nuclei.js?v=103"></script>
-<script src="js/s_stars.js?v=103"></script>
-<script src="js/s2_atoms.js?v=103"></script>
-<script src="js/s3_molecules.js?v=103"></script>
-<script src="js/online.js?v=103"></script>
-<script src="js/main.js?v=103"></script>
+<script src="js/util.js?v=105"></script>
+<script src="js/gestures.js?v=105"></script>
+<script src="js/audio.js?v=105"></script>
+<script src="js/core.js?v=105"></script>
+<script src="js/universe.js?v=105"></script>
+<script src="js/codex.js?v=105"></script>
+<script src="js/sling.js?v=105"></script>
+<script src="js/s0_quarks.js?v=105"></script>
+<script src="js/s_particles.js?v=105"></script>
+<script src="js/s1_nuclei.js?v=105"></script>
+<script src="js/s_stars.js?v=105"></script>
+<script src="js/s2_atoms.js?v=105"></script>
+<script src="js/s3_molecules.js?v=105"></script>
+<script src="js/online.js?v=105"></script>
+<script src="js/main.js?v=105"></script>
 </body>
 </html>
