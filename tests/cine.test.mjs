@@ -1,4 +1,4 @@
-// Кадр-пауза важного знания: открытие впервые в жизни, первое «Научить» и начало уровня останавливают время
+// Кадр-пауза важного знания: открытие впервые в жизни, первый закон и начало уровня останавливают время
 // на ленте поперёк экрана; повторное открытие в новом забеге — без паузы. Клик — дальше, но не сразу.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -38,12 +38,12 @@ test('кадр-пауза: уже знакомое (другой забег) —
   assert.equal(g.ev('Cine.on'), false);
 });
 
-test('кадр-пауза: первое «Научить» — пауза, следующие — без неё', () => {
+test('кадр-пауза: первый закон — пауза, следующие — без неё', () => {
   const g = lit({ protoCodex: JSON.stringify(['ph']) });
   g.ev(`Codex.see('ph'); G.stage.kn += 500; Cine.clear(); Cine.tick(99)`);
   g.ev(`G.stage.buy(G.stage.shopItems().findIndex(it => it.r && it.r.k === 'ph'))`);
   assert.equal(g.ev('Cine.on'), true);
-  assert.match(html(g), /Вселенная научилась/);
+  assert.match(html(g), /Закон сформирован/);
   g.ev('Cine.tick(99)');
   g.ev(`G.stage.buy(G.stage.shopItems().findIndex(it => it.r))`);
   assert.equal(g.ev('Cine.on'), false);

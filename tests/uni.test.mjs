@@ -12,7 +12,7 @@ const lit = () => {
 };
 const buy = (g, k) => g.ev(`(() => { const S = G.stage, it = S.shopItems(), i = it.findIndex(x => x.r && x.r.k === '${k}'); const c = i >= 0 ? it[i].c : null; S.buy(i); Cine.clear(); Cine.tick(99); return c; })()`);
 
-test('законы Вселенной: «Научить» — строка в сводке; ровный доход капает в ✦ уровня', () => {
+test('законы Вселенной: каждый закон — строка в сводке; ровный доход капает в ✦ уровня', () => {
   const g = lit();
   assert.equal(g.ev(`G.stage.uni.map(r => r.k).join()`), 'ph', 'свет научен в PREP.light');
   buy(g, 'coll');
@@ -25,7 +25,7 @@ test('законы Вселенной: «Научить» — строка в с
   assert.ok(g.ev(`G.stage.uni.find(r => r.k === 'coll').kn`) >= 3);
 });
 
-test('законы Вселенной: лавка говорит, сколько ✦/мин принесёт «Научить»; каждое следующее «Рождение» дороже', () => {
+test('законы Вселенной: лавка говорит, сколько ✦/мин принесёт закон; каждое следующее «Рождение» дороже', () => {
   const g = lit();
   g.ev('G.stage.renderShop(document.getElementById("shop"))');
   assert.match(g.ev('document.getElementById("shop").innerHTML'), /\+\d+ ✦\/мин/);
