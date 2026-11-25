@@ -672,7 +672,7 @@ const Quarks = {
     if (this.hover && G.started && !G.paused) {
       const c = centroid(this.hover.m), [hx, hy] = W2S(c.x, c.y);
       ring(hx, hy, .8 * z + 2 * Math.sin(G.T * 6), [255, 255, 255], .6, 1.5, [4, 4]);
-      if (!this.learn.had) label('зажми — взять целиком', hx, hy + .8 * z + 16, 12, [255, 255, 255], .8, 700);
+      if (!this.learn.had) { label('зажми — взять целиком', hx, hy + .8 * z + 16, 12, [255, 255, 255], .8, 700); hintIcons('hold', hx, hy + .8 * z + 16); }
     }
     this.drawHint(sx, sy, r);
     this.drawArrows();
@@ -684,12 +684,15 @@ const Quarks = {
   },
   drawHint(sx, sy, r) {
     if (!G.started || G.paused || this.doneAt !== null) return;
-    const f = this.focus; let t = null;
+    const f = this.focus; let t = null, g = '';
     if (f && f.cap.length === 3 && this.conf <= .5) t = 'горячо — не слипаются';
-    else if (f && f.had.length === 1 && this.st.exo === 0) t = 'добавь ещё адрон — сожмёшь в один';
-    else if (!this.learn.hold && this.t > 1.5) t = 'зажми — собрать кварки';
-    else if (f && f.cap.length && !this.learn.bar) t = 'три разных цвета';
-    if (t) label(t, sx, sy + Math.max(r, this.fr() * cam.z) + 22, 14, [255, 255, 255], .75 + .2 * Math.sin(G.T * 4), 700);
+    else if (f && f.had.length === 1 && this.st.exo === 0) [t, g] = ['добавь ещё адрон — сожмёшь в один', 'move'];
+    else if (!this.learn.hold && this.t > 1.5) [t, g] = ['зажми — собрать кварки', 'holdrel'];
+    else if (f && f.cap.length && !this.learn.bar) [t, g] = ['три разных цвета', 'move'];
+    if (!t) return;
+    const ty = sy + Math.max(r, this.fr() * cam.z) + 22;
+    label(t, sx, ty, 14, [255, 255, 255], .75 + .2 * Math.sin(G.T * 4), 700);
+    hintIcons(g, sx, ty); // показать жест, а не только написать
   },
   // стрелки к свободным кваркам за краем экрана
   drawArrows() {

@@ -463,6 +463,10 @@ const Nuclei = {
     const [sx, sy] = W2S(best.x, best.y), r = best.rad * cam.z + 8 + 3 * Math.sin(G.T * 5);
     ring(sx, sy, r, GOLD, .8 * al, 2);
     label('зажми нейтрон, оттяни, отпусти', sx, sy + r + 16, 13, [255, 255, 255], (.75 + .2 * Math.sin(G.T * 4)) * al, 700);
+    // показать, а не только написать: курсор сам делает бросок в ближайший протон
+    let pr = null, pd = Infinity;
+    for (const o of this.o) if (o.Z === 1 && o.N === 0 && this.free(o)) { const d = Math.hypot(o.x - best.x, o.y - best.y); if (d < pd) { pd = d; pr = o; } }
+    if (pr) { const [px, py] = W2S(pr.x, pr.y); if (onScreen(px, py, 0)) ghostSling(sx, sy, px, py, al); }
   },
   drawArrows() {
     if (this.doneAt !== null) return;

@@ -284,7 +284,7 @@ const Atoms = {
     if (G.started && !G.paused && !G.prev && this.doneAt === null && this.st.brakes === 0 && !this.tr.length) {
       // подсказка: ближайший к центру быстрый электрон
       const e = this.el.filter(e => e.slow <= 0 && e.age > .5).sort((u, v) => Math.hypot(u.x - P.x, u.y - P.y) - Math.hypot(v.x - P.x, v.y - P.y))[0];
-      if (e) { const [sx, sy] = W2S(e.x, e.y); ring(sx, sy, 14 + 3 * Math.sin(G.T * 5), GOLD, .8 * al, 2); label('проведи поперёк его пути', sx, sy + 30, 13, [255, 255, 255], .85 * al, 700); }
+      if (e) { const [sx, sy] = W2S(e.x, e.y); ring(sx, sy, 14 + 3 * Math.sin(G.T * 5), GOLD, .8 * al, 2); label('проведи поперёк его пути', sx, sy + 30, 13, [255, 255, 255], .85 * al, 700); ghostSwipe(sx, sy, e.vx, e.vy, al); }
     }
     for (const fl of this.floats) { const [fx, fy] = W2S(fl.x, fl.y); labelIn(fl.txt, fx, fy - 16 - fl.t * 26, fl.sz, fl.c, clamp(1.6 - fl.t, 0, 1), 700); }
     ctx.globalAlpha = 1;

@@ -143,6 +143,87 @@ function drawFx() {
   }
 }
 
+// ---------- показать, а не написать: жест проигрывается прямо на поле ----------
+// Для тех, кто не читает: у каждой подсказки — значок жеста или призрачный курсор, который сам делает движение.
+// На телефоне — палец (круг), на компьютере — стрелка курсора; нажатие — чуть меньше и с кольцом
+/** @param {number} x @param {number} y @param {boolean} press @param {number} a */
+function ghostCursor(x, y, press, a) {
+  if (isTouch()) {
+    const r = press ? 11 : 14;
+    ctx.globalAlpha = 1; ctx.fillStyle = rgb([255, 255, 255], a * .45); ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    ring(x, y, r + (press ? 6 : 3), [255, 255, 255], a, 1.5);
+    return;
+  }
+  ctx.save(); ctx.translate(x, y); const s = press ? .85 : 1; ctx.scale(s, s);
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 17); ctx.lineTo(4.5, 13); ctx.lineTo(8, 20.5); ctx.lineTo(10.8, 19.3); ctx.lineTo(7.3, 12); ctx.lineTo(12.8, 12); ctx.closePath();
+  ctx.globalAlpha = 1; ctx.fillStyle = rgb([255, 255, 255], a); ctx.fill(); ctx.strokeStyle = rgb([15, 20, 35], a); ctx.lineWidth = 1.3; ctx.stroke();
+  ctx.restore();
+  if (press) ring(x, y, 10, [255, 255, 255], a, 2);
+}
+/** @type {RGB} */ const SHOW_C = [255, 222, 120];
+// стрелка с головкой (пунктир — путь, сплошная — «туда»)
+/** @param {number} x0 @param {number} y0 @param {number} x1 @param {number} y1 @param {RGB} c @param {number} a @param {boolean} [dash] */
+function arrowTo(x0, y0, x1, y1, c, a, dash) {
+  const an = Math.atan2(y1 - y0, x1 - x0);
+  if (dash) ctx.setLineDash([6, 5]);
+  line(x0, y0, x1 - Math.cos(an) * 6, y1 - Math.sin(an) * 6, c, a, 3); ctx.setLineDash([]);
+  ctx.fillStyle = rgb(c, a); ctx.beginPath(); ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 - Math.cos(an - .45) * 14, y1 - Math.sin(an - .45) * 14); ctx.lineTo(x1 - Math.cos(an + .45) * 14, y1 - Math.sin(an + .45) * 14); ctx.fill();
+}
+// рогатка: курсор берёт тело (a), оттягивает назад от цели (b), отпускает — пунктир полёта в цель; цикл 2,6 с
+/** @param {number} ax @param {number} ay @param {number} bx @param {number} by @param {number} [al] */
+function ghostSling(ax, ay, bx, by, al = 1) {
+  const k = (G.T % 2.6) / 2.6, d = Math.hypot(bx - ax, by - ay) || 1, ux = (bx - ax) / d, uy = (by - ay) / d, pull = 58;
+  const a = al * .85 * smooth(0, .1, k) * (1 - smooth(.9, 1, k));
+  let x = ax, y = ay;
+  if (k < .18) { const s = smooth(0, .18, k); x = ax + 34 * (1 - s); y = ay + 30 * (1 - s); }
+  else { const s = smooth(.22, .55, k); x = ax - ux * pull * s; y = ay - uy * pull * s; }
+  const press = k >= .18 && k < .6;
+  if (press) { ctx.setLineDash([3, 4]); line(ax, ay, x, y, [255, 255, 255], .8 * a, 2); ctx.setLineDash([]); }
+  if (k >= .6) { const s = smooth(.6, .85, k), L = Math.min(d - 10, d * s); if (L > 8) arrowTo(ax, ay, ax + ux * L, ay + uy * L, SHOW_C, a, true); }
+  if (k >= .6 && k < .7) ring(x, y, 6 + 160 * (k - .6), [255, 255, 255], a * (1 - (k - .6) * 10), 2);
+  ghostCursor(x, y, press, a);
+}
+// провести поперёк пути: курсор зажат и черкает поперёк движения (vx, vy) впереди тела
+/** @param {number} ex @param {number} ey @param {number} vx @param {number} vy @param {number} [al] */
+function ghostSwipe(ex, ey, vx, vy, al = 1) {
+  const k = (G.T % 2) / 2, v = Math.hypot(vx, vy) || 1, ux = vx / v, uy = vy / v, px = ex + ux * 46, py = ey + uy * 46;
+  const s = smooth(.2, .7, k), a = al * .85 * smooth(0, .12, k) * (1 - smooth(.85, 1, k));
+  const x0 = px + uy * 44, y0 = py - ux * 44, x = lerp(x0, px - uy * 44, s), y = lerp(y0, py + ux * 44, s);
+  if (k > .2) line(x0, y0, x, y, SHOW_C, .7 * a, 3);
+  ghostCursor(x, y, k > .2 && k < .75, a);
+}
+// зажми и веди: курсор зажат и описывает круг (сгребает)
+/** @param {number} cx @param {number} cy @param {number} [al] */
+function ghostSweep(cx, cy, al = 1) {
+  const k = (G.T % 2.4) / 2.4, an = k * TAU * .8 - 2, R = 44, a = al * .85 * smooth(0, .1, k) * (1 - smooth(.88, 1, k));
+  const x = cx + Math.cos(an) * R, y = cy + Math.sin(an) * R;
+  arc(cx, cy, R, -2, an, SHOW_C, .55 * a, 3);
+  ghostCursor(x, y, k > .08, a);
+}
+// значки жеста над строкой подсказки: hold, release, click, move; holdrel — «зажми → отпусти» по очереди
+// (на телефоне — без значков: мышь там не к месту; показывает курсор-палец)
+/** @param {string} kind @param {number} x @param {number} y — центр строки @param {boolean} [hot] для holdrel: сейчас «зажми» */
+function hintIcons(kind, x, y, hot) {
+  if (!kind || kind === 'shop' || isTouch()) return;
+  const yy = y - 30, pul = .8 + .2 * Math.sin(G.T * 6);
+  if (kind === 'holdrel') { const on = hot ?? (G.T % 1.6) < .9; gestDraw('hold', x - 22, yy, 30, on ? 1 : .35); gestDraw('release', x + 22, yy, 30, on ? .35 : 1); }
+  else gestDraw(/** @type {'hold' | 'release' | 'click' | 'move'} */ (kind), x, yy, 30, pul);
+}
+// кнопка лавки, к которой ведёт подсказка: золотая «кивающая» стрелка над ней и пульс (класс point)
+/** @type {Element | null} */
+let pointEl = null;
+/** @param {Element | null} el @param {number} [fromX] @param {number} [fromY] откуда тянуть стрелку (строка подсказки) */
+function pointAt(el, fromX, fromY) {
+  if (pointEl && pointEl !== el) pointEl.classList.remove('point');
+  pointEl = el; if (!el) return;
+  el.classList.add('point');
+  const r = el.getBoundingClientRect(); if (!r.width) return;
+  const tx = r.left + Math.min(r.width / 2, 90), ty = r.top - 6 - 5 * Math.abs(Math.sin(G.T * 5));
+  if (fromX !== undefined && fromY !== undefined && fromY < ty - 40) arrowTo(fromX, fromY + 14, tx, ty, SHOW_C, .85, true);
+  else arrowTo(tx, ty - 34, tx, ty, SHOW_C, .9);
+}
+
 // ---------- стоп-кадр со стрелкой: важное родилось на поле — время на миг стоит, вокруг темнеет ----------
 // Светлое пятно на цели, золотая стрелка к ней и короткая строка «что сделать» — для тех, кто не читает,
 // хватает стрелки. Сам уходит через dur с; клик, тап или клавиша — дальше (не раньше 0,5 с), потом миг замедления.

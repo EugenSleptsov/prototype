@@ -64,3 +64,24 @@ test('жест не вышел (зажал — пары нет): подсказ�
   g.ev(`G.stage.learn.smash = true; G.stage.missT = -99; ${holdEmpty}`);
   assert.equal(g.ev('G.stage.missT'), -99, 'жест освоен — промах не учит заново');
 });
+
+// что показывает подсказка у детектора (а не только пишет): шпион на hintIcons
+const spy = `globalThis.__g = []; hintIcons = (k) => { __g.push(k); };`;
+const shown = g => g.ev(`(() => { __g.length = 0; G.stage.coach.kind = null; G.stage.coach.idle = 0; render(); return __g.join(); })()`);
+
+test('показ, а не текст: раскачка — «зажми → отпусти» в такт шарику, закон по карману — стрелка к лавке', () => {
+  const g = loadGame({ seed: 7 });
+  g.ev(PREP.start); g.ev(spy);
+  g.ev('G.stage.inf.go = true; G.stage.inf.hold = false; G.stage.inf.good = 0');
+  assert.equal(shown(g), 'holdrel', 'раскачка');
+  g.ev(PREP.pump()); g.ev(`Cine.clear(); Cine.tick(99); G.stage.kn += 50`);
+  assert.equal(shown(g), 'shop', 'хватает на закон света — стрелка к кнопке');
+});
+
+test('показ, а не текст: снимка ещё не было — значок клика; жест не вышел — «зажми → отпусти»', () => {
+  const g = lit(); g.ev(spy);
+  g.ev(`G.stage.learn.snap = false; G.stage.en = E_CAP; G.stage.full = true; for (const c of G.stage.madeCls()) G.stage.measure(c); G.stage.learn.buy = true`);
+  assert.equal(shown(g), 'click');
+  g.ev(`G.stage.learn.snap = true; G.stage.learn.smash = false; G.stage.missT = G.stage.t`);
+  assert.equal(shown(g), 'holdrel');
+});

@@ -373,10 +373,13 @@ const Stars = {
     ctx.globalAlpha = al;
     if (this.phase === 'core') this.sl.draw(al);
     if (G.started && !G.paused && !G.prev && this.doneAt === null) {
-      if (this.phase === 'gas' && !this.well) label('зажми и веди — сгребай газ', G.W / 2, G.H * .62, 15, [255, 255, 255], (.75 + .2 * Math.sin(G.T * 4)) * al, 700);
+      if (this.phase === 'gas' && !this.well) { label('зажми и веди — сгребай газ', G.W / 2, G.H * .62, 15, [255, 255, 255], (.75 + .2 * Math.sin(G.T * 4)) * al, 700); ghostSweep(G.W / 2, G.H * .62 - 80, al); }
       if (this.phase === 'core' && this.sl.shots === 0 && !this.sl.held) {
         const be = this.o.find(o => o.Z === 4) || this.o.find(o => nkey(o) === '2,2' && o.age > .3);
-        if (be) { const [sx, sy] = W2S(be.x, be.y), r = be.rad * cam.z + 8 + 3 * Math.sin(G.T * 5); ring(sx, sy, r, GOLD, .8 * al, 2); label(be.Z === 4 ? 'брось в ⁸Be ещё ⁴He' : 'зажми ⁴He, оттяни, отпусти в другой', sx, sy + r + 16, 13, [255, 255, 255], .85 * al, 700); }
+        if (be) { const [sx, sy] = W2S(be.x, be.y), r = be.rad * cam.z + 8 + 3 * Math.sin(G.T * 5); ring(sx, sy, r, GOLD, .8 * al, 2); label(be.Z === 4 ? 'брось в ⁸Be ещё ⁴He' : 'зажми ⁴He, оттяни, отпусти в другой', sx, sy + r + 16, 13, [255, 255, 255], .85 * al, 700);
+          // курсор сам бросает ⁴He: в ⁸Be (если он есть) или в соседний ⁴He
+          const he = this.o.filter(o => o !== be && nkey(o) === '2,2' && o.age > .3).sort((u, v) => Math.hypot(u.x - be.x, u.y - be.y) - Math.hypot(v.x - be.x, v.y - be.y))[0];
+          if (he) { const [hx, hy] = W2S(he.x, he.y); if (onScreen(hx, hy, 0)) { if (be.Z === 4) ghostSling(hx, hy, sx, sy, al); else ghostSling(sx, sy, hx, hy, al); } } }
       }
     }
     for (const fl of this.floats) { const [fx, fy] = W2S(fl.x, fl.y); labelIn(fl.txt, fx, fy - 16 - fl.t * 26, fl.sz, fl.c, clamp(1.6 - fl.t, 0, 1), 700); }

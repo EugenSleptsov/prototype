@@ -1777,19 +1777,7 @@ const Particles = {
   },
   // на телефоне — палец (круг), на компьютере — стрелка курсора; нажатие — чуть меньше и с кольцом
   /** @param {number} x @param {number} y @param {boolean} press @param {number} a */
-  ghostCursor(x, y, press, a) {
-    if (isTouch()) {
-      const r = press ? 11 : 14;
-      ctx.globalAlpha = 1; ctx.fillStyle = rgb([255, 255, 255], a * .45); ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
-      ring(x, y, r + (press ? 6 : 3), [255, 255, 255], a, 1.5);
-      return;
-    }
-    ctx.save(); ctx.translate(x, y); const s = press ? .85 : 1; ctx.scale(s, s);
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 17); ctx.lineTo(4.5, 13); ctx.lineTo(8, 20.5); ctx.lineTo(10.8, 19.3); ctx.lineTo(7.3, 12); ctx.lineTo(12.8, 12); ctx.closePath();
-    ctx.globalAlpha = 1; ctx.fillStyle = rgb([255, 255, 255], a); ctx.fill(); ctx.strokeStyle = rgb([15, 20, 35], a); ctx.lineWidth = 1.3; ctx.stroke();
-    ctx.restore();
-    if (press) ring(x, y, 10, [255, 255, 255], a, 2);
-  },
+  ghostCursor(x, y, press, a) { ghostCursor(x, y, press, a); },
   // Курсор подсказывает глагол: над «?» — видоискатель «клик», над волной — «зажми», без энергии — «пусто ⚡»
   drawCursorHint() {
     if (!this.coachOn() || isTouch() || !mouse.has || mouse.idle || this.focus) return;
@@ -2274,16 +2262,20 @@ const Particles = {
   // Подсказка в одну строку — пока действие не освоено
   /** @param {number} sx @param {number} sy @param {number} r */
   drawHint(sx, sy, r) {
-    if (!G.started || G.paused || this.advanced || this.coach.kind || this.inVoid) return; // показывает призрачный курсор — строка не нужна
+    if (!G.started || G.paused || this.advanced || this.coach.kind || this.inVoid) { pointAt(null); return; } // показывает призрачный курсор — строка не нужна
     /** @type {string | null} */
-    let t = null, gest = false; // gest — над строкой значки жеста «зажми → отпусти»
+    let t = null, g = ''; // g — что показать вместо чтения: значок жеста (hold, release, click, move, holdrel) или shop — стрелка к кнопке лавки
+    /** @type {boolean | undefined} */
+    let hot; // holdrel: сейчас — «зажми» (раскачка: в такт шарику)
     if (this.tut && this.tut.i > 0) t = this.tutHint();
-    else if (this.ep === 3) t = !this.learn.shield ? 'зажми — щит'
-      : this.waveWarn() ? 'идёт волна антивещества — встреть щитом'
-      : !this.learn.pulse && this.wave && this.wave.cur ? 'отпусти щит рядом с антикварками — ударная волна'
-      : !this.learn.recol && this.stock >= 2 && this.p.some(o => !o.dead && o.sp === 'g' && this.helpGlu(o) && onScreen(...W2S(o.x, o.y), 0)) ? 'глюон в золотом кольце: подлети и зажми — щит втянет его и перекрасит лишний кварк' : null;
+    else if (this.ep === 3) {
+      [t, g] = !this.learn.shield ? ['зажми — щит', 'hold']
+        : this.waveWarn() ? ['идёт волна антивещества — встреть щитом', 'move']
+        : !this.learn.pulse && this.wave && this.wave.cur ? ['отпусти щит рядом с антикварками — ударная волна', 'release']
+        : !this.learn.recol && this.stock >= 2 && this.p.some(o => !o.dead && o.sp === 'g' && this.helpGlu(o) && onScreen(...W2S(o.x, o.y), 0)) ? ['глюон в золотом кольце: подлети и зажми — щит втянет его и перекрасит лишний кварк', 'hold'] : [null, ''];
+    }
     else if (!this.lit && this.ep === 0) {
-      const I = this.inf;
+      const I = this.inf; g = 'holdrel'; hot = Math.sin(I.th) > .15; // значки — в такт шарику: катится влево — «зажми», на краю — «отпусти»
       if (I.hold) t = null;
       else if (I.snapFx > 0) t = 'срыв! не доводи шарик до красной черты';
       else if (!I.go) t = 'зажми, когда шарик покатится влево ←';
@@ -2292,36 +2284,39 @@ const Particles = {
       else if (this.madeCls().length < 3) t = 'сильнее размах — жёстче свет: создай разные классы';
       else if (I.A > .8 && !I.snaps) t = 'у красной черты — толкай короче';
     }
-    else if (this.ep === 0 && this.lit && !this.rs.ph) t = this.bal() >= RES_COST.ph[0] ? 'нажми «Сформировать закон» внизу — Вселенная засветит сама' : null;
-    else if (!this.learn.smash && this.fieldOn() && this.t - this.missT < 5) { t = isTouch() ? 'не вышло: коснись и держи у двух квантов, потом отпусти' : 'не вышло: зажми у двух квантов и отпусти'; gest = true; }
+    else if (this.ep === 0 && this.lit && !this.rs.ph) { t = this.bal() >= RES_COST.ph[0] ? 'нажми «Сформировать закон» внизу — Вселенная засветит сама' : null; g = 'shop'; }
+    else if (!this.learn.smash && this.fieldOn() && this.t - this.missT < 5) { t = isTouch() ? 'не вышло: коснись и держи у двух квантов, потом отпусти' : 'не вышло: зажми у двух квантов и отпусти'; g = 'holdrel'; }
     else if (this.ep === 0 && !Codex.has('g') && this.p.some(o => !o.dead && o.sp === 'g' && onScreen(...W2S(o.x, o.y), 0)))
-      t = this.canShot() ? `глюон! наведи на него круг и ${isTouch() ? 'коснись' : 'кликни'} — снимок` : 'глюон! для снимка нужна ⚡ — лови фотоны';
-    else if (this.ep === 0 && Codex.has('g') && !this.gOn) t = this.bal() < RES_COST.g[0] ? `глюон открыт — копи ✦ на закон глюонов: ${this.bal()}/${RES_COST.g[0]}`
-      : this.keyOf('g') && !isTouch() && this.learn.buy ? `глюон открыт — клавиша ${this.keyOf('g')}: сформируй закон глюонов` : 'глюон открыт — «Сформировать закон» внизу';
-    else if (this.enOn() && !this.measured()) t = 'лови фотоны кругом — измерь свой свет';
-    else if (this.enOn() && (!this.full || this.en < E_SHOT + .5)) t = 'лови фотоны — энергия';
-    else if (!this.learn.snap) t = 'клик — снимок';
-    else if (this.focus && this.focus.cap.length === 2 && !this.learn.smash) t = 'отпусти — столкнуть';
+      [t, g] = this.canShot() ? [`глюон! наведи на него круг и ${isTouch() ? 'коснись' : 'кликни'} — снимок`, 'click'] : ['глюон! для снимка нужна ⚡ — лови фотоны', 'move'];
+    else if (this.ep === 0 && Codex.has('g') && !this.gOn) [t, g] = this.bal() < RES_COST.g[0] ? [`глюон открыт — копи ✦ на закон глюонов: ${this.bal()}/${RES_COST.g[0]}`, 'move']
+      : [this.keyOf('g') && !isTouch() && this.learn.buy ? `глюон открыт — клавиша ${this.keyOf('g')}: сформируй закон глюонов` : 'глюон открыт — «Сформировать закон» внизу', 'shop'];
+    else if (this.enOn() && !this.measured()) [t, g] = ['лови фотоны кругом — измерь свой свет', 'move'];
+    else if (this.enOn() && (!this.full || this.en < E_SHOT + .5)) [t, g] = ['лови фотоны — энергия', 'move'];
+    else if (!this.learn.snap) [t, g] = ['клик — снимок', 'click'];
+    else if (this.focus && this.focus.cap.length === 2 && !this.learn.smash) [t, g] = ['отпусти — столкнуть', 'release'];
     else if (this.ep === 0 && this.pairs > 0 && !Codex.has('g') && this.focus && this.focus.cap.length === 2 && this.focus.cap.every(o => o.sp === 'ph'))
-      t = (this.focus.lv || 0) < LV_N ? `держи до ${LV_N} ⚡ — три струи` : 'отпусти — кварк излучит глюон';
-    else if (this.focus && this.focus.cap.length === 2 && this.isQ(this.focus.cap[0]) && !this.learn.lv) t = 'держишь дольше — сильнее удар: смотри, что родится';
+      [t, g] = (this.focus.lv || 0) < LV_N ? [`держи до ${LV_N} ⚡ — три струи`, 'hold'] : ['отпусти — кварк излучит глюон', 'release'];
+    else if (this.focus && this.focus.cap.length === 2 && this.isQ(this.focus.cap[0]) && !this.learn.lv) [t, g] = ['держишь дольше — сильнее удар: смотри, что родится', 'hold'];
     else if (this.focus && this.focus.cap.length === 1 && !this.isQ(this.focus.cap[0]) && !this.learn.ann) t = `тяжёлое тянется медленно — нужна античастица ${this.lab({ ...this.focus.cap[0], anti: !this.focus.cap[0].anti })}`;
-    else if (this.focus && this.focus.cap.length === 2 && !this.isQ(this.focus.cap[0]) && !this.learn.ann) t = this.band(this.focus) ? 'отпусти в золотой полосе' : 'отпусти — аннигиляция';
-    else if (this.ep === 1 && this.hig >= 1 && !Codex.has('H') && this.focus && this.focus.cap.length === 2 && this.isQ(this.focus.cap[0])) t = this.focus.cap.every(o => o.sp === 'g') ? ((this.focus.lv || 0) < LV_N ? `держи до ${LV_N} ⚡ — H` : 'отпусти — H') : 'для H нужны два глюона';
-    else if (this.ep === 1 && Codex.has('H') && !this.learn.heavy && this.hig >= 1) t = this.p.some(o => !o.dead && !this.isQ(o) && this.grabbable(o) && onScreen(...W2S(o.x, o.y), 0)) ? 'зажми возле частицы — с массой её можно удержать' : 'вещества нет — сделай пару: столкни кванты';
-    else if (this.focus && this.focus.cap.length && this.learn.smash && !this.learn.throw && this.epT > 6) t = this.thrownReady() ? 'отпусти на ходу — бросок' : 'разгонись с квантами';
-    else if (!this.learn.hold && this.ep === 0 && this.fieldOn()) { t = 'зажми — притянуть кванты'; gest = true; }
-    else if (this.ep === 0 && this.pairs > 0 && !this.rs.coll && this.canBuy()) t = 'сделал руками — сформируй из этого закон: лавка внизу';
-    else if (!this.learn.buy && this.canBuy()) t = 'хватает знаний ✦ — сформируй закон: лавка внизу';
-    if (!t) return;
+    else if (this.focus && this.focus.cap.length === 2 && !this.isQ(this.focus.cap[0]) && !this.learn.ann) [t, g] = [this.band(this.focus) ? 'отпусти в золотой полосе' : 'отпусти — аннигиляция', 'release'];
+    else if (this.ep === 1 && this.hig >= 1 && !Codex.has('H') && this.focus && this.focus.cap.length === 2 && this.isQ(this.focus.cap[0]))
+      [t, g] = this.focus.cap.every(o => o.sp === 'g') ? ((this.focus.lv || 0) < LV_N ? [`держи до ${LV_N} ⚡ — H`, 'hold'] : ['отпусти — H', 'release']) : ['для H нужны два глюона', ''];
+    else if (this.ep === 1 && Codex.has('H') && !this.learn.heavy && this.hig >= 1)
+      [t, g] = this.p.some(o => !o.dead && !this.isQ(o) && this.grabbable(o) && onScreen(...W2S(o.x, o.y), 0)) ? ['зажми возле частицы — с массой её можно удержать', 'hold'] : ['вещества нет — сделай пару: столкни кванты', 'holdrel'];
+    else if (this.focus && this.focus.cap.length && this.learn.smash && !this.learn.throw && this.epT > 6) [t, g] = this.thrownReady() ? ['отпусти на ходу — бросок', 'release'] : ['разгонись с квантами', 'move'];
+    else if (!this.learn.hold && this.ep === 0 && this.fieldOn()) [t, g] = ['зажми — притянуть кванты', 'holdrel'];
+    else if (this.ep === 0 && this.pairs > 0 && !this.rs.coll && this.canBuy()) [t, g] = ['сделал руками — сформируй из этого закон: лавка внизу', 'shop'];
+    else if (!this.learn.buy && this.canBuy()) [t, g] = ['хватает знаний ✦ — сформируй закон: лавка внизу', 'shop'];
+    if (!t) { pointAt(null); return; }
     if (!this.learn.snap && this.lit || (!this.lit && this.ep === 0 && !this.inf.go)) { const ph = (G.T % 1.4) / 1.4; ring(sx, sy, r * (1 + .25 * ph), [255, 255, 255], .5 * (1 - ph), 2); }
     const two = this.focus && this.focus.cap.length === 2 && this.isQ(this.focus.cap[0]); // под шкалой ступеней — ниже
     let ty = sy + r + (two ? 102 : 36);
     const sh = byId('shop'), top = sh.style.display === 'flex' ? sh.getBoundingClientRect().top : 0;
     if (top > 0 && ty > top - 16) ty = sy - r - (two ? 72 : 30); // налезает на лавку — над детектором
     label(t, sx, ty, 14, [255, 255, 255], .75 + .2 * Math.sin(G.T * 4), 700);
-    // жест ещё не освоен — его значки над строкой: зажми → отпусти (мышь; на сенсоре — только слова)
-    if (gest && !isTouch()) { const on = (G.T % 1.6) < .9; gestDraw('hold', sx - 22, ty - 30, 30, on ? 1 : .35); gestDraw('release', sx + 22, ty - 30, 30, on ? .35 : 1); }
+    // показать, а не только написать: значок жеста над строкой или стрелка к кнопке лавки
+    hintIcons(g, sx, ty, hot);
+    pointAt(g === 'shop' ? document.querySelector('#shop button.pri.ok') || document.querySelector('#shop button.res.ok') : null, sx, ty);
   },
   // Стрелки у края экрана — к тому, что нужно снять, если оно за кадром
   drawArrows() {
