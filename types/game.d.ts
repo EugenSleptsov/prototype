@@ -110,7 +110,7 @@ interface Q {
   /** держит поле детектора */
   cap?: boolean;
   /** летит после отпускания/броска: секунды полёта (0 — не летит), своя скорость */
-  flung: number; v?: number; thrown?: boolean; sib?: Q | null; mate?: Q | null;
+  flung: number; p0?: number; v?: number; thrown?: boolean; sib?: Q | null; mate?: Q | null;
   /** ступень удара при отпускании (действует 3 с с lvAt) */
   lv: number | null; lvAt: number;
   /** гаснет (−1 — нет); «твоё» на виду, секунды; отброшен щитом; втягивается щитом */
@@ -234,7 +234,7 @@ interface ParticlesState {
   /** эпоха 0…3 */
   ep: number; epDone: boolean; epGap: number; bannerFor: number; banner: number; epT: number;
   pairs: number; decSeen: Set<string>; tries: Record<string, number>;
-  hot: Hot[]; hotCd: number; hz: HotZone[]; hzCd: number; hzSeen: boolean; hzSp: number;
+  hot: Hot[]; hotCd: number; hz: HotZone[]; hzCd: number; hzSeen: boolean; hzSp: number; uniOff: Set<string>;
   /** эпоха 4: запас кварков в детекторе */
   stock: number; stockQ: Stored[]; soupCd: number;
   /** u и d, что Вселенная накопила к эпохе 4 (фора) */
@@ -251,7 +251,7 @@ interface ParticlesState {
   wave?: Wave;
   annN?: number;
   /** исследование для текущего шага задания (кэш на кадр) */
-  _pk: string | null | undefined;
+  _pk: string | null | undefined; starsShown: boolean;
 }
 
 /** Шаг задания эпохи (hudTask в core.js): t — заголовок, h — подсказка, d — выполнен, res — нужное исследование,

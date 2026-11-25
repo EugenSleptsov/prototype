@@ -21,6 +21,8 @@ const QCOL = [[255, 60, 90], [70, 235, 120], [80, 140, 255]];
 const QANTI = [[60, 230, 240], [240, 90, 240], [250, 225, 70]]; // анти-красный = голубой и т.д. — так рисуется только антицвет глюона; антикварк — полый того же цвета
 const QR = .26, BIND = .62, D0 = .55, KSTR = 9, DBREAK = 2.6;
 const Q_PAR = 150, Q_T0 = 1.75; // эталон времени; T вокруг (≈150 МэВ — уже конфайнмент), очаги КГП горячее
+// чужих барионов вокруг — не больше; сколько повторов экзотики ещё платят; сколько нуклонов последнего шага — твоих (законы делают остальное, но не всё)
+const UNI_BAR = 30, EXO_REP = 3, OWN_N = 5;
 const HAND_Q = 3, CONF_COST = 25, NP_COST = 35, FRAG_COST = 25, GOAL_N = 12, FLOW_N = 9; // барионов руками до закона, цены законов, цель, свободных кварков в притоке
 // FLOW_MAX — больше свободных не копится: лишние уходят за край; недостающий цвет приходит всегда (тупика без зелёных нет)
 const FLOW_MAX = 16, PAIR_CD = 3.2, ANTI_MAX = 3, EXO_T = 3.2, EXO_PTS = 20;
@@ -50,7 +52,7 @@ const Quarks = {
     this.q = []; this.groups = new Map(); this.gid = 1; this.t = 0;
     this.temp = Q_T0; this.advanced = false; this.res = null; this.cheated = false;
     this.focus = null; this.holding = false; this.hold = 0; this.press = null; this.tr = []; this.learn = {}; this.floats = []; this.msgs = new Set();
-    this.kn = 0; this.uni = []; this.clock = 0; this.doneAt = null; this.endCd = -1; this.banner = -1.5; this.made = { p: 0, n: 0 }; this.mine = 0;
+    this.kn = 0; this.uni = []; this.uniOff = new Set(); this.clock = 0; this.doneAt = null; this.endCd = -1; this.banner = -1.5; this.made = { p: 0, n: 0 }; this.mine = 0; this.exoN = {};
     this.st = { passive: 0, delta: 0, exo: 0, pi0Lost: 0, cascade: 0, flips: 0, handFlips: 0, snaps: 0, pions: 0, melts: 0 }; this.tk = {};
     this.spent = 0; this.rs = { conf: 0, np: 0, frag: 0 }; this.handN = 0; this.autoN = 0; this.flowCd = 1; this.asm = null; this.asmCd = 0; this.pairCd = 2; this.npCd = NP_CD;
     this.hover = null;
@@ -120,7 +122,7 @@ const Quarks = {
   // Может ли набор кварков стать (частью) бесцветного состояния?
   valid(arr) {
     if (arr.length > 3) return false;
-    if (arr.every(m => m.anti === arr[0].anti)) return new Set(arr.map(m => m.col)).size === arr.length;
+    if (arr.every(m => m.anti === arr[0].anti)) return (!arr[0].anti || arr.length < 2) && new Set(arr.map(m => m.col)).size === arr.length; // антибарионов в модели нет: антикварк — только в пионе
     return arr.length === 2 && arr[0].col === arr[1].col; // мезон: цвет + свой антицвет
   },
   join(a, b) {
@@ -157,7 +159,7 @@ const Quarks = {
   // Барион собран: своими руками (полем) — дороже, сам слипся — дешевле
   onBaryon(grp, hand = grp.m.some(x => x.cap || x.hand > 0)) {
     const c = centroid(grp.m);
-    const pts = hand ? 10 : 4; if (!hand) this.st.passive++;
+    const pts = hand ? 10 : inView(c.x, c.y, 1) ? 4 : 0; if (!hand) this.st.passive++; // за кадром Вселенная лепит без ✦: иначе доход рос бы с размером мира
     if (hand) this.handN++;
     const conf = this.rs.conf && !Uni.off(this, 'conf');
     if (conf) this.autoN++; // после закона — все барионы, и твои тоже
@@ -241,6 +243,7 @@ const Quarks = {
     for (const o of pi.m) { o.dead = true; o.g = 0; }
     this.groups.delete(pi.id);
     const hand = pi.hand > 0 || pi.m.some(o => o.cap), c = centroid(N.m), txt = up ? 'n⁰ + π⁺ → p⁺' : 'p⁺ + π⁻ → n⁰';
+    this.made[N.kind]++; this.zoo(N.kind, c.x, c.y); // перезаряженный — тоже сделан
     this.st.flips++;
     fxFlash(c.x, c.y, 1.2, PI_C[pi.kind], .5); fxRing(c.x, c.y, .4, PI_C[pi.kind], 2.4, .7);
     if (hand) {
@@ -264,7 +267,7 @@ const Quarks = {
 
   // ---------- поле игрока ----------
   input(dt) {
-    if (mouse.cancel) { mouse.cancel = false; this.holding = false; this.press = null; this.release(); } // второй палец — щипок, а не жест
+    if (mouse.cancel) { mouse.cancel = false; this.holding = false; this.press = null; this.release(true); } // второй палец — щипок, а не жест: взятое просто остаётся
     if (mouse.clicked) {
       mouse.clicked = false; this.holding = true; this.hold = 0;
       this.press = { t: 0, sx: mouse.x, sy: mouse.y, blade: false, cuts: 0, used: false };
@@ -332,7 +335,7 @@ const Quarks = {
     if (o.dead || o.cap || o.age < .4 || o.nb > 0 || cap.length >= 3) return null;
     if (o.anti || cap.some(x => x.anti)) {
       if (o.g || cap.length > 1) return null;
-      if (!cap.length) return this.q.some(x => !x.dead && !x.anti && !x.g && !x.cap && x.col === o.col && x.fl !== o.fl && Math.hypot(x.x - P.x, x.y - P.y) < this.fr()) ? [o] : null;
+      if (!cap.length) return [o]; // одиночный антикварк — можно отнести к кварку
       const c = cap[0];
       return c.anti !== o.anti && c.col === o.col && c.fl !== o.fl ? [o] : null;
     }
@@ -405,16 +408,18 @@ const Quarks = {
       }
     }
   },
-  release() {
+  /** @param {boolean} [drop] отмена жеста: взятое остаётся на месте — без струны и броска */
+  release(drop = false) {
     const f = this.focus; this.focus = null; if (!f) return;
     // два кварка разных цветов, вне очага — остаются связаны струной (дикварк): её можно порвать
-    if (f.cap.length === 2 && !f.cap.some(o => o.anti) && this.hotAt(P.x, P.y) < .5) {
+    if (!drop && f.cap.length === 2 && !f.cap.some(o => o.anti) && this.hotAt(P.x, P.y) < .5) {
       const g = this.join(f.cap[0], f.cap[1]); if (g) { g.byHand = true; this.learn.qq = true; }
     }
-    for (const o of f.cap) { o.cap = false; o.hand = 2; o.vx = P.vx + randn() * .3; o.vy = P.vy + randn() * .3; }
+    for (const o of f.cap) { o.cap = false; o.hand = drop ? 0 : 2; o.vx = P.vx + randn() * .3; o.vy = P.vy + randn() * .3; }
     // взятое целиком — летит по ходу детектора (пион так бросают в нуклон)
     for (const g of f.had) {
-      for (const o of g.m) { o.cap = false; o.hand = 1; o.vx = P.vx * 1.2; o.vy = P.vy * 1.2; if (isPi(g.kind)) o.fly = .8; }
+      const k = drop ? 0 : 1.2;
+      for (const o of g.m) { o.cap = false; o.hand = drop ? 0 : 1; o.vx = P.vx * k; o.vy = P.vy * k; if (isPi(g.kind) && !drop) o.fly = .8; }
       if (isPi(g.kind)) g.hand = 3;
     }
   },
@@ -424,7 +429,7 @@ const Quarks = {
     const pts = [[P.x, P.y]]; if (mouse.has && !mouse.idle) pts.push(S2W(mouse.x, mouse.y));
     let best = null, bd = R;
     for (const g of this.groups.values()) {
-      if (!HOLDABLE[g.kind] || g.m.some(x => x.cap || x.hand > 0)) continue;
+      if (!HOLDABLE[g.kind] || g.m.some(x => x.cap || x.fly > 0)) continue; // только что отпущенное — снова берётся (летящий пион — нет)
       const c = centroid(g.m);
       for (const [x, y] of pts) { const d = Math.hypot(c.x - x, c.y - y); if (d < bd) { bd = d; best = g; } }
     }
@@ -441,7 +446,7 @@ const Quarks = {
     if (f.had.length < 2) {
       let best = null, bd = this.fr();
       for (const g of this.groups.values()) {
-        if (!HOLDABLE[g.kind] || f.had.includes(g) || g.m.some(x => x.cap || x.hand > 0)) continue;
+        if (!HOLDABLE[g.kind] || f.had.includes(g) || g.m.some(x => x.cap || x.fly > 0)) continue;
         const c = centroid(g.m), d = Math.hypot(c.x - P.x, c.y - P.y); if (d < bd) { bd = d; best = g; }
       }
       if (best) this.grabHadron(best);
@@ -471,7 +476,9 @@ const Quarks = {
     this.groups.set(id, grp); f.had = []; this.st.exo++;
     const c = centroid(grp.m);
     fxFlash(c.x, c.y, 1.4, GOLD, .6); fxRing(c.x, c.y, .5, GOLD, 3, 1);
-    if (!this.zoo(kind, c.x, c.y)) { this.kn += 5; this.float(c.x, c.y - .6, `${HADRON[kind][1]} +5 ✦`, GOLD, 14); }
+    // повтор — +5 ✦, но лишь первые EXO_REP раз каждого вида: сжимать одно и то же без конца — не ферма
+    const k = this.exoN; k[kind] = (k[kind] || 0) + 1;
+    if (!this.zoo(kind, c.x, c.y)) { const pay = k[kind] <= EXO_REP + 1; if (pay) this.kn += 5; this.float(c.x, c.y - .6, `${HADRON[kind][1]}${pay ? ' +5 ✦' : ''}`, GOLD, 14); }
     Sfx.play('upgrade');
   },
   // экзотика живёт мгновения и распадается обратно на те же адроны (барионы не пропадают)
@@ -552,6 +559,20 @@ const Quarks = {
       if (o) this.join(a, o);
     }
   },
+  // Вселенная лепит барионы без конца: чужих (не твоих) держим не больше UNI_BAR — лишние за кадром растворяются, дальние первыми
+  // (иначе физика кварков — попарная — разрасталась бы с каждой минутой ожидания)
+  uniBars() {
+    const L = [];
+    for (const g of this.groups.values()) if ((g.kind === 'p' || g.kind === 'n') && g.id !== this.mine && !g.m.some(o => o.cap || o.own || o.mine)) L.push(g);
+    return L;
+  },
+  capUni() {
+    const L = this.uniBars();
+    if (L.length <= UNI_BAR) return;
+    const off = L.map(g => ({ g, c: centroid(g.m) })).filter(x => !inView(x.c.x, x.c.y, 1))
+      .sort((a, b) => Math.hypot(b.c.x - P.x, b.c.y - P.y) - Math.hypot(a.c.x - P.x, a.c.y - P.y));
+    for (const { g } of off.slice(0, L.length - UNI_BAR)) { for (const x of g.m) { x.g = 0; x.dead = true; } this.groups.delete(g.id); }
+  },
   updGroups(dt, act) {
     for (const grp of [...this.groups.values()]) {
       if (!this.groups.has(grp.id)) continue;
@@ -560,6 +581,11 @@ const Quarks = {
       if (act && this.doneAt === null && grp.kind !== 'anti') {
         const c = centroid(grp.m);
         if (this.hotAt(c.x, c.y) > .8) { if ((grp.melt = (grp.melt || 0) + dt) > MELT_T) { this.melt(grp); continue; } } else grp.melt = 0;
+      }
+      // мир без края: чужой адрон далеко за краем растворяется, как и свободные кварки (иначе барионы Вселенной копились бы без предела)
+      if (act && this.doneAt === null && grp.id !== this.mine && !grp.m.some(o => o.cap || o.own || o.mine) && farOff(centroid(grp.m))) {
+        for (const x of grp.m) { x.g = 0; x.dead = true; }
+        this.groups.delete(grp.id); continue;
       }
       if (grp.hand > 0) grp.hand -= dt;
       if (isPi(grp.kind) || grp.kind === 'anti') {
@@ -632,7 +658,7 @@ const Quarks = {
       // мир без края: свободный чужой кварк далеко за краем растворяется (его место займёт пришедший из-за края)
       if (act && !q.g && !q.mine && farOff(q)) q.dead = true;
     }
-    this.forces(dt); this.strings(dt); this.binding(); this.updGroups(dt, act);
+    this.forces(dt); this.strings(dt); this.binding(); this.updGroups(dt, act); if (act && this.doneAt === null) this.capUni();
     if (act) this.pionHits();
     for (const q of this.q) {
       if (q.cap) continue;
@@ -644,7 +670,8 @@ const Quarks = {
     if (!live) return;
     if (this.doneAt === null) { this.hotTick(); this.flow(dt); this.pairs(dt); this.autoAsm(dt); this.npTick(dt); }
     this.hover = !this.focus && this.doneAt === null && (this.handN >= HAND_Q || this.learn.had || this.learn.pion) ? this.hadronAt(.7) : null;
-    if (this.doneAt === null && this.steps().every(g => g.d) && !this.q.some(o => o.cap)) {
+    // живая Δ сначала распадётся (в n⁰ или p⁺ с пионом): коридор n/p проверяем на том составе, что уйдёт к ядрам
+    if (this.doneAt === null && this.steps().every(g => g.d) && !this.q.some(o => o.cap) && ![...this.groups.values()].some(g => g.kind === 'delta')) {
       this.doneAt = this.clock; this.endCd = 1.4; this.release(); this.holding = false; this.press = null; this.asm = null;
       for (const g of [...this.groups.values()]) { if (EXO[g.kind]) this.unfuse(g); else if (g.kind === 'delta') this.decayDelta(g, null, 'self'); } // барионы уходят к ядрам целыми
       this.tickStars(true);
@@ -707,7 +734,7 @@ const Quarks = {
   // Сильному взаимодействию аромат безразличен — p⁺ и n⁰ выходят поровну; с «Балансом n/p» — к нужной доле.
   // С «Фрагментацией» — и пару: её струна тут же рвётся, рождая недостающий кварк.
   autoAsm(dt) {
-    if (!this.rs.conf || Uni.off(this, 'conf')) return;
+    if (!this.rs.conf || Uni.off(this, 'conf')) { this.asm = null; return; }
     const A = this.asm;
     if (A) {
       A.t += dt;
@@ -724,6 +751,7 @@ const Quarks = {
       return;
     }
     if ((this.asmCd -= dt) > 0) return;
+    if (this.uniBars().length >= UNI_BAR) { this.asmCd = 1; return; } // вокруг уже довольно барионов Вселенной — свободные кварки ждут тебя
     const f = this.freeQ().filter(o => o.age > .6 && Math.hypot(o.x - P.x, o.y - P.y) > this.fr() * .8 && this.hotAt(o.x, o.y) < .3); // поле игрока и очаги не трогаем
     const sh = this.pShare(), want = !this.rs.np || Uni.off(this, 'np') ? null : sh < NP_AIM ? 2 : sh > NP_HI ? 1 : null; // сколько u нужно в тройке
     let best = null, bs = Infinity; // ближайшая тройка — где бы она ни была
@@ -757,6 +785,7 @@ const Quarks = {
     const x = best.m.find(o => o.fl === 'd'); if (!x) return;
     x.fl = 'u'; best.kind = 'p';
     const c = centroid(best.m);
+    this.made.p++;
     fxRing(c.x, c.y, .3, [150, 240, 200], 1.8, .6);
     Uni.pay(this, 'np', 3);
     if (inView(c.x, c.y)) this.float(c.x, c.y - .4, 'n⁰ + ν → p⁺ + e⁻ +3 ✦', [150, 235, 200], 12);
@@ -819,7 +848,7 @@ const Quarks = {
     tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - this.hr - .4, '★ +10 ✦', [255, 215, 110], 17); });
   },
   steps() {
-    const touch = isTouch(), np = this.liveNP(), N = np.p + np.n, pct = Math.round(this.pShare() * 100);
+    const touch = isTouch(), np = this.liveNP(), N = np.p + np.n, pct = Math.round(this.pShare() * 100), own = N - this.uniBars().length;
     const key = (/** @type {string} */ k, /** @type {number} */ c) => `${touch || !this.keyOf(k) ? 'в лавке' : `клавиша ${this.keyOf(k)}`} за ${c} ✦`;
     const cut = touch ? 'чиркни пальцем поперёк струны' : 'чиркни мышью поперёк струны (или двойной клик)';
     return [
@@ -829,8 +858,8 @@ const Quarks = {
       { t: 'Сформируй закон «Конфайнмент»', h: this.handN >= HAND_Q || this.steps0() ? key('conf', CONF_COST) : `сначала ещё ${HAND_Q - this.handN} барион${HAND_Q - this.handN === 1 ? '' : 'а'} полем`, s: 'конфайнмент', d: this.rs.conf > 0 },
       { t: 'Перезаряди нуклон пионом', h: 'полый антикварк + кварк того же цвета и другой формы: ● + ◇ = π⁺ — поднеси к n⁰, ◆ + ○ = π⁻ — к p⁺. Или чиркни через Δ к нуклону', s: 'пионный обмен', d: this.st.handFlips > 0 },
       { t: 'Сформируй закон «Баланс n/p»', h: `Вселенная лепит p⁺ и n⁰ поровну, а ядрам нужно больше протонов — ${this.rs.conf && this.st.handFlips ? key('np', NP_COST) : 'сначала перезарядка пионом'}`, s: 'баланс n/p', d: this.rs.np > 0 },
-      { t: 'Вещество для ядер', h: `сейчас p⁺ ${pct} % — нужно ${NP_LO * 100}–${NP_HI * 100} % (как к нуклеосинтезу) и хотя бы 2 нейтрона`, p: [Math.min(N, GOAL_N), GOAL_N],
-        items: [[`p⁺ ${NP_LO * 100}–${NP_HI * 100} %`, N > 0 && this.inCorridor()], ['≥ 2 n⁰', np.n >= 2]], s: 'вещество для ядер готово', d: N >= GOAL_N && this.inCorridor() && np.n >= 2 },
+      { t: 'Вещество для ядер', h: `сейчас p⁺ ${pct} % — нужно ${NP_LO * 100}–${NP_HI * 100} % (как к нуклеосинтезу), хотя бы 2 нейтрона и ${OWN_N} нуклонов — твоих, полем`, p: [Math.min(N, GOAL_N), GOAL_N],
+        items: [[`p⁺ ${NP_LO * 100}–${NP_HI * 100} %`, N > 0 && this.inCorridor()], ['≥ 2 n⁰', np.n >= 2], [`${OWN_N} — полем`, own >= OWN_N]], s: 'вещество для ядер готово', d: N >= GOAL_N && this.inCorridor() && np.n >= 2 && own >= OWN_N },
     ];
   },
   steps0() { return this.made.p > 0 && this.made.n > 0 && this.st.snaps > 0; },
@@ -858,7 +887,19 @@ const Quarks = {
     el.style.display = 'none'; G.paused = false;
     if (this.res && !this.advanced) { this.advanced = true; this.res = null; advance(); }
   },
-  cheat() { this.cheated = true; this.handN = Math.max(this.handN, HAND_Q); this.made.p = Math.max(1, this.made.p); this.made.n = Math.max(1, this.made.n); this.st.snaps = Math.max(1, this.st.snaps); this.st.handFlips = Math.max(1, this.st.handFlips); this.kn += CONF_COST + NP_COST; },
+  cheat() { this.cheated = true; this.handN = Math.max(this.handN, HAND_Q); this.made.p = Math.max(1, this.made.p); this.made.n = Math.max(1, this.made.n); this.st.snaps = Math.max(1, this.st.snaps); this.st.handFlips = Math.max(1, this.st.handFlips); this.kn += CONF_COST + NP_COST;
+    // законы — сразу, и вещество для ядер вокруг тебя: 10 p⁺ и 2 n⁰ (свои — за краем не растворяются)
+    this.rs.conf = this.rs.np = 1;
+    const bar = (/** @type {string[]} */ fl, /** @type {number} */ i) => {
+      const r = 1.5 + Math.sqrt(i) * 1.1, a = i * 2.4, x = P.x + Math.cos(a) * r, y = P.y + Math.sin(a) * r;
+      const m = fl.map((f, c) => { const q = this.mk(x + (c - 1) * .3, y + (c === 1 ? .25 : 0), c, false, f); q.own = 1; return q; });
+      const id = this.gid++, grp = { id, m, kind: 'forming', t: 0, born: this.t };
+      for (const q of m) q.g = id;
+      this.groups.set(id, grp); this.classify(grp);
+    };
+    for (let i = 0; i < GOAL_N - 2; i++) bar(['u', 'u', 'd'], i);
+    for (let i = 0; i < 2; i++) bar(['u', 'd', 'd'], GOAL_N + i);
+  },
 
   // ---------- рисование ----------
   tube(x1, y1, x2, y2, c, w, al) {

@@ -211,8 +211,8 @@ const CX = {
     items: () => NUC_ORDER.filter(k => NUC_NAME && NUC_NAME[k]).map(k => {
       const [Z, N] = k.split(',').map(Number), [sym, name] = NUC_NAME[k];
       return {
-        k: 'n:' + k, sym, name, cls: 'nuc', kind: Z + N > 5 ? 'звёздный синтез' : 'Большой взрыв', st: Codex.st('n:' + k), sub: `${Z}p ${N}n`,
-        how: Z + N > 5 ? 'Куётся в звёздах.' : 'Собирается в первые минуты.',
+        k: 'n:' + k, sym, name, cls: 'nuc', kind: Z + N >= 8 ? 'звёздный синтез' : 'Большой взрыв', st: Codex.st('n:' + k), sub: `${Z}p ${N}n`,
+        how: Z + N >= 8 ? 'Куётся в звёздах.' : 'Собирается в первые минуты.',
         rows: [['состав', `${Z} p⁺ + ${N} n⁰`], ['живёт', NUC_UNST[k] || 'стабильно']], fact: NUC_FACT[k],
       };
     }),

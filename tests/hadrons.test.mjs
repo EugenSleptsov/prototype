@@ -118,7 +118,7 @@ test('адроны: «Баланс n/p» — лишние нейтроны са�
 
 test('адроны: всё сделано — уровень кончается, протоны и нейтроны уходят в ядра', () => {
   const g = hadrons();
-  for (let i = 0; i < 12; i++) { const u2 = i >= 2; g.ev(qAt('__x', 0, 'u', i * 1.5, 4)); g.ev(qAt('__y', 1, u2 ? 'u' : 'd', i * 1.5 + .3, 4)); g.ev(qAt('__z', 2, 'd', i * 1.5 + .15, 4.25)); g.ev(grp('__g', u2 ? 'p' : 'n', '__x, __y, __z')); }
+  for (let i = 0; i < 12; i++) { const u2 = i >= 2; g.ev(qAt('__x', 0, 'u', i * 1.5, 4)); g.ev(qAt('__y', 1, u2 ? 'u' : 'd', i * 1.5 + .3, 4)); g.ev(qAt('__z', 2, 'd', i * 1.5 + .15, 4.25)); g.ev(grp('__g', u2 ? 'p' : 'n', '__x, __y, __z')); g.ev('__x.own = __y.own = __z.own = 1'); } // твои: свои за краем не растворяются
   g.ev(`(() => { const S = G.stage; S.handN = 5; S.made.p = 3; S.made.n = 2; S.st.snaps = 1; S.st.handFlips = 1; S.rs.conf = S.rs.np = 1; })()`);
   assert.equal(g.ev('G.stage.steps().map(s => +s.d).join("")'), '111111');
   g.step(10);

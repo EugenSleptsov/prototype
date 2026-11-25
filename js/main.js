@@ -31,6 +31,7 @@ function advance() {
   if (G.stageI >= STAGES.length - 1) return;
   Tally.show(G.stage);
   const carry = carryOf(G.stage); mouse.clicked = false; // нажатие прошлого уровня — не в новый
+  G.zoom = 1; // свой зум у каждого уровня: приближение прошлого не делает следующий невыполнимым
   G.prev = G.stage; G.stageI++; G.stage = STAGES[G.stageI]; G.trans = 0; G.prevU = { s: 1, ox: 0, oy: 0 }; Sfx.hum(0); Sfx.play('segment');
   G.stage.enter(G.prev); G.stage.scoreAt = G.score;
   // остаток ÷ 10 — в копилку нового уровня (траты «в минус»: ✦ уровня, а значит и очки, не растут)
@@ -89,7 +90,7 @@ addEventListener('pointerdown', e => {
   if (Cine.on) { e.stopPropagation(); Cine.skip(); if (e.pointerType !== 'mouse') touchMode(); return; } // кадр-пауза: касание — дальше, в игру не идёт
   if (Spot.on) { e.stopPropagation(); Spot.skip(); return; } // стоп-кадр со стрелкой: так же
   if (e.pointerType === 'mouse') {
-    if (e.button !== 0 && G.stage.sling) { if (e.target === cv) mpan = { x: e.clientX, y: e.clientY }; return; } // правая/средняя — тянуть карту
+    if (e.button !== 0) { if (G.stage.sling && e.target === cv) mpan = { x: e.clientX, y: e.clientY }; return; } // правая/средняя — тянуть карту (где карта своя), иначе — ничего
     if (e.target !== cv) return; // кнопки, лавка, кодекс — не поле
     mouse.down = true; if (G.started) { mouse.clicked = true; mouse.x = e.clientX; mouse.y = e.clientY; markDbl(e); } return;
   }
@@ -99,13 +100,17 @@ addEventListener('pointerdown', e => {
   if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; markDbl(e); if (G.stage.sling) { mouse.down = true; mouse.clicked = true; } } // рогатка: палец — сам жест
   else if (ptrs.size === 2) { const [p, q] = [...ptrs.values()]; pinch0 = { d: Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)), z: G.zoom || 1, mx: (p.x + q.x) / 2, my: (p.y + q.y) / 2 }; mouse.idle = true; if (G.stage.sling && mouse.down) { mouse.cancel = true; mouse.down = false; } }
 }, true);
-function ptrUp(e) {
-  if (e.pointerType === 'mouse') { if (mpan && e.button !== 0) { mpan = null; return; } mouse.down = false; return; }
+/** @param {PointerEvent} e @param {boolean} [cancel] система отняла жест (входящий звонок, жест ОС) — отмена, а не бросок */
+function ptrUp(e, cancel = false) {
+  if (e.pointerType === 'mouse') { if (e.button !== 0) { mpan = null; return; } if (cancel && G.stage.sling && mouse.down) mouse.cancel = true; mouse.down = false; return; }
   if (!ptrs.delete(e.pointerId)) return;
+  const wasPinch = !!pinch0;
   if (ptrs.size < 2) pinch0 = null;
-  if (e.pointerId === steerId) { steerId = null; mouse.idle = true; if (G.stage.sling) mouse.down = false; } // отпустил — детектор тормозит (рогатка — бросок)
+  if (e.pointerId === steerId) { steerId = null; mouse.idle = true; if (G.stage.sling) { if (cancel && mouse.down) mouse.cancel = true; mouse.down = false; } } // отпустил — детектор тормозит (рогатка — бросок)
+  // щипок кончился, один палец остался — он снова ведёт (без нажатия: жест — новым касанием)
+  if (wasPinch && ptrs.size === 1) { const [[id, p]] = [...ptrs]; steerId = id; mouse.x = p.x; mouse.y = p.y; mouse.idle = false; }
 }
-addEventListener('pointerup', ptrUp); addEventListener('pointercancel', ptrUp);
+addEventListener('pointerup', e => ptrUp(e)); addEventListener('pointercancel', e => ptrUp(e, true));
 // окно потеряло фокус (Alt+Tab, уведомление) — отпустить всё: иначе кнопка и клавиши «залипают» до следующего нажатия;
 // тело в рогатке — отмена, а не бросок в никуда
 addEventListener('blur', () => {
@@ -139,10 +144,19 @@ function touchBar() {
 }
 // Колесо — зум: вглубь до ×2,2, наружу до ×0,55 от обзора этапа. Shift + колесо — действие этапа (вращение молекулы).
 // «Законы Вселенной»: строка — тумблер закона
-document.getElementById('uni').addEventListener('click', e => {
-  const r = e.target instanceof Element ? e.target.closest('.ur') : null;
-  if (r instanceof HTMLElement && r.dataset.k) Uni.toggle(G.stage, r.dataset.k);
-});
+// строку запоминаем при нажатии: сводка перерисовывается каждые полсекунды, и щелчок мог прийти уже на новый узел
+{
+  const uni = /** @type {HTMLElement} */ (document.getElementById('uni'));
+  /** @param {EventTarget | null} t */
+  const rowK = t => { const r = t instanceof Element ? t.closest('.ur') : null; return r instanceof HTMLElement ? r.dataset.k || '' : ''; };
+  let downK = '', downT = 0;
+  uni.addEventListener('pointerdown', e => { downK = rowK(e.target); downT = performance.now(); });
+  uni.addEventListener('click', e => {
+    const k = rowK(e.target) || (performance.now() - downT < 800 ? downK : '');
+    downK = '';
+    if (k) Uni.toggle(G.stage, k);
+  });
+}
 addEventListener('wheel', e => {
   if (e.target !== cv) return;
   if (e.shiftKey && G.stage.wheel) { G.stage.wheel(e.deltaY || e.deltaX); return; }
@@ -198,11 +212,11 @@ function endTut(done) {
 function update(dt) {
   G.T += dt; P.dashCd -= dt; P.dashT -= dt;
   // каждый добытый ✦ уровня — 10 очков забега (kn у уровней только растёт; траты — отдельно)
-  flushKn();
+  if (!G.ended) flushKn(); // забег кончен — счёт стоит
   Tally.tick(dt); Hint.tick(dt); Fly.tick(dt);
   if (G.stage.sling) tickPan(dt);
   G.stage.update(dt, true);
-  if (G.started) Uni.tick(G.stage, dt * (G.stage.ff > 1 ? G.stage.ff : 1)); // чему научил — приносит ✦ само (на ×4 — вчетверо, как и всё время уровня)
+  if (G.started && !G.ended) Uni.tick(G.stage, dt * (G.stage.ff > 1 ? G.stage.ff : 1)); // чему научил — приносит ✦ само (на ×4 — вчетверо, как и всё время уровня)
   // принесённые с прошлого уровня ✦ — искрами к счётчику, как только он на виду
   if (G.stage.carryIn && !G.prev) {
     const c = G.stage.carryIn; G.stage.carryIn = 0; G.stage.spent = (G.stage.spent || 0) - c; // траты «в минус»: ✦ уровня (и очки) не растут

@@ -45,14 +45,14 @@ const Mols = {
 
   enter(prev) {
     this.m = []; this.t = 0; this.clock = 0; this.hints = []; this.lowEMsgT = 0; this.floats = []; this.tk = {}; this.banner = -1.5;
-    this.kn = 0; this.uni = []; this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
-    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, tear: 0 }; this.tore = false; this.paidB = 0;
+    this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
+    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, tear: 0, cut: 0 }; this.tore = false; this.paidB = 0;
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     // атомы с прошлого уровня — на своих местах: мир растягивается в M_U раз, камера — во столько же отъезжает
     if (prev && prev.ions) {
       rescale(M_U, P.x, P.y, []);
       for (const io of prev.ions) {
-        const el = atSym(io.Z); if (!CHEM[el] || io.dead) continue;
+        const el = atSym(io.Z); if (!CHEM[el] || io.dead || io.ne < io.Z) continue; // в химию идут только нейтральные атомы: голый ион — не реагент
         const m = this.newMol(el, P.x + (io.x - P.x) * M_U, P.y + (io.y - P.y) * M_U);
         m.vx = io.vx * M_U; m.vy = io.vy * M_U; m.age = 1; m.mine = true; m.src = io;
       }
@@ -148,9 +148,10 @@ const Mols = {
   needEl() {
     const one = el => this.m.filter(m => m.atoms.length === 1 && m.atoms[0].el === el && inView(m.x, m.y, 20)).length;
     const need = [['C', 2], ['N', 2], ['O', 3], ['H', 10]].find(([el, n]) => one(el) < n);
-    if (need) return need[0];
-    const r = Math.random(); return r < .6 ? 'H' : r < .75 ? 'O' : r < .88 ? 'C' : 'N';
+    return need ? need[0] : this.mixEl();
   },
+  // обычная смесь Вселенной (для ободка за краем: недостачу в кадре он не восполняет)
+  mixEl() { const r = Math.random(); return r < .6 ? 'H' : r < .75 ? 'O' : r < .88 ? 'C' : 'N'; },
   // Вселенная вокруг: не хватает в кадре — одиночный атом из-за края; чужое вдали растворяется
   tide(dt) {
     for (const m of this.m) if (!m.mine && !m.held && !(m.hand > 0) && farOff(m, 1.6)) m.dead = true;
@@ -161,7 +162,7 @@ const Mols = {
       const r = rimPos(14), mol = this.newMol(this.needEl(), r.x, r.y), sp = rnd(4, 8);
       mol.vx = r.nx * sp + randn() * 3; mol.vy = r.ny * sp + randn() * 3; mol.age = 0;
     }
-    haloFill(this.m, M_DENS, M_CAP, dt, (x, y) => { const mol = this.newMol(this.needEl(), x, y); mol.vx = randn() * 3; mol.vy = randn() * 3; mol.age = 0; }, 2);
+    haloFill(this.m, M_DENS, M_CAP, dt, (x, y) => { const mol = this.newMol(this.mixEl(), x, y); mol.vx = randn() * 3; mol.vy = randn() * 3; mol.age = 0; }, 2);
   },
   recompute(mol) {
     let M = 0, cx = 0, cy = 0;
@@ -194,15 +195,19 @@ const Mols = {
     host.hand = 0; host.auto = 0;
     if (src === 'hand') {
       host.mine = true; this.st.bonds++;
-      // очки — только за чистый прирост связей: «связал — разорвал двойным кликом — связал» не фармит
-      if (this.st.bonds - this.st.tear > this.paidB) { this.paidB = this.st.bonds - this.st.tear; addScore(40); }
+      // очки — только за чистый прирост связей: «связал — разорвал (двойным кликом или ударом) — связал» не фармит
+      if (this.st.bonds - this.st.cut > this.paidB) { this.paidB = this.st.bonds - this.st.cut; addScore(40); }
       if (this.st.bonds === 1) msg('Ковалентная связь: общая пара электронов');
     }
     if (this.freeSlots(host)) return;
     const cp = COMP_BY[ckey(this.counts(host))];
     if (!cp) return;
-    if (src === 'auto') { this.st.auto++; Uni.pay(this, this.res.has(cp.f) ? cp.f : [...this.res][0], 2); } else if (src === 'hand') this.st.hand++;
-    if (src === 'auto' || (src === 'hand' && this.res.size)) this.st.soup++; // Вселенная учится — бульон варит она и ты вместе
+    // C₂H₆O — это и этанол CH₃–CH₂–OH, и диметиловый эфир CH₃–O–CH₃: у этанола углероды связаны между собой
+    if (cp.f === 'C₂H₅OH' && !host.bonds.some(b => host.atoms[b[0]].el === 'C' && host.atoms[b[1]].el === 'C')) {
+      this.float(x, y - 10, 'CH₃–O–CH₃ · эфир, не спирт', [200, 205, 220], 13); return;
+    }
+    if (src === 'auto') { this.st.auto++; Uni.pay(this, this.res.has(cp.f) && !Uni.off(this, cp.f) ? cp.f : [...this.res].find(k => !Uni.off(this, k)) || cp.f, 2); } else if (src === 'hand') this.st.hand++;
+    if (src === 'auto' || (src === 'hand' && this.res.size)) { this.st.soup++; host.soup = true; } // Вселенная учится — бульон варит она и ты вместе
     Codex.note('m:' + cp.f);
     if (!this.found.includes(cp.f)) {
       this.found.push(cp.f); this.kn += 15; Sfx.play('fresh');
@@ -252,6 +257,8 @@ const Mols = {
   },
   splitBond(mol, bi) {
     const [i, j, si, sj] = mol.bonds[bi];
+    if (mol.mine) this.st.cut++; // твоё разорвано — связь снова не оплачивается
+    if (mol.soup) { mol.soup = false; this.st.soup = Math.max(0, this.st.soup - 1); } // разобрал сваренное — в бульоне его больше нет
     mol.bonds.splice(bi, 1); mol.atoms[i].b[si] = -1; mol.atoms[j].b[sj] = -1;
     const comp = new Set([i]), st = [i];
     while (st.length) { const u = st.pop(); for (const v of mol.atoms[u].b) if (v >= 0 && !comp.has(v)) { comp.add(v); st.push(v); } }
@@ -369,6 +376,8 @@ const Mols = {
       for (let j = i + 1; j < f.length; j++) {
         const cb = this.counts(f[j]), sum = { ...ca }; for (const k in cb) sum[k] = (sum[k] || 0) + cb[k];
         if (!fits(sum, g.c)) continue;
+        // не цель целиком — после связи должна остаться свободная валентность: H + H под «воду» дало бы тупиковый H₂
+        if (ckey(sum) !== ckey(g.c) && this.freeSlots(f[i]) + this.freeSlots(f[j]) - 2 < 1) continue;
         const d = Math.hypot(f[i].x - f[j].x, f[i].y - f[j].y); if (d > 70) continue;
         const sc = f[i].atoms.length + f[j].atoms.length + (ckey(sum) === ckey(g.c) ? 4 : 0) - d / 20 + Math.random();
         if (sc > bs) { bs = sc; best = [f[i], f[j], d]; }
@@ -418,7 +427,8 @@ const Mols = {
       }
     }
   },
-  wheel(dy) { if (this.sl.held) { this.sl.held.w += Math.sign(dy) * .9; this.sl.held.manRot = true; } },
+  // Shift + колесо — поворот взятого шагом (сразу в угол: скорость вращения Q / E обнуляет каждый кадр)
+  wheel(dy) { if (this.sl.held && dy) { this.sl.held.a += Math.sign(dy) * .26; this.sl.held.manRot = true; } },
 
   // ---------- исследование ----------
   bal() { return Math.floor(this.kn - this.spent); },

@@ -23,6 +23,8 @@ const ELEM = [['n', 'Нейтрон', 0], ['H', 'Водород', 1], ['He', 'Г
 const elemOf = Z => ELEM[clamp(Z, 0, ELEM.length - 1)];
 const NR = .8; // радиус нуклона в масштабе уровня атомов (части ядра передаются туда)
 // N_FLY — сколько летит брошенное (минимум), N_REACH — сколько оно пролетает самое меньшее: мягкий бросок летит дольше и долетает
+// Y_R — гелий считаем в круге этого радиуса вокруг центра кадра (не по всему, что сейчас живёт в мире: иначе доля зависела бы от зума)
+const Y_R = 12.6;
 const NU_R = .42, N_WIN = 120, N_PAR = 75, N_VIEW = 9, N_DENS = .075, N_CAP = 60, N_FLY = 1.3, N_REACH = 11, N_SPD = 1.75, N_VMAX = 15 * N_SPD, SYN_COST = 30, Y_GOAL = .25;
 const NUC_NAME = {
   '1,0': ['p', 'протон'], '0,1': ['n', 'нейтрон'], '1,1': ['²H', 'дейтерий'], '1,2': ['³H', 'тритий'], '2,1': ['³He', 'гелий-3'],
@@ -40,7 +42,7 @@ const Nuclei = {
 
   enter(prev) {
     this.o = []; this.g = []; this.el = []; this.floats = []; this.t = 0; this.clock = 0; this.doneAt = null; this.endCd = -1;
-    this.kn = 0; this.uni = []; this.spent = 0; this.failed = false; this.stuckT = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.autoCd = 1;
+    this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.failed = false; this.stuckT = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.autoCd = 1;
     this.advanced = false; this.cheated = false; this.gT = 0; this.spCd = 0; this.seen = new Set(); this.tk = {};
     this.st = { decayed: 0, broken: 0, bounce: 0, shat: 0 }; this.he = { hand: 0, auto: 0 };
     this.hr = prev && prev.hr != null ? (typeof prev.hr === 'function' ? prev.hr() : prev.hr) : 1.4;
@@ -69,14 +71,16 @@ const Nuclei = {
   // вещество Вселенной: на нейтрон — три протона (свободные нейтроны со временем распадаются, их всё меньше);
   // после «Нуклеосинтеза» гелий рождается повсюду — и приходит уже с той же долей, что вокруг тебя
   cosmic(x, y, vx, vy) {
-    if (this.rs.syn && !Uni.off(this, 'syn') && Math.random() < this.Y()) return this.mk(2, 2, x, y, vx, vy);
+    // доля Y — по массе; ядер гелия по числу — y/(4 − 3y): тогда приходящее не меняет долю вокруг, а лишь держит её
+    const Y = this.rs.syn && !Uni.off(this, 'syn') ? this.Y() : 0;
+    if (Y > 0 && Math.random() < Y / (4 - 3 * Y)) return this.mk(2, 2, x, y, vx, vy);
     const isN = Math.random() < .25 * Math.exp(-this.t / 150), o = this.mk(isN ? 0 : 1, isN ? 1 : 0, x, y, vx, vy);
     if (isN) o.life = rnd(60, 100);
     return o;
   },
   // Вселенная вокруг: не хватает в кадре — приходит из-за края; чужое далеко за краем растворяется
   tide(dt) {
-    dissolveFar(this.o, o => o.held || o.fly > 0);
+    dissolveFar(this.o, o => o.held || o.fly > 0 || Math.hypot(o.x - cam.x, o.y - cam.y) < Y_R); // круг, где считаем гелий, не растворяем — и при зуме
     this.el = this.el.filter(e => !farOff(e));
     if (this.doneAt !== null) return;
     const have = this.o.filter(o => !o.dead && inView(o.x, o.y, 1)).length;
@@ -336,13 +340,13 @@ const Nuclei = {
     if (this.doneAt === null) this.tickStars(false);
     const goal = this.steps().every(s => s.d);
     this.stuckT = this.doneAt === null && this.stuck() ? (this.stuckT || 0) + dt : 0;
-    if (this.doneAt === null && (goal || this.stuckT > 4 || this.t > N_WIN)) {
+    if (this.doneAt === null && (goal || this.stuckT > 4 || this.clock > N_WIN)) {
       this.doneAt = this.clock; this.endCd = 2; this.sl.held = null; this.failed = !goal;
       for (const o of this.o) o.held = false;
-      if (!goal) this.float(P.x, P.y - 2, this.t > N_WIN ? 'остыло — синтез окончен' : 'нейтронов больше нет — синтез окончен', [200, 210, 240], 16);
+      if (!goal) this.float(P.x, P.y - 2, this.clock > N_WIN ? 'остыло — синтез окончен' : 'нейтронов больше нет — синтез окончен', [200, 210, 240], 16);
       this.tickStars(true);
     }
-    if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; addScore(this.Y() * 2000); advance(); } // звёздам — твои же ядра, на тех же местах // итоги — сбоку, без паузы
+    if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; if (!this.failed) addScore(this.Y() * 2000); advance(); } // звёздам — твои же ядра, на тех же местах // итоги — сбоку, без паузы
   },
   counts() {
     const c = { n: 0, mid: 0, he: 0, p: 0, he3: 0 };
@@ -350,9 +354,18 @@ const Nuclei = {
     return c;
   },
   // гелию больше не из чего взяться: нет свободных нейтронов, ²H, ³H и пары ³He — и Вселенная почти не приносит нейтронов
-  stuck() { const c = this.counts(); return this.t > 60 && c.n === 0 && c.mid - c.he3 === 0 && c.he3 < 2; },
+  stuck() { const c = this.counts(); return this.clock > 60 && c.n === 0 && c.mid - c.he3 === 0 && c.he3 < 2; },
   // доля массы в гелии-4 и всём, что из него выросло (³He не в счёт — он ещё «недостроен»), среди всех ядер вокруг
-  Y() { let m = 0, all = 0; for (const o of this.o) { all += o.Z + o.N; if (o.Z >= 2 && o.Z + o.N >= 4) m += o.Z + o.N; } return m / Math.max(1, all); },
+  // считаем в круге Y_R вокруг центра кадра; знаменатель — не меньше, чем вещества там по плотности Вселенной:
+  // отъехал зумом (в кадре реже) или приблизил — доля от этого не растёт
+  Y() {
+    let m = 0, all = 0;
+    for (const o of this.o) {
+      if (o.dead || Math.hypot(o.x - cam.x, o.y - cam.y) > Y_R) continue;
+      all += o.Z + o.N; if (o.Z >= 2 && o.Z + o.N >= 4) m += o.Z + o.N;
+    }
+    return m / Math.max(1, all, N_DENS * Math.PI * Y_R * Y_R);
+  },
 
   // ---------- исследование — в лавке ✦ ----------
   bal() { return Math.floor(this.kn - this.spent); },
@@ -410,9 +423,11 @@ const Nuclei = {
     this.cheated = true;
     for (const o of this.o) o.dead = true;
     this.o = [];
-    const nHe = Math.floor(this.nN / 2);
-    for (let i = 0; i < nHe; i++) this.made(this.mk(2, 2, P.x + i * 1.5, P.y + 2), 0);
-    for (let i = 0; i < this.nB - nHe * 4; i++) this.mk(1, 0, P.x - 2 - i, P.y - 2);
+    // гелия — на Y ≥ 25 % в круге счёта (Y_R вокруг кадра), всё — плотно вокруг тебя, а не цепочкой за край
+    const nHe = Math.max(Math.floor(this.nN / 2), Math.ceil(Math.max(this.nB, N_DENS * Math.PI * Y_R * Y_R) * Y_GOAL / 4)), nP = Math.max(0, this.nB - nHe * 4);
+    const at = i => { const r = 1.5 + Math.sqrt(i) * 1.1, a = i * 2.4; return [cam.x + Math.cos(a) * r, cam.y + Math.sin(a) * r]; };
+    for (let i = 0; i < nHe; i++) { const [x, y] = at(i); this.made(this.mk(2, 2, x, y), 0); }
+    for (let i = 0; i < nP; i++) { const [x, y] = at(nHe + i); this.mk(1, 0, x, y); }
     this.seen.add('1,1'); this.seen.add('1,2'); this.rs.syn = 1; this.he.hand += nHe;
   },
 
@@ -481,7 +496,7 @@ const Nuclei = {
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > N_PAR ? [190, 190, 205] : [255, 255, 255], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 3', this.steps(), this.stars, `Гелий по массе: ${Math.round(this.Y() * 100)} %`);
     if (!G.prev && this.doneAt === null) {
-      const rest = Math.max(0, N_WIN - this.t), c = rest < 20 ? [255, 140, 120] : [205, 200, 230];
+      const rest = Math.max(0, N_WIN - this.clock), c = rest < 20 ? [255, 140, 120] : [205, 200, 230];
       const shopUp = document.getElementById('shop').style.display === 'flex';
       label(`гелий ${Math.round(this.Y() * 100)} % из 25 · остынет через ${fmtClock(rest)}`, G.W / 2, G.H - (shopUp ? 118 : 52), 13, c, .85 * al, 700);
     }

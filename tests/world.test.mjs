@@ -85,7 +85,9 @@ test('переход звёзды → атомы: ионы — ядра свер
 
 test('переход атомы → молекулы: масштаб ×5, но на экране ничего не прыгает', () => {
   const g = toStage('atoms');
-  const before = scr(g, 'G.stage.ions.filter(i => CHEM[atSym(i.Z)])'), z = g.ev('cam.z');
+  g.ev('G.stage.ions.forEach((i, k) => { i.ne = k % 3 ? i.Z : 0; })'); // каждый третий — голый ион: в химию не идёт
+  const before = scr(g, 'G.stage.ions.filter(i => CHEM[atSym(i.Z)] && i.ne >= i.Z)'), z = g.ev('cam.z');
+  assert.ok(before.length > 3);
   g.ev('advance()');
   assert.equal(g.ev('G.stage.key'), 'molecules');
   const after = scr(g, 'G.stage.m.filter(m => m.src)');

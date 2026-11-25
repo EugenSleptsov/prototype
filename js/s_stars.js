@@ -30,7 +30,7 @@ const Stars = {
 
   enter(prev) {
     this.o = []; this.floats = []; this.t = 0; this.clock = 0; this.doneAt = null; this.endCd = -1; this.advanced = false; this.cheated = false;
-    this.kn = 0; this.uni = []; this.spent = 0; this.failed = false; this.stuckT = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.seen = new Set(); this.tk = {};
+    this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.failed = false; this.stuckT = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.seen = new Set(); this.tk = {};
     this.st = { bounce: 0, shat: 0 }; this.made = { hand: 0, auto: 0 }; this.phase = 'gas'; this.igT = 0; this.ignAt = null;
     this.hT = 0; this.beT = 2; this.flowT = 0; this.autoCd = 1; this.boom = 0; this.well = null;
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
@@ -114,7 +114,7 @@ const Stars = {
     let near = 0;
     for (const g of this.gas) {
       g.age += dt;
-      g.vx += (c.x - g.x) * .05 * dt; g.vy += (c.y - g.y) * .05 * dt; // газ стягивается сам — медленно
+      if (inView(g.x, g.y, .5)) { g.vx += (c.x - g.x) * .05 * dt; g.vy += (c.y - g.y) * .05 * dt; } // газ в кадре стягивается сам — медленно; за краем — свой
       if (w) {
         const dx = w.x - g.x, dy = w.y - g.y, d = Math.hypot(dx, dy) || 1e-6;
         if (d < 6) { const f = 9 * (1 - d / 6) + 2; g.vx += dx / d * f * dt; g.vy += dy / d * f * dt; }
@@ -128,7 +128,7 @@ const Stars = {
     this.near = near;
     this.gasTide(dt);
     if (w && near >= this.ignN) { if ((this.igT += dt) > .5) this.ignite(w.x, w.y); } else this.igT = 0;
-    if (live && this.t > 45 && this.phase === 'gas') this.ignite(c.x, c.y); // не сгрёб — облако схлопнулось само
+    if (live && this.clock > 45 && this.phase === 'gas') this.ignite(c.x, c.y); // не сгрёб — облако схлопнулось само
   },
   // облако без края: газ Вселенной приходит из-за края кадра, чужой вдали растворяется
   gasTide(dt) {
@@ -171,7 +171,7 @@ const Stars = {
     for (const o of this.o) {
       if (o.dead) continue;
       o.age += dt; o.nb -= dt; o.rot += dt * .6;
-      if (!o.held && o.Z === 4 && (o.life -= dt) <= 0) { this.beSplit(o, '⁸Be → 2 ⁴He'); continue; }
+      if (o.Z === 4 && (o.life -= o.held ? dt * .5 : dt) <= 0) { o.held = false; this.beSplit(o, '⁸Be → 2 ⁴He'); continue; } // и в руке живёт миг (вдвое дольше — успеть прицелиться)
       if (o.held) continue;
       if (this.doneAt !== null) { const k = Math.exp(-dt * 1.5); o.vx *= k; o.vy *= k; } // выброс сверхновой тормозит и остывает
       else if (o.fly > 0) { if ((o.fly -= dt) <= 0) o.thrown = null; }
@@ -202,8 +202,8 @@ const Stars = {
         fxRing(c.x, c.y, .3, [255, 240, 180], 1.8, .6); this.float(c.x, c.y, '4p → ⁴He', [255, 230, 170], 12);
       }
     }
-    // гелий изредка слипается в ⁸Be сам — лови его
-    if ((this.beT -= dt) <= 0) {
+    // гелий изредка слипается в ⁸Be сам — лови его (после того как первый ⁸Be ты слепил сам: первый раз — руками)
+    if (this.seen.has('4,4') && (this.beT -= dt) <= 0) {
       this.beT = 2.4;
       const al = this.o.filter(o => nkey(o) === '2,2' && this.free(o) && o.age > 1);
       if (al.length >= 4 && this.cnt('4,4') < 2) {
@@ -270,7 +270,7 @@ const Stars = {
     this.o = this.o.filter(o => !o.dead);
     if (!live) return;
     if (this.doneAt === null) this.tickStars(false);
-    if (this.doneAt === null && (this.steps().every(s => s.d) || this.t > ST_WIN)) { this.failed = !this.steps().every(s => s.d); this.supernova(); } // по времени — без бонуса уровня
+    if (this.doneAt === null && (this.steps().every(s => s.d) || this.clock > ST_WIN)) { this.failed = !this.steps().every(s => s.d); this.supernova(); } // по времени — без бонуса уровня
     if (this.boom > 0) this.boom -= dt;
     if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; advance(); } // атомам — эти же ядра, там, куда их вынесло
   },

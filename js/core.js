@@ -127,14 +127,18 @@ function haloPos() {
   }
   const r = rimPos(m / 2); return [r.x, r.y];
 }
-/** Доливка ободка: в нём меньше, чем положено по плотности, — до n тел за кадр в случайных точках ободка (make кладёт тело)
- * @param {Array<{ x: number, y: number, dead?: boolean }>} list @param {number} dens @param {number} cap @param {number} dt
+/** Доливка ободка: в нём меньше, чем положено по плотности, — тела в случайных точках ободка (make кладёт тело),
+ * в среднем n·20 в секунду при любой частоте кадров. Твоё в кадре (mine) ободок не отменяет; но если чужого в кадре
+ * уже на треть больше нормы — не доливаем: ободок стекает внутрь (облако стягивается), и иначе копилось бы без предела
+ * @param {Array<{ x: number, y: number, dead?: boolean, mine?: boolean }>} list @param {number} dens @param {number} cap @param {number} dt
  * @param {(x: number, y: number) => void} make @param {number} [n] */
 function haloFill(list, dens, cap, dt, make, n = 3) {
-  const m = haloM(); let have = 0; // считаем только ободок: перебор в кадре (твоё, только что принесённое) его не отменяет
-  for (const o of list) if (!o.dead && inView(o.x, o.y, m) && !inView(o.x, o.y)) have++;
-  const want = haloWant(dens, cap) - popWant(dens, cap);
-  for (let i = 0; i < n && have + i < want && Math.random() < dt * 30; i++) { const [x, y] = haloPos(); make(x, y); }
+  const m = haloM(), pop = popWant(dens, cap); let ring = 0, inside = 0;
+  for (const o of list) if (!o.dead && inView(o.x, o.y, m)) { if (!inView(o.x, o.y)) ring++; else if (!o.mine) inside++; }
+  const need = inside > pop * 1.3 ? 0 : haloWant(dens, cap) - pop - ring;
+  if (need <= 0) return;
+  const k = Math.min(need, Math.floor(n * 20 * dt + Math.random()));
+  for (let i = 0; i < k; i++) { const [x, y] = haloPos(); make(x, y); }
 }
 /** Чужое далеко за краем растворяется (dead), своё и занятое (keep) — нет @template {{ x: number, y: number, mine?: boolean, dead?: boolean }} T
  * @param {T[]} arr @param {(o: T) => boolean} [keep] */
@@ -649,15 +653,17 @@ const Uni = {
     const L = S.uni || (S.uni = []);
     let r = L.find(x => x.k === k);
     if (!r) L.push(r = { k, ic, name, lv: 0, rate: 0, acc: 0, kn: 0, en: 0, n: 0, t0: G.T, fl: G.T, log: [] });
-    r.lv++; r.rate = rate; r.fl = G.T; return r;
+    r.lv++; r.rate = rate; r.fl = G.T;
+    if (S.uniOff && S.uniOff.delete(k) && S.uniSet) S.uniSet(k, true); // научил заново — закон снова работает
+    return r;
   },
   /** Вселенная сработала сама: +v ✦ уровню (en — ⚡, только для сводки)
    * @param {Stage} S @param {string} k @param {number} v @param {number} [en] */
   pay(S, k, v, en = 0) {
     S.kn = (S.kn || 0) + v;
-    const r = S.uni && S.uni.find(x => x.k === k); if (!r) return;
+    const r = S.uni && S.uni.find(x => x.k === k); if (!r || this.off(S, k)) return; // выключенный закон себе не пишет
     r.kn += v; r.en += en; r.n++; r.fl = G.T;
-    if (v) r.log.push([G.T, v]);
+    if (v) { r.log.push([G.T, v]); if (r.log.length > 400) r.log.splice(0, r.log.length - 300); } // строку не смотрят — журнал всё равно не растёт без предела
   },
   /** @param {Stage} S @param {string} k */
   on(S, k) { return !this.off(S, k) && (!S.uniOn || S.uniOn(k)); },
