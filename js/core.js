@@ -167,11 +167,22 @@ function hudClock(alpha, left, leftCol, pts, chips) {
   ctx.globalAlpha = 1;
 }
 // Заголовок: всплывает и гаснет, игру не останавливает (b — секунды с начала)
-// why — ради чего этот уровень на пути к жизни («из кварков → протоны → без них не будет ядер»): строка золотом
+// why — ради чего этот уровень на пути к жизни («из кварков → протоны → без них не будет ядер»): строка золотом.
+// Начало нового уровня (не первого) — важное знание: вместо надписи на карте — кадр-пауза с путём Вселенной.
+/** @type {Set<string>} */
+const bannerCine = new Set();
 /** @param {number} b @param {string} kicker @param {string} name @param {string} sub @param {number} alpha @param {string} [why] */
 function hudBanner(b, kicker, name, sub, alpha, why) {
   const end = why ? 5.6 : 4.2;
   if (!G.started || b > end) return;
+  if (why && G.stageI > 0) {
+    if (b < .2 || bannerCine.has(name)) return;
+    bannerCine.add(name);
+    const path = LADDER.map((n, i) => `<span class="${i < G.stageI ? 'was' : i === G.stageI ? 'on' : ''}">${n}</span>`).join('<i>→</i>');
+    Cine.show(`<div class="ck">${kicker}</div><div class="cn lvl">${name}</div><div class="pth">${path}</div>` +
+      `<div class="cp">${sub}</div><div class="cg">${why}</div>`, 6.5);
+    return;
+  }
   const a = smooth(0, .4, b) * (1 - smooth(end - 1.2, end, b)) * alpha, y = Math.max(G.H * .3, (G.T - (G.taskAt ?? -9) < .2 ? G.taskY : 0) + 62); // не на карточках задания
   label(kicker, G.W / 2, y - 36, 12, [255, 210, 122], .85 * a, 700);
   label(name, G.W / 2, y, 40, [255, 255, 255], a, 800);

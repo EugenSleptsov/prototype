@@ -1,4 +1,4 @@
-// Кадр-пауза важного знания: открытие впервые в жизни и первое «Научить» останавливают время
+// Кадр-пауза важного знания: открытие впервые в жизни, первое «Научить» и начало уровня останавливают время
 // на ленте поперёк экрана; повторное открытие в новом забеге — без паузы. Клик — дальше, но не сразу.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -47,4 +47,19 @@ test('кадр-пауза: первое «Научить» — пауза, сл�
   g.ev('Cine.tick(99)');
   g.ev(`G.stage.buy(G.stage.shopItems().findIndex(it => it.r))`);
   assert.equal(g.ev('Cine.on'), false);
+});
+
+test('кадр-пауза: начало нового уровня — один раз, с путём Вселенной и строкой «зачем»', () => {
+  const g = loadGame();
+  g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.light);
+  g.ev('Cine.clear(); Cine.tick(99); advance(); G.trans = 99');
+  assert.equal(g.ev('G.stage.key'), 'quarks');
+  g.step(150, true);
+  assert.equal(g.ev('Cine.on'), true);
+  assert.match(html(g), /Адроны/);
+  assert.match(html(g), /class="on">Адроны/, 'на пути подсвечен текущий уровень');
+  assert.match(html(g), /без них не будет ни одного ядра/);
+  g.ev('Cine.tick(99)');
+  g.step(30, true);
+  assert.equal(g.ev('Cine.on'), false, 'заголовок уровня не повторяется');
 });
