@@ -548,12 +548,19 @@ const TALLY_T = 8, LVL_BONUS = 500, AUTO_BONUS = 1000;
 const CARRY_DIV = 10;
 /** @param {Stage} st */
 const carryOf = st => st.bal ? Math.floor(Math.max(0, st.bal()) / CARRY_DIV) : 0;
+// каждый добытый ✦ уровня — 10 очков забега (kn у уровней только растёт; траты — отдельно)
+function flushKn() {
+  const kn = G.stage.kn; if (typeof kn !== 'number') return;
+  if (G.knOf !== G.stage) { G.knOf = G.stage; G.knSeen = kn; }
+  if (kn > G.knSeen) { addScore((kn - G.knSeen) * 10); G.knSeen = kn; }
+}
 const Tally = {
   t: 0,
   // итоги пройденного уровня (из advance)
   /** @param {Stage} st */
   show(st) {
     /** @type {TallyData} */
+    flushKn(); // ✦ последнего кадра уровня — в очки до итогов
     const d = st.tally ? st.tally() : { name: st.name, rows: [] };
     const auto = d.auto && d.auto[1] > 0 ? clamp(d.auto[0] / d.auto[1], 0, 1) : null;
     addScore(LVL_BONUS); if (auto !== null) addScore(AUTO_BONUS * auto);

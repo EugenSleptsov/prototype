@@ -1,0 +1,63 @@
+// Баги логики из аудита: ⁴He + ⁴He в «Ядрах», нейтральность «Атомов» при улетевших ядрах, финал «Молекул»,
+// ручной поворот молекулы при прицеливании, зависшая «отмена вторым пальцем».
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { loadGame, PREP } from './harness.mjs';
+
+function toStage(key, seed = 3) {
+  const g = loadGame({ seed });
+  g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.light);
+  while (g.ev('G.stage.key') !== key) g.ev('advance(); G.trans = 99');
+  g.step(240);
+  return g;
+}
+
+test('ядра: ⁴He + ⁴He — не реакция (без «нового» гелия и ✦), ⁷Li + p → две альфы — по-прежнему', () => {
+  const g = toStage('nuclei');
+  const he = '{ Z: 2, N: 2 }';
+  assert.equal(g.ev(`G.stage.judge(${he}, ${he}, 15, true).kind`), 'no');
+  assert.equal(g.ev(`G.stage.outcome({ Z: 3, N: 4 }, { Z: 1, N: 0 }, true).out.length`), 2);
+  // автоматика больше не выбирает пару ⁴He + ⁴He
+  g.ev(`G.stage.rs.syn = 1; for (const o of G.stage.o) o.dead = true; G.stage.o = [];
+    const a = G.stage.mk(2, 2, P.x, P.y), b = G.stage.mk(2, 2, P.x + 2, P.y); a.age = b.age = 2; G.stage.autoCd = 0; G.stage.autoFuse(1 / 60)`);
+  assert.equal(g.ev(`G.stage.o.filter(o => o.thrown === 'auto').length`), 0);
+});
+
+test('атомы: доля нейтральных — по ионам у кадра, улетевшее далеко голое ядро её не держит', () => {
+  const g = toStage('atoms');
+  g.ev(`for (const i of G.stage.ions) i.dead = true; G.stage.ions = [];
+    const a = G.stage.ion(8, P.x, P.y, 1); a.ne = 8; G.stage.ions.push(a);
+    const far = G.stage.ion(8, P.x + viewRadius() * 6, P.y, 1); far.mine = true; G.stage.ions.push(far)`);
+  assert.equal(g.ev('G.stage.neutral()'), 1);
+  g.ev('P.x += viewRadius() * 6; cam.x = P.x');
+  assert.equal(g.ev('G.stage.neutral()'), 0, 'там, где голое ядро, — 0');
+});
+
+test('молекулы: финал — итоги уровня и ✦ последнего кадра в очках', () => {
+  const g = toStage('molecules');
+  g.ev('G.stage.cheat(); G.stage.st.soup = 99; Cine.clear(); Cine.tick(99)');
+  g.ev('update(1 / 60)');
+  assert.equal(g.ev('G.ended'), true);
+  assert.match(g.ev(`document.getElementById('tally').innerHTML`), /Молекулы/);
+  assert.equal(g.ev('G.knSeen'), g.ev('G.stage.kn'), 'все ✦ — в очках');
+});
+
+test('молекулы: повернул Q / E при прицеливании — прицел не доворачивает обратно', () => {
+  const g = toStage('molecules');
+  g.ev(`for (const m of G.stage.m) m.dead = true; G.stage.m = [];
+    const S = G.stage, C = S.newMol('C', P.x, P.y); C.age = 2; globalThis.__C = C;
+    const [sx, sy] = W2S(C.x, C.y); mouse.x = sx; mouse.y = sy; mouse.has = true; mouse.down = true; update(1 / 60)`);
+  assert.equal(g.ev('G.stage.sl.held === __C'), true, 'взял');
+  g.ev(`keys.add('KeyQ'); update(1 / 60); keys.delete('KeyQ')`);
+  assert.equal(g.ev('__C.manRot'), true);
+  const a0 = g.ev('__C.a');
+  g.ev('G.stage.predict(__C, 20, 7)');
+  assert.equal(g.ev('__C.a'), a0, 'угол не перезаписан');
+  g.ev('G.stage.hold(__C)'); assert.equal(g.ev('__C.manRot'), false, 'новый захват — снова автоповорот');
+});
+
+test('рогатка: щипок без тела в руке не отменяет следующий бросок', () => {
+  const g = toStage('nuclei');
+  g.ev('mouse.cancel = true; G.stage.sl.update()');
+  assert.equal(g.ev('mouse.cancel'), false);
+});

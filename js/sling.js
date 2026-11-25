@@ -34,6 +34,7 @@ class Sling {
     return [c[0] - dx / L * v, c[1] - dy / L * v];
   }
   update() {
+    if (mouse.cancel && !this.held) mouse.cancel = false; // щипок без тела в руке — отменять нечего
     const down = mouse.down && !G.paused && G.started, [mx, my] = S2W(mouse.x, mouse.y);
     // нажатие — фронт кнопки или защёлка clicked (нажал и отпустил быстрее кадра — всё равно нажатие)
     if (!this.was && (down || (mouse.clicked && !G.paused && G.started))) {

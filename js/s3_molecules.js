@@ -72,7 +72,7 @@ const Mols = {
   grabR(b) { return b.R + 14 / cam.z; },
   full() { return slingFullPx() / cam.z; },
   vmax() { return M_VMAX; },
-  hold(b) { b.held = true; b.vx = b.vy = 0; b.w = 0; b.mineT = this.t; },
+  hold(b) { b.held = true; b.vx = b.vy = 0; b.w = 0; b.mineT = this.t; b.manRot = false; },
   launch(b, vx, vy) { b.held = false; b.vx = vx; b.vy = vy; b.thrown = 0; if (Math.hypot(vx, vy) > 1) b.hand = 3; },
   damp() { return .22; },
   // двойной клик (касание) по молекуле — рвётся связь, ближайшая к пальцу
@@ -104,7 +104,7 @@ const Mols = {
   },
   // Полёт брошенного: первый касающийся атом — и что выйдет
   predict(b, vx, vy) {
-    this.orient(b, vx, vy);
+    if (!b.manRot) this.orient(b, vx, vy); // сам повернул Q / E или колесом — не перебиваем
     const pts = [[b.x, b.y]], dt = 1 / 60, k = Math.exp(-this.damp(b) * dt);
     let x = b.x, y = b.y, ux = vx, uy = vy;
     for (let n = 0; n < 240; n++) {
@@ -388,7 +388,7 @@ const Mols = {
     if (live && this.doneAt === null) {
       this.sl.update();
       const rm = this.sl.held; // Q / E поворачивают взятое (само оно и так поворачивается по ходу броска)
-      if (rm) { let wt = 0; if (keys.has('KeyQ')) wt -= 2.6; if (keys.has('KeyE')) wt += 2.6; rm.w = wt; }
+      if (rm) { let wt = 0; if (keys.has('KeyQ')) wt -= 2.6; if (keys.has('KeyE')) wt += 2.6; rm.w = wt; if (wt) rm.manRot = true; } // повернул сам — прицел больше не доворачивает
     }
     for (const mol of this.m) {
       mol.age += dt; mol.thrown = (mol.thrown ?? 9) + dt; mol.hand -= dt; mol.auto -= dt;
@@ -411,11 +411,12 @@ const Mols = {
       this.tickStars(false);
       if (this.steps().every(s => s.d)) {
         this.doneAt = this.clock; this.tickStars(true);
+        Tally.show(this); // как у остальных уровней: бонус уровня, доля Вселенной, рекорд
         endGame(`Первичный бульон готов: ${this.found.join(', ')}. Дальше — органика (скоро).`);
       }
     }
   },
-  wheel(dy) { if (this.sl.held) this.sl.held.w += Math.sign(dy) * .9; },
+  wheel(dy) { if (this.sl.held) { this.sl.held.w += Math.sign(dy) * .9; this.sl.held.manRot = true; } },
 
   // ---------- исследование ----------
   bal() { return Math.floor(this.kn - this.spent); },

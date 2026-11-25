@@ -90,7 +90,8 @@ const Atoms = {
       this.ions.push(io);
     }
   },
-  neutral() { return this.ions.reduce((s, i) => s + Math.min(i.ne, i.Z), 0) / Math.max(1, this.Zsum); },
+  // доля нейтральных — по ионам в кадре и рядом: электроны живут только здесь, и улетевшие далеко ядра сверхновой не держат уровень
+  neutral() { let n = 0, z = 0; for (const i of this.ions) if (!i.dead && inView(i.x, i.y, 4)) { n += Math.min(i.ne, i.Z); z += i.Z; } return z ? n / z : 0; },
 
   // ---------- след ----------
   tickTrail(live) {

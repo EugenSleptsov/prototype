@@ -38,6 +38,7 @@ function advance() {
 }
 function endGame(text) {
   if (G.ended) return;
+  flushKn(); // ✦ последнего кадра — тоже в очки
   G.ended = true;
   document.getElementById('endtext').textContent = text;
   // счёт забега: в таблицу браузера и (если включена) в общую
@@ -94,7 +95,7 @@ addEventListener('pointerdown', e => {
   touchMode();
   if (e.target !== cv) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; markDbl(e); if (G.stage.sling) mouse.down = true; } // рогатка: палец — сам жест
+  if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; markDbl(e); if (G.stage.sling) { mouse.down = true; mouse.clicked = true; } } // рогатка: палец — сам жест
   else if (ptrs.size === 2) { const [p, q] = [...ptrs.values()]; pinch0 = { d: Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)), z: G.zoom || 1, mx: (p.x + q.x) / 2, my: (p.y + q.y) / 2 }; mouse.idle = true; if (G.stage.sling && mouse.down) { mouse.cancel = true; mouse.down = false; } }
 }, true);
 function ptrUp(e) {
@@ -185,11 +186,7 @@ function endTut(done) {
 function update(dt) {
   G.T += dt; P.dashCd -= dt; P.dashT -= dt;
   // каждый добытый ✦ уровня — 10 очков забега (kn у уровней только растёт; траты — отдельно)
-  const kn = G.stage.kn;
-  if (typeof kn === 'number') {
-    if (G.knOf !== G.stage) { G.knOf = G.stage; G.knSeen = kn; }
-    if (kn > G.knSeen) { addScore((kn - G.knSeen) * 10); G.knSeen = kn; }
-  }
+  flushKn();
   Tally.tick(dt); Hint.tick(dt); Fly.tick(dt);
   if (G.stage.sling) tickPan(dt);
   G.stage.update(dt, true);
