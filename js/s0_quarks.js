@@ -94,7 +94,7 @@ const Quarks = {
     const pts = hand ? 10 : 4; if (!hand) this.st.passive++;
     if (hand) this.handN++;
     if (this.rs.conf) this.autoN++; // после исследования в шаг «по всей Вселенной» идут все барионы — и твои тоже
-    if (!hand && this.rs.conf) Uni.pay(this, 'conf', pts); else this.kn += pts; // барионы Вселенной — в сводку «Вселенная сама»
+    if (!hand && this.rs.conf) Uni.pay(this, 'conf', pts); else this.kn += pts; // барионы Вселенной — в сводку «Законы Вселенной»
     this.made[grp.kind]++;
     if (!this.mine && hand) this.mine = grp.id;
     for (const x of grp.m) { x.cap = false; x.hand = 0; }

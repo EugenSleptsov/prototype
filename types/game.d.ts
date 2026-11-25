@@ -27,7 +27,7 @@ interface Fx { x: number; y: number; r0: number; r1: number; t: number; dur: num
 type Chip = [string, [RGB, number], RGB, boolean?];
 /** Состояние панели задания у этапа (hudTask): прошлые галочки шагов и ★, вспышка «✓ …», когда закрыт шаг */
 interface TaskPanel { ds?: boolean[]; ss?: number[]; fl?: { txt: string; c: RGB; at: number }; doneAt?: number }
-/** Строка сводки «Вселенная сама»: научено (lv раз), ровный доход rate ✦/мин (acc — накоплено до 1 ✦),
+/** Строка сводки «Законы Вселенной»: научено (lv раз), ровный доход rate ✦/мин (acc — накоплено до 1 ✦),
  *  сколько принесла ✦ и ⚡, событий n, когда научено t0, последняя выплата fl, выплаты [время, ✦] за минуту */
 interface UniRow { k: string; ic: string; name: string; lv: number; rate: number; acc: number; kn: number; en: number; n: number; t0: number; fl: number; log: [number, number][] }
 
@@ -45,7 +45,7 @@ interface Stage {
   scoreAt?: number;
   /** ✦ уровня — main.js превращает прирост в очки */
   kn?: number;
-  /** «Вселенная сама» (core.js Uni): строки научённого; работает ли сейчас; где показать «+1 ✦» */
+  /** «Законы Вселенной» (core.js Uni): строки научённого; работает ли сейчас; где показать «+1 ✦» */
   uni?: UniRow[];
   uniOn?(k: string): boolean;
   uniPop?(k: string): void;

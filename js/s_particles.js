@@ -71,7 +71,7 @@ const PH_CLS = [
 // а научённое приносит ✦ само — без роста цен Вселенная к концу эпохи 3 покупала бы себя сама).
 const RES_COST = { ph: [10, 30, 60], g: [40], coll: [60], cp: [60] }, RES_UP = .2;
 const resNew = (/** @type {number} */ v, n = 0) => Math.round((40 + 15 * v) * (1 + RES_UP * n) / 5) * 5;
-// Доход от научённого, ✦/мин (сводка «Вселенная сама»): свет — по уровню, «Рождение X» — 2 + ценность X
+// Доход от научённого, ✦/мин (сводка «Законы Вселенной»): свет — по уровню, «Рождение X» — 2 + ценность X
 /** @type {Record<string, number>} */
 const UNI_RATE = { g: 3, coll: 4, cp: 4 }, UNI_PH = [0, 2, 4, 6];
 const LB_KEY = 'proto.lb.v1', LB_TOP = 5;
@@ -1019,9 +1019,9 @@ const Particles = {
     const first = !this.learn.taught; this.learn.taught = true;
     const html = `<div class="ck">Вселенная научилась</div><div class="rx"><span class="cs res">${r.ic}</span></div><div class="cn">${r.name}</div>` +
       `<div class="cp">Теперь — без тебя: ${what}</div>`;
-    const pay = `<div class="cg">и это приносит +${fmtPm(pm)} ✦ в минуту — справа видно, что Вселенная делает сама</div>`;
+    const pay = `<div class="cg">и это приносит +${fmtPm(pm)} ✦ в минуту — справа, в «Законах Вселенной»</div>`;
     // первое «Научить» — важное знание (так устроена вся игра): кадр-пауза; дальше — сцена над лавкой
-    if (first) Cine.show(html + `<div class="cg">И платит за это: +${fmtPm(pm)} ✦ в минуту, пока ты занят своим. Справа — всё, что Вселенная делает сама</div>`, 6, .8);
+    if (first) Cine.show(html + `<div class="cg">Это новый закон Вселенной, и он платит: +${fmtPm(pm)} ✦ в минуту, пока ты занят своим. Справа — все законы, которые ты ей дал</div>`, 6, .8);
     else showScene(html + pay, 3.4);
   },
   /** @param {HTMLElement & { _h?: string }} el */
