@@ -51,7 +51,7 @@ const Atoms = {
     for (let i = 0; i < 26; i++) this.spawnE(true);
     this.stars = pickStars(this.starPool());
   },
-  float(x, y, txt, c = [140, 220, 255], sz = 13) { this.floats.push({ x, y, t: 0, txt, c, sz }); },
+  float(x, y, txt, c = [140, 220, 255], sz = 13) { this.floats.push({ x, y, t: 0, txt, c, sz }); Fly.from(x, y, txt); },
   ion(Z, x, y, age) { return { Z, ne: 0, x, y, vx: randn() * .3, vy: randn() * .3, age, rot: Math.random() * TAU, mine: false, src: null }; },
   // ион Вселенной: в основном водород и гелий; тяжёлые — только те, что уже выковали звёзды (или каких вокруг ещё нет)
   cosmicZ() {

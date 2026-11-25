@@ -66,7 +66,7 @@ const Mols = {
     this.stars = pickStars(this.starPool());
     this.sl = new Sling(this);
   },
-  float(x, y, txt, c = [140, 220, 255], sz = 13) { this.floats.push({ x, y, t: 0, txt, c, sz }); },
+  float(x, y, txt, c = [140, 220, 255], sz = 13) { this.floats.push({ x, y, t: 0, txt, c, sz }); Fly.from(x, y, txt); },
   // ---------- рогатка ----------
   bodies() { return this.doneAt !== null ? [] : this.m.filter(m => !m.dead && m.age > .3); },
   grabR(b) { return b.R + 14 / cam.z; },

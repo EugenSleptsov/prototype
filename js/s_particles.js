@@ -261,7 +261,7 @@ const Particles = {
     this.tk = {}; this.stars = pickStars(this.starPool(i));
   },
   /** @param {number} x @param {number} y @param {string} txt @param {RGB} [c] @param {number} [sz] @param {number} [t] */
-  float(x, y, txt, c = [140, 220, 255], sz = 13, t = 0) { this.floats.push({ x, y, t, txt, c, sz }); },
+  float(x, y, txt, c = [140, 220, 255], sz = 13, t = 0) { this.floats.push({ x, y, t, txt, c, sz }); Fly.from(x, y, txt); },
 
   // ---------- создание ----------
   /** @param {number} T */
@@ -966,9 +966,10 @@ const Particles = {
   // доход капнул: «+1 ✦» над частицей Вселенной этого вида на виду (нет на виду — только в сводке)
   /** @param {string} k */
   uniPop(k) {
-    if (k === 'coll' || k === 'cp') return;
+    if (k === 'coll' || k === 'cp') return false;
     const o = this.p.find(o => o.sp === k && !o.dead && !(o.fade >= 0) && (o.uni || this.isQ(o)) && onScreen(...W2S(o.x, o.y), -30));
     if (o) this.float(o.x, o.y - .25, '+1 ✦', UNI_C, 11);
+    return !!o;
   },
   // исследование, которое просит текущий шаг задания (крупно и первым в лавке)
   // (кэш раз в кадр в renderShop: шаги сами спрашивают у лавки номер клавиши)

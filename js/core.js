@@ -143,6 +143,54 @@ function drawFx() {
   }
 }
 
+// ---------- ✦ летят в копилку: заработанное — искрами от места к счётчику «знания» ----------
+// Всплыла надпись «+N ✦» — от неё к счётчику наверху летят 1–5 маленьких ✦ (тихо, без звука).
+// Счётчик показывает баланс без того, что ещё в полёте, и чуть вспыхивает, когда искра долетела.
+// Счётчика на экране нет (пролог, тесты без отрисовки) — ничего не летит, баланс сразу верный.
+/** @typedef {{ x: number, y: number, cx: number, cy: number, t: number, d: number, v: number }} Spark */
+const FLY_C = /** @type {RGB} */ ([255, 215, 110]);
+const Fly = {
+  /** @type {Spark[]} */ q: [],
+  /** @type {Stage | null} */ of: null,
+  tx: 0, ty: 0, seen: -9, pulse: -9, lag: 0,
+  /** надпись в мире: «+N ✦» в тексте — искры от неё @param {number} wx @param {number} wy @param {string} txt */
+  from(wx, wy, txt) { const m = /\+(\d+) ✦/.exec(txt); if (m) { const [x, y] = W2S(wx, wy); this.add(x, y - 16, +m[1]); } },
+  /** от элемента страницы (строка «Законов Вселенной») @param {string} sel @param {number} v */
+  fromEl(sel, v) { const el = document.querySelector(sel); if (!el) return; const r = el.getBoundingClientRect(); if (r.width) this.add(r.left + 14, r.top + r.height / 2, v); },
+  /** @param {number} sx @param {number} sy @param {number} v */
+  add(sx, sy, v) {
+    if (!(v > 0) || G.T - this.seen > .5 || this.of !== G.stage || this.q.length > 60) return;
+    const n = Math.min(5, Math.max(1, Math.round(Math.sqrt(v * 1.5))));
+    const dx = this.tx - sx, dy = this.ty - sy, L = Math.hypot(dx, dy) || 1, bend = (Math.random() < .5 ? -1 : 1);
+    for (let i = 0; i < n; i++) {
+      const s = bend * (.18 + Math.random() * .22) * L; // дуга вбок, у каждой искры своя
+      this.q.push({ x: sx + (Math.random() - .5) * 12, y: sy + (Math.random() - .5) * 8,
+        cx: (sx + this.tx) / 2 - dy / L * s, cy: (sy + this.ty) / 2 + dx / L * s, t: -i * .07, d: .7 + Math.random() * .2 + Math.min(.3, L / 3000), v: v / n });
+    }
+    this.lag += v;
+  },
+  /** @param {number} dt */
+  tick(dt) {
+    if (this.of !== G.stage) { this.q = []; this.lag = 0; this.of = G.stage; }
+    for (const f of this.q) if ((f.t += dt) >= f.d) { this.lag -= f.v; this.pulse = G.T; }
+    this.q = this.q.filter(f => f.t < f.d);
+    if (!this.q.length || this.lag < 0) this.lag = 0; // всё долетело — без накопленной погрешности
+  },
+  /** что показать на счётчике: баланс без того, что ещё летит @param {number} b */
+  shown(b) { return Math.max(0, Math.round(b - this.lag)); },
+  /** счётчик нарисован здесь (hudClock) @param {number} x @param {number} y */
+  at(x, y) { this.tx = x; this.ty = y; this.seen = G.T; },
+  draw() {
+    for (const f of this.q) {
+      if (f.t < 0) continue;
+      const k = smooth(0, 1, f.t / f.d), u = 1 - k, x = u * u * f.x + 2 * u * k * f.cx + k * k * this.tx, y = u * u * f.y + 2 * u * k * f.cy + k * k * this.ty;
+      const a = .8 * smooth(0, .12, f.t / f.d) * (1 - .4 * k);
+      glow(x, y, 7, FLY_C, .25 * a);
+      label('✦', x, y, 12 - 3 * k, FLY_C, a, 700);
+    }
+  }
+};
+
 // ---------- общий интерфейс уровней: часы, цели, заголовок, стрелки ----------
 // Часы, ✦ и очки забега — сверху по центру, под ними цели «фишками» [текст, выполнено]
 /** @param {number} alpha @param {string} left @param {RGB} leftCol @param {number | string} pts @param {[string, boolean][]} chips */
@@ -151,7 +199,11 @@ function hudClock(alpha, left, leftCol, pts, chips) {
   ctx.globalAlpha = alpha;
   ctx.fillStyle = 'rgba(10,9,18,.55)'; ctx.beginPath(); ctx.roundRect(x - 140, y - 17, 280, 34, 10); ctx.fill();
   label(left, x - 88, y, 20, leftCol, 1, 700);
-  label(`${pts} ✦`, x - 4, y - 3, 18, [255, 215, 110], 1, 700);
+  // ✦ в полёте ещё не на счётчике; долетела — счётчик чуть вспыхивает
+  const shown = typeof pts === 'number' ? Fly.shown(pts) : pts, pl = 1 - smooth(0, .35, G.T - Fly.pulse), kt = `${shown} ✦`;
+  ctx.font = '700 18px system-ui,sans-serif'; Fly.at(x - 4 + ctx.measureText(kt).width / 2 - 7, y - 3);
+  if (pl > 0) glow(Fly.tx, Fly.ty, 16, FLY_C, .35 * pl);
+  label(kt, x - 4, y - 3, 18 + 1.5 * pl, [255, 215, 110], 1, 700);
   label('знания', x - 4, y + 11, 9, [255, 215, 110], .75, 600); // ✦ — знания (их тратят), ⚡ — энергия детектора
   label(fmtScore(G.score), x + 86, y - 3, 17, [235, 238, 250], 1, 800);
   label('очки', x + 86, y + 11, 9, [190, 195, 215], .75, 600);
@@ -448,7 +500,7 @@ const Uni = {
     for (const r of S.uni || []) {
       if (!r.rate || !this.on(S, r.k) || (r.acc += r.rate / 60 * dt) < 1) continue;
       r.acc -= 1; this.pay(S, r.k, 1);
-      if (S.uniPop) S.uniPop(r.k);
+      if (!(S.uniPop && S.uniPop(r.k))) Fly.fromEl(`#uni .ur[data-k="${r.k}"]`, 1); // не на виду — искра из строки закона
     }
   },
   /** всего принесла Вселенная на уровне @param {Stage} S */
@@ -468,7 +520,7 @@ const Uni = {
     const rows = L.map(r => {
       const pm = this.perMin(S, r); tot += pm;
       const got = `+${Math.floor(r.kn)} ✦` + (r.en >= 1 ? ` <s>+${Math.round(r.en)} ⚡</s>` : '');
-      return `<div class="ur${G.T - r.fl < .6 ? ' fl' : ''}${pm ? '' : ' off'}" title="${r.name}: ${pm ? `${fmtPm(pm)} ✦ в минуту` : 'в эту эпоху не работает'} · принесла ${Math.floor(r.kn)} ✦">` +
+      return `<div data-k="${r.k}" class="ur${G.T - r.fl < .6 ? ' fl' : ''}${pm ? '' : ' off'}" title="${r.name}: ${pm ? `${fmtPm(pm)} ✦ в минуту` : 'в эту эпоху не работает'} · принесла ${Math.floor(r.kn)} ✦">` +
         `<span class="ic">${r.ic}</span><b>${r.name}${r.lv > 1 ? ` <small>×${r.lv}</small>` : ''}</b><em>${got}</em><i>${pm ? fmtPm(pm) + '/мин' : 'в эту эпоху — нет'}</i></div>`;
     }).join('');
     const html = `<div class="uh"><span>Законы Вселенной</span><em>+${fmtPm(tot)} ✦/мин</em></div>` + rows;

@@ -65,7 +65,7 @@ const Nuclei = {
     this.stars = pickStars(this.starPool());
     this.sl = new Sling(this);
   },
-  float(x, y, txt, c = [140, 220, 255], sz = 13) { this.floats.push({ x, y, t: 0, txt, c, sz }); },
+  float(x, y, txt, c = [140, 220, 255], sz = 13) { this.floats.push({ x, y, t: 0, txt, c, sz }); Fly.from(x, y, txt); },
   // вещество Вселенной: на нейтрон — три протона (свободные нейтроны со временем распадаются, их всё меньше);
   // после «Нуклеосинтеза» гелий рождается повсюду — и приходит уже с той же долей, что вокруг тебя
   cosmic(x, y, vx, vy) {

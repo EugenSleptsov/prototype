@@ -56,7 +56,7 @@ const Quarks = {
     const q = { x, y, vx: 0, vy: 0, col, anti, fl, g: 0, nb: 0, dead: false, age: 0, sz: 1, cap: false, hand: 0 };
     this.q.push(q); return q;
   },
-  float(x, y, txt, c = [140, 220, 255], sz = 14) { this.floats.push({ x, y, t: 0, txt, c, sz }); },
+  float(x, y, txt, c = [140, 220, 255], sz = 14) { this.floats.push({ x, y, t: 0, txt, c, sz }); Fly.from(x, y, txt); },
   fr() { return this.hr * 1.5; },
   members(q) { return q.g ? this.groups.get(q.g).m : [q]; },
   // Может ли набор кварков стать (частью) бесцветного состояния?

@@ -177,7 +177,7 @@ function update(dt) {
     if (G.knOf !== G.stage) { G.knOf = G.stage; G.knSeen = kn; }
     if (kn > G.knSeen) { addScore((kn - G.knSeen) * 10); G.knSeen = kn; }
   }
-  Tally.tick(dt); Hint.tick(dt);
+  Tally.tick(dt); Hint.tick(dt); Fly.tick(dt);
   if (G.stage.sling) tickPan(dt);
   G.stage.update(dt, true);
   if (G.started) Uni.tick(G.stage, dt); // чему научил — приносит ✦ само
@@ -252,6 +252,7 @@ function render() {
   ctx.globalAlpha = 1;
   if (!G.stage.showLadder || G.stage.showLadder()) drawLadder(k); // путь Вселенной — когда он уже что-то значит
   Hint.draw();
+  Fly.draw(); // ✦ летят к счётчику — поверх всего на холсте
 }
 
 const barsEl = document.getElementById('bars');
