@@ -703,7 +703,7 @@ const Quarks = {
     const n = this.made.p + this.made.n, all = n + this.spare();
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > Q_PAR ? [190, 190, 205] : [255, 255, 255], this.bal(), []);
     if (this.stars) hudTask(al, this.tk, 'УРОВЕНЬ 2', this.steps(), this.stars, `Собрано: ${n} p⁺/n⁰`);
-    hudBanner(this.banner, 'УРОВЕНЬ 2 · 10⁻⁶ с', 'Адроны', this.nSaved ? `${this.nSaved} сбережённых кварков → протоны и нейтроны` : 'собери из кварков протоны и нейтроны', al);
+    hudBanner(this.banner, 'УРОВЕНЬ 2 · 10⁻⁶ с', 'Адроны', this.nSaved ? `${this.nSaved} сбережённых кварков → протоны и нейтроны` : 'собери из кварков протоны и нейтроны', al, 'из кварков → протоны и нейтроны → без них не будет ни одного ядра');
     ctx.globalAlpha = 1;
   },
   viewR() { return 3.6 + this.hr * 1.4; },

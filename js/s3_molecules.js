@@ -40,7 +40,8 @@ const fits = (c, t) => Object.keys(c).every(k => (t[k] || 0) >= c[k]);
 
 const Mols = {
   key: 'molecules', name: 'Молекулы', bg: [6, 24, 44], sling: true,
-  controls: 'Зажми атом, оттяни, отпусти',
+  // взятое поворачивают Q / E или Shift + колесо (на сенсоре оно поворачивается само по ходу броска)
+  get controls() { return 'Зажми атом, оттяни, отпусти' + (isTouch() ? '' : ' · Q / E или Shift + колесо — повернуть'); },
 
   enter(prev) {
     this.m = []; this.t = 0; this.clock = 0; this.hints = []; this.lowEMsgT = 0; this.floats = []; this.tk = {}; this.banner = -1.5;
@@ -481,7 +482,7 @@ const Mols = {
     const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : [255, 255, 255], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 6', this.steps(), this.stars, 'Первичный бульон готов');
-    hudBanner(this.banner, 'УРОВЕНЬ 6 · миллиард лет', 'Молекулы', 'собирай соединения и учи Вселенную их делать', al);
+    hudBanner(this.banner, 'УРОВЕНЬ 6 · миллиард лет', 'Молекулы', 'собирай соединения и учи Вселенную их делать', al, 'атомы → молекулы → первые кирпичики жизни');
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },

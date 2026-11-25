@@ -2,6 +2,12 @@
 const STAGES = [Particles, Quarks, Nuclei, Stars, Atoms, Mols];
 const LADDER = ['Частицы', 'Адроны', 'Ядра', 'Звёзды', 'Атомы', 'Молекулы', 'Органика', 'Протоклетки', 'Клетки', 'Организмы'];
 const TRANS_DUR = 3;
+// Управление на заставке — значками жестов
+document.getElementById('gdesk').innerHTML = [[GEST.move(), 'вести'], [GEST.click(), 'снимок'], [GEST.hold(), 'зажать — притянуть кванты'],
+  [GEST.release(), 'отпустить — столкнуть'], [GEST.wheel(), 'зум'], [GEST.key('M'), 'звук']].map(([s, l]) => gestItem(s, l)).join('');
+// Путь Вселенной на заставке: где ты сейчас и куда идёшь (дальше «Молекул» — ещё в разработке)
+document.getElementById('path').innerHTML = LADDER.map((n, i) => (i ? `<i style="animation-delay:${i * .12}s">→</i>` : '') +
+  `<span class="${i === 0 ? 'on' : i === LADDER.length - 1 ? 'goal' : i >= STAGES.length ? 'soon' : ''}" style="animation-delay:${i * .12}s"${i === 0 ? ' title="ты здесь"' : ''}>${n}</span>`).join('');
 
 // Переход: старый этап продолжает жить и гаснет, новый проявляется и забирает его частицы.
 function advance() {
@@ -90,7 +96,7 @@ function touchBar() {
   on('act', G.started && hold && !G.paused);
   actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держи' : s.ep === 3 ? 'держи — щит' : 'тап — снимок · держи — поле') : 'держи — поле';
   on('t-ff', G.started && s.enterKey); on('t-dash', G.started && s.dash);
-  on('t-cx', G.started); on('t-rl', false); on('t-rr', false); on('t-x', false); // взятое само поворачивается по ходу броска
+  on('t-cx', G.started && (!s.showCodex || s.showCodex() !== null)); on('t-rl', false); on('t-rr', false); on('t-x', false); // взятое само поворачивается по ходу броска
   document.getElementById('t-mute').textContent = Sfx.muted ? '🔇' : '🔊';
 }
 // Колесо — зум: вглубь до ×2,2, наружу до ×0,55 от обзора этапа. Shift + колесо — действие этапа (вращение молекулы).
@@ -151,7 +157,7 @@ function update(dt) {
     if (G.knOf !== G.stage) { G.knOf = G.stage; G.knSeen = kn; }
     if (kn > G.knSeen) { addScore((kn - G.knSeen) * 10); G.knSeen = kn; }
   }
-  Tally.tick(dt);
+  Tally.tick(dt); Hint.tick(dt);
   if (G.stage.sling) tickPan(dt);
   G.stage.update(dt, true);
   if (G.prev) {
@@ -223,7 +229,8 @@ function render() {
   if (pv && pv.overlay) withPrevCam(() => pv.overlay && pv.overlay(1 - k));
   if (G.stage.overlay) G.stage.overlay(k);
   ctx.globalAlpha = 1;
-  drawLadder(k);
+  if (!G.stage.showLadder || G.stage.showLadder()) drawLadder(k); // путь Вселенной — когда он уже что-то значит
+  Hint.draw();
 }
 
 const barsEl = document.getElementById('bars');
@@ -242,7 +249,8 @@ function hud() {
   document.getElementById('codex').style.top = h.laws.length ? '190px' : '12px';
   const key = G.stage.key;
   if (key !== lawsKey) { lawsKey = key; barsEl.innerHTML = h.laws.map(([n], i) => `<div>${n}</div><div class="bar"><i id="law${i}"></i></div>`).join(''); }
-  Codex.render(G.stage.showCodex ? G.stage.showCodex() : true);
+  const cxOn = G.stage.showCodex ? G.stage.showCodex() : true;
+  Codex.render(cxOn); // null — кодекса пока нет (ничего не открыто)
   const upg = document.getElementById('upg');
   if (G.stage.renderUpg) G.stage.renderUpg(upg); else upg.style.display = 'none';
   touchBar();
@@ -271,7 +279,9 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(.05, Math.max(0, (now - last) / 1000)); last = now;
   // ошибка в расчёте кадра не останавливает отрисовку — иначе игра выглядит зависшей
-  try { if (!G.paused) update(dt); else Sfx.hum(0); } catch (err) { recover(err); }
+  // сцена открытия: время на миг замедляется (как в кино — «это с тем столкнулось, и появилось вот это»)
+  const slow = G.slowT > 0 && !G.paused ? (G.slowT -= dt, .3) : 1;
+  try { if (!G.paused) update(dt * slow); else Sfx.hum(0); } catch (err) { recover(err); }
   try {
     if (!isFinite(P.x + P.y + cam.z)) recover();
     render(); hud();

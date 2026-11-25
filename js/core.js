@@ -5,7 +5,7 @@
 const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0,
   /** текущий этап; prev — уходящий, пока идёт переход (trans 0…1) */
   stage: /** @type {Stage} */ (/** @type {unknown} */ (null)), prev: /** @type {Stage | null} */ (null), trans: 1,
-  started: false, ended: false, paused: false, fx: /** @type {Fx[]} */ ([]), score: 0,
+  started: false, ended: false, paused: false, /** замедление времени (сцена открытия), с */ slowT: 0, fx: /** @type {Fx[]} */ ([]), score: 0,
   /** низ панели задания и когда она рисовалась (заголовки встают ниже) */
   taskY: 0, taskAt: /** @type {number | undefined} */ (undefined),
   /** заводит main.js: масштаб щипком/колесом, начало забега, идёт обучение, ✦ уже обращённые в очки (у какого этапа), лестница */
@@ -151,7 +151,8 @@ function hudClock(alpha, left, leftCol, pts, chips) {
   ctx.globalAlpha = alpha;
   ctx.fillStyle = 'rgba(10,9,18,.55)'; ctx.beginPath(); ctx.roundRect(x - 140, y - 17, 280, 34, 10); ctx.fill();
   label(left, x - 88, y, 20, leftCol, 1, 700);
-  label(`${pts} ✦`, x - 4, y, 20, [255, 215, 110], 1, 700);
+  label(`${pts} ✦`, x - 4, y - 3, 18, [255, 215, 110], 1, 700);
+  label('знания', x - 4, y + 11, 9, [255, 215, 110], .75, 600); // ✦ — знания (их тратят), ⚡ — энергия детектора
   label(fmtScore(G.score), x + 86, y - 3, 17, [235, 238, 250], 1, 800);
   label('очки', x + 86, y + 11, 9, [190, 195, 215], .75, 600);
   ctx.font = '700 12px system-ui,sans-serif';
@@ -166,13 +167,17 @@ function hudClock(alpha, left, leftCol, pts, chips) {
   ctx.globalAlpha = 1;
 }
 // Заголовок: всплывает и гаснет, игру не останавливает (b — секунды с начала)
-/** @param {number} b @param {string} kicker @param {string} name @param {string} sub @param {number} alpha */
-function hudBanner(b, kicker, name, sub, alpha) {
-  if (!G.started || b > 4.2) return;
-  const a = smooth(0, .4, b) * (1 - smooth(3, 4.2, b)) * alpha, y = Math.max(G.H * .3, (G.T - (G.taskAt ?? -9) < .2 ? G.taskY : 0) + 62); // не на карточках задания
+// why — ради чего этот уровень на пути к жизни («из кварков → протоны → без них не будет ядер»): строка золотом
+/** @param {number} b @param {string} kicker @param {string} name @param {string} sub @param {number} alpha @param {string} [why] */
+function hudBanner(b, kicker, name, sub, alpha, why) {
+  const end = why ? 5.6 : 4.2;
+  if (!G.started || b > end) return;
+  const a = smooth(0, .4, b) * (1 - smooth(end - 1.2, end, b)) * alpha, y = Math.max(G.H * .3, (G.T - (G.taskAt ?? -9) < .2 ? G.taskY : 0) + 62); // не на карточках задания
   label(kicker, G.W / 2, y - 36, 12, [255, 210, 122], .85 * a, 700);
   label(name, G.W / 2, y, 40, [255, 255, 255], a, 800);
-  wrapText(sub, 15, 500, Math.min(640, G.W - 40)).forEach((l, k) => label(l, G.W / 2, y + 36 + k * 20, 15, [220, 225, 240], .8 * a, 500));
+  const maxW = Math.min(640, G.W - 40), ls = wrapText(sub, 15, 500, maxW);
+  ls.forEach((l, k) => label(l, G.W / 2, y + 36 + k * 20, 15, [220, 225, 240], .8 * a, 500));
+  if (why) wrapText(why, 15, 700, maxW).forEach((l, k) => label(l, G.W / 2, y + 44 + ls.length * 20 + k * 20, 15, [255, 215, 120], .95 * a * smooth(.8, 1.3, b), 700));
 }
 // Стрелки у края экрана к целям за кадром: pts = [[x, y, подпись или цвет]]; не больше n ближайших
 /** @param {[number, number, (string | RGB)?][]} pts @param {number} n */
@@ -253,9 +258,33 @@ function chipRows(list, x0, y, maxW, px, draw, alpha) {
   }
   return rows ? rows * h + (rows - 1) * gap : 0;
 }
-// Задание — список карточек под часами. Шаг: {t: что сделать (коротко), h: как (мелко), items: [[метка, есть]],
-// p: [сколько, из], s: коротко — вспыхивает «✓ s», d: сделано}. Видно: два последних выполненных (свёрнуты, ✓),
-// текущий (раскрыт), следующий (свёрнут, тускло); в шапке — полоска шагов; испытания ★ — фишками под карточками.
+// Цвет значка частицы по виду (как .cs в index.html): кварк, лептон, нейтрино, бозон, поле
+/** @type {Record<string, RGB>} */
+const KIND_C = { quark: [122, 61, 154], lepton: [47, 122, 78], nu: [47, 122, 78], boson: [154, 74, 46], fld: [46, 74, 154] };
+// Рецепт значками: «γ + g ▮▮▯▯ 2 ⚡ → c c̄». draw=false — только ширина
+/** @param {Rx} rx @param {number} x @param {number} y — верх строки @param {number} a @param {boolean} draw */
+function drawRecipe(rx, x, y, a, draw) {
+  const h = 22, x0 = x;
+  /** @param {[string, string]} c */
+  const chip = ([t, kind]) => {
+    ctx.font = '800 14px system-ui,sans-serif'; const w = Math.max(26, ctx.measureText(t).width + 12);
+    if (draw) { ctx.fillStyle = rgb(KIND_C[kind] || KIND_C.boson, .95 * a); ctx.beginPath(); ctx.roundRect(x, y, w, h, 7); ctx.fill(); label(t, x + w / 2, y + h / 2 + .5, 14, [255, 255, 255], a, 800); }
+    x += w + 5;
+  };
+  /** @param {string} t */
+  const sign = t => { if (draw) label(t, x + 6, y + h / 2, 14, [220, 225, 240], .7 * a, 600); x += 17; };
+  rx.l.forEach((c, i) => { if (i) sign('+'); chip(c); });
+  if (rx.k) { // сила удара — ступени, как на кольце детектора
+    for (let k = 1; k <= 4; k++) { if (draw) { ctx.fillStyle = k <= rx.k ? rgb([255, 210, 122], .95 * a) : rgb([255, 255, 255], .16 * a); ctx.beginPath(); ctx.roundRect(x, y + 4, 6, h - 8, 2); ctx.fill(); } x += 9; }
+    if (draw) labelL(`${rx.k}⚡`, x + 1, y + h / 2 + .5, 12, [255, 210, 122], .95 * a, 800);
+    x += 26;
+  }
+  sign('→'); rx.r.forEach(chip);
+  return x - x0;
+}
+// Задание — одна карточка под часами (раньше — стопка: выполненные и следующий отвлекали). Шаг: {t: что сделать
+// словами, rx: рецепт значками, h: как (мелко), items: [[метка, есть]], p: [сколько, из], s: коротко — вспыхивает
+// «✓ s», d: сделано}. В шапке — полоска шагов; испытания ★ — фишками под карточкой.
 // tk — состояние панели у этапа (сбрасывать на новой эпохе), after — текст, когда все шаги сделаны.
 /** @param {number} alpha @param {TaskPanel} tk @param {string} kicker @param {Step[]} steps @param {Star[]} stars @param {string} [after] */
 function hudTask(alpha, tk, kicker, steps, stars, after) {
@@ -281,15 +310,6 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
     ctx.beginPath(); ctx.roundRect(x0 + W - (n - k) * (sw + 3) + 3, y + 6, sw, 4, 2); ctx.fill();
   }
   y += 20;
-  /** @param {string} txt @param {string} bg @param {RGB} fg @param {number} fa */
-  const slim = (txt, bg, fg, fa) => {
-    ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(x0, y, W, 26, 9); ctx.fill();
-    labelL(fitText(txt, 12, 700, W - pad * 2), x0 + pad, y + 13.5, 12, fg, fa * a, 700);
-    y += 31;
-  };
-  // выполненные — свёрнуты
-  const doneIdx = ds.map((d, k) => d ? k : -1).filter(k => k >= 0 && (i < 0 || k < i));
-  for (const k of doneIdx.slice(small ? -1 : -2)) if (!small || G.T - (tk.doneAt || -9) < 4) slim('✓  ' + steps[k].s, rgb([77, 232, 155], .16 * a), GREEN, .95);
   // текущий — раскрыт
   const iw = W - pad * 2 - 30, tx = x0 + pad + 30;
   const title = wrapText(cur ? cur.t : after || 'Задание выполнено', 16, 800, iw);
@@ -298,8 +318,8 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   /** @type {Chip[]} */
   const items = cur && cur.items ? cur.items.map(([t, d]) => [(d ? '✓ ' : '') + t, d ? [[77, 232, 155], .28] : [[255, 255, 255], .09], d ? [170, 245, 205] : [235, 235, 245]]) : [];
   const ih = chipRows(items, tx, 0, iw, 12, false, a);
-  const hasP = cur && cur.p;
-  const h = 12 + title.length * 21 + (hint.length ? 3 + hint.length * 17 : 0) + (ih ? 8 + ih : 0) + (hasP ? 16 : 0) + 10;
+  const hasP = cur && cur.p, rx = cur && cur.rx;
+  const h = 12 + title.length * 21 + (rx ? 28 : 0) + (hint.length ? 3 + hint.length * 17 : 0) + (ih ? 8 + ih : 0) + (hasP ? 16 : 0) + 10;
   ctx.fillStyle = rgb([14, 12, 26], .84 * a); ctx.beginPath(); ctx.roundRect(x0, y, W, h, 12); ctx.fill();
   ctx.strokeStyle = rgb(cur ? GOLD : GREEN, .35 * a); ctx.lineWidth = 1; ctx.stroke();
   // номер шага в кружке
@@ -308,6 +328,7 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   let cy = y + 12 + 10.5;
   title.forEach(l => { labelL(l, tx, cy, 16, [255, 255, 255], a, 800); cy += 21; });
   cy -= 10.5;
+  if (rx) { drawRecipe(rx, tx, cy + 4, a, true); cy += 28; }
   if (hint.length) { cy += 3; hint.forEach(l => { labelL(l, tx, cy + 8.5, 13, [200, 206, 228], .88 * a, 500); cy += 17; }); }
   if (ih) { cy += 8; chipRows(items, tx, cy, iw, 12, true, a); cy += ih; }
   if (hasP) {
@@ -317,8 +338,6 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
     labelL(`${v}/${of}`, tx + iw, cy + 9.5, 12, GOLD, .95 * a, 800, 'right');
   }
   y += h + 5;
-  // следующий — свёрнут, тускло
-  if (!small && cur && i + 1 < n && !ds[i + 1]) slim(`${i + 2}.  ${steps[i + 1].t}`, rgb([10, 9, 18], .5 * a), [215, 220, 235], .55);
   // испытания ★
   if (stars.length) {
     /** @type {Chip[]} */
@@ -377,7 +396,7 @@ const Tally = {
     if ((this.t -= dt) <= 0) { el.classList.remove('on'); return; }
     // на узком экране — компактно под панелью задания (и под карточкой открытия, если она видна)
     if (G.W <= 700) {
-      const cd = byId('card'), cv = +cd.style.opacity > 0 && !cd.classList.contains('side');
+      const cd = byId('card'), cv = +cd.style.opacity > 0 && !cd.classList.contains('side') && !cd.classList.contains('big');
       el.style.top = Math.max(60, (G.taskY || 0) + 10 + (cv ? cd.offsetHeight + 8 : 0)) + 'px';
     } else el.style.top = '';
   },
@@ -389,6 +408,41 @@ function msg(t, dur = 3.8) {
   const el = byId('msg');
   el.textContent = t; el.style.opacity = '1'; msgT = dur; lastMsg = t;
   el.style.top = Math.max(G.H * .2, (G.taskY || 0) + 14) + 'px'; // под панелью задания, не поверх
+}
+
+// ---------- «зачем это»: часть экрана появилась впервые — одна строка рядом с ней ----------
+// По одной за раз, HINT_T секунд; at() — точка на экране и сторона подписи (1 — ниже точки, −1 — выше), null — пока некуда показать
+const HINT_T = 4.2;
+/** @typedef {{ text: string, at: () => [number, number, number] | null, t: number }} HintItem */
+const Hint = {
+  seen: /** @type {Set<string>} */ (new Set()), q: /** @type {HintItem[]} */ ([]), cur: /** @type {HintItem | null} */ (null),
+  /** @param {string} key @param {string} text @param {() => [number, number, number] | null} at */
+  once(key, text, at) { if (this.seen.has(key)) return; this.seen.add(key); this.q.push({ text, at, t: 0 }); },
+  /** @param {number} dt */
+  tick(dt) {
+    if (!this.cur) this.cur = this.q.shift() || null;
+    if (this.cur && (this.cur.t += dt) > HINT_T) this.cur = null;
+  },
+  draw() {
+    const h = this.cur; if (!h || !G.started || G.paused) return;
+    const p = h.at(); if (!p) return;
+    const [x, y, side] = p, a = smooth(0, .3, h.t) * (1 - smooth(HINT_T - .6, HINT_T, h.t)), px = 13;
+    const txt = fitText(h.text, px, 700, G.W - 40), w = ctx.measureText(txt).width + 22, hh = 26;
+    const bx = clamp(x - w / 2, 8, G.W - w - 8), by = side > 0 ? y + 10 : y - 10 - hh, tx = clamp(x, bx + 12, bx + w - 12);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = rgb([20, 16, 8], .92 * a); ctx.strokeStyle = rgb([255, 210, 122], .85 * a); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(bx, by, w, hh, 9); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = rgb([255, 210, 122], .9 * a); ctx.beginPath(); // носик к тому, о чём речь
+    if (side > 0) { ctx.moveTo(tx - 6, by); ctx.lineTo(tx, by - 7); ctx.lineTo(tx + 6, by); } else { ctx.moveTo(tx - 6, by + hh); ctx.lineTo(tx, by + hh + 7); ctx.lineTo(tx + 6, by + hh); }
+    ctx.fill();
+    label(txt, bx + w / 2, by + hh / 2 + .5, px, [255, 236, 190], a, 700);
+  },
+};
+/** точка у края элемента страницы (для Hint): side 1 — под ним, −1 — над ним @param {string} id @param {number} side @returns {[number, number, number] | null} */
+function hintAtEl(id, side) {
+  const el = byId(id); if (!el || el.style.display === 'none') return null;
+  const r = el.getBoundingClientRect(); if (!r.width) return null;
+  return [r.left + r.width / 2, side > 0 ? r.bottom : r.top, side];
 }
 
 // ---------- фон: масштабно-инвариантная «пыль» ----------

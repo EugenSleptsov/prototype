@@ -478,7 +478,7 @@ const Nuclei = {
       const shopUp = document.getElementById('shop').style.display === 'flex';
       label(`гелий ${Math.round(this.Y() * 100)} % из 25 · остынет через ${fmtClock(rest)}`, G.W / 2, G.H - (shopUp ? 118 : 52), 13, c, .85 * al, 700);
     }
-    hudBanner(this.banner, 'УРОВЕНЬ 3 · первые 3 минуты', 'Ядра', 'собери гелий, пока Вселенная горячая', al);
+    hudBanner(this.banner, 'УРОВЕНЬ 3 · первые 3 минуты', 'Ядра', 'собери гелий, пока Вселенная горячая', al, 'протоны + нейтроны → ядра → из гелия зажгутся звёзды');
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },

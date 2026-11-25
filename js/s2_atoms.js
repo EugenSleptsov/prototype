@@ -297,7 +297,7 @@ const Atoms = {
     const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : [255, 255, 255], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 5', this.steps(), this.stars, 'Вселенная нейтральна');
-    hudBanner(this.banner, 'УРОВЕНЬ 5 · остывший выброс', 'Атомы', 'одень голые ядра электронами', al);
+    hudBanner(this.banner, 'УРОВЕНЬ 5 · остывший выброс', 'Атомы', 'одень голые ядра электронами', al, 'ядро + электроны → атомы → из атомов сложатся молекулы');
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },

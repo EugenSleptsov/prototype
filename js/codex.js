@@ -22,7 +22,8 @@ const Codex = {
   save() { try { localStorage.setItem('protoCodex', JSON.stringify([...this.known])); } catch (e) { } },
   has(k) { return this.run.has(k); },
   // Возвращает 'new' (впервые вообще), 'run' (впервые в этом забеге) или false.
-  see(k) {
+  // rx — как родилась: { l: [[символ, вид]], r: [[символ, вид]], k: сила удара } — сцена открытия покажет схему
+  see(k, rx) {
     if (this.run.has(k)) return false;
     this.run.add(k); this.dirty = true;
     const first = !this.known.has(k);
@@ -30,7 +31,7 @@ const Codex = {
     Sfx.play('fresh');
     // открылось следующее поколение — сказать на той же карточке, кто теперь может родиться
     const nx = Object.keys(GEN_PREV).filter(sp => GEN_PREV[sp].includes(k) && !this.run.has(sp) && genOpen(sp));
-    showCard(k, first, nx.length ? `Открыто ${GEN_N[SM[nx[0]].gen]} поколение: теперь могут родиться ${nx.map(sp => SM[sp].sym).join(' и ')}` : '');
+    showCard(k, first, nx.length ? `Открыто ${GEN_N[SM[nx[0]].gen]} поколение: теперь могут родиться ${nx.map(sp => SM[sp].sym).join(' и ')}` : '', rx);
 
     return first ? 'new' : 'run';
   },
@@ -46,6 +47,7 @@ const Codex = {
   // На экране — маленькая сетка (уровень частиц) или фишка «Кодекс» (дальше); клик — окно кодекса
   render(show) {
     const el = document.getElementById('codex');
+    if (show === null) { el.style.display = 'none'; this.mode = 'none'; return; } // пока ничего не открыто — кодекса нет
     el.style.display = 'block';
     const mode = show ? 'grid' : 'chip';
     if (!this.dirty && this.mode === mode) return;
@@ -233,22 +235,49 @@ const CX = {
   },
 };
 
-let cardT = 0;
-function showCard(k, first, extra) {
+let cardT = 0, cardBig = false;
+const SCENE_T = 4.8, SCENE_SLOW = 1.3;
+// Схема реакции значками: «γ + γ ▮▯▯▯ → e⁻ e⁺»; me — символ, который только что открыт (подсвечен)
+function rxHtml(rx, me) {
+  const ic = ([t, kind]) => `<span class="cs ${kind}${me && t.startsWith(me) ? ' me' : ''}">${t}</span>`;
+  const lv = rx.k ? `<span class="lv" title="сила удара">${[1, 2, 3, 4].map(i => `<b class="${i <= rx.k ? 'on' : ''}"></b>`).join('')}<small>${rx.k} ⚡</small></span>` : '';
+  return `<div class="rx">${rx.l.map(ic).join('<i>+</i>')}${lv}<i>→</i>${rx.r.map(ic).join(' ')}</div>`;
+}
+// Сцена: крупно в нижней трети, игру не останавливает; slow — секунды замедления времени
+function showScene(html, dur = SCENE_T, slow = 0) {
+  const el = document.getElementById('card');
+  el.classList.remove('side'); el.classList.add('big'); cardBig = true;
+  el.style.top = ''; el.innerHTML = html; el.style.opacity = 1; cardT = dur; sceneAbove(el);
+  if (slow) G.slowT = Math.max(G.slowT || 0, slow);
+}
+// сцена — сразу над лавкой (её высота разная: ПК, телефон, свёрнута), чтобы не закрывать детектор
+function sceneAbove(el) {
+  const r = document.getElementById('shop').getBoundingClientRect();
+  el.style.bottom = r.height > 0 && r.top > G.H * .5 ? Math.round(G.H - r.top + 10) + 'px' : '';
+}
+function showCard(k, first, extra, rx) {
   const s = SM[k], el = document.getElementById('card');
+  // открытие — сцена: «это с тем столкнулось — появилось вот это» и одна строка простыми словами;
+  // впервые в жизни — ещё и замедление времени
+  if (rx || first) {
+    showScene(`<div class="ck">${first ? 'Новое открытие' : 'Открыто в этом забеге'}</div>` + (rx ? rxHtml(rx, s.sym) : '') +
+      `<div class="cn"><span class="cs ${s.kind}">${s.sym}</span> ${s.name}</div><div class="cp">${SM_PLAIN[k] || SM_FACT[k]}</div>` +
+      (extra ? `<div class="cg">${extra}</div>` : ''), first || extra ? SCENE_T : 3.2, first ? SCENE_SLOW : 0);
+    return;
+  }
   // на широком экране — справа под сеткой Стандартной модели; на узком — под панелью задания
+  el.classList.remove('big'); cardBig = false; el.style.bottom = '';
   const cx = document.getElementById('codex'), wide = G.W > 700 && cx.style.display !== 'none';
   el.classList.toggle('side', wide);
   el.style.top = (wide ? cx.getBoundingClientRect().bottom + 10 : Math.max(60, (G.taskY || 0) + 10)) + 'px';
-  el.innerHTML = (first ? `<div class="ck">Новое открытие</div>` : '') +
-    `<div class="cn"><span class="cs ${s.kind}">${s.sym}</span> ${s.name}${s.m ? ` · ${s.m >= 1 ? s.m.toFixed(1) + ' ГэВ' : s.m >= .001 ? (s.m * 1000).toFixed(1) + ' МэВ' : (s.m * 1e6).toFixed(0) + ' кэВ'}` : ''}</div>` +
-    (first ? `<div class="cf">${SM_FACT[k]}</div>` : '') + (extra ? `<div class="cg">${extra}</div>` : '');
-  el.style.opacity = 1; cardT = first || extra ? 5.5 : 2.5;
+  el.innerHTML = `<div class="cn"><span class="cs ${s.kind}">${s.sym}</span> ${s.name}${s.m ? ` · ${fmtMass(s.m)}` : ''}</div>` + (extra ? `<div class="cg">${extra}</div>` : '');
+  el.style.opacity = 1; cardT = extra ? 5.5 : 2.5;
 }
 function tickCard(dt) {
   if (cardT <= 0) return;
   const el = document.getElementById('card');
   if ((cardT -= dt) <= 0) { el.style.opacity = 0; return; }
+  if (cardBig) { sceneAbove(el); return; } // сцена стоит на месте, только держится над лавкой
   // сетка может перерисоваться (или скрыться) — карточка держится под ней, иначе — под панелью задания
   const cx = document.getElementById('codex'), r = cx.getBoundingClientRect(), wide = G.W > 700 && cx.style.display !== 'none' && r.height > 0;
   el.classList.toggle('side', wide);

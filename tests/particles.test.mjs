@@ -33,13 +33,14 @@ test('пустота: слишком раннее нажатие не счита
   assert.equal(g.ev('G.stage.inVoid'), true);
 });
 
-test('свет: вялая раскачка создаёт только мягкий — и Вселенная рождает только его', () => {
+test('свет: вялая раскачка — Вселенная всё равно светит хотя бы тёплым, но жёсткого не рождает', () => {
   const g = loadGame();
   g.ev(PREP.start); g.step(60 * 25);
   assert.equal(g.ev('G.stage.lit'), true);
-  assert.deepEqual(json(g, 'G.stage.madeCls()'), [0]);
+  assert.deepEqual(json(g, 'G.stage.madeCls()'), [0, 1], 'мягкий создан, тёплый — гарантия');
   const cls = json(g, '[...Array(300)].map(() => G.stage.phClass({ p: G.stage.phP() }))');
-  assert.ok(cls.every(c => c === 0), 'все фотоны Вселенной — мягкие');
+  assert.ok(cls.every(c => c <= 1), 'жёсткого и сверхжёсткого нет');
+  assert.ok(cls.includes(1), 'тёплый есть');
 });
 
 test('свет: сильная раскачка создаёт несколько классов, Вселенная повторяет только созданные', () => {

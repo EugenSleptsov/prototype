@@ -54,7 +54,10 @@ interface Stage {
   overlay?(alpha: number): void;
   hud(): unknown;
   tally?(): TallyData;
-  showCodex?(): boolean;
+  /** сетка кодекса (true), фишка «Кодекс» (false) или пока ничего (null) */
+  showCodex?(): boolean | null;
+  /** показывать ли путь Вселенной внизу (нет — всегда) */
+  showLadder?(): boolean;
   renderUpg?(el: HTMLElement): void;
   renderShop?(el: HTMLElement): void;
   startTut?(): void;
@@ -98,7 +101,11 @@ interface Q {
   uni?: boolean;
   /** антикварк волны эпохи 4 */
   wave?: boolean;
+  /** как родилась — схема для сцены открытия */
+  rx?: Rx;
 }
+/** Схема реакции: что вошло → что вышло ([символ, вид]), k — сила удара (0 — без удара) */
+interface Rx { l: [string, string][]; r: [string, string][]; k: number }
 /** То, что нужно для цвета и подписи: частица или её описание в следе */
 interface Look { sp: string; anti: boolean; col: number; col2?: number }
 
@@ -129,6 +136,7 @@ interface Track {
   parent: string | undefined; col: RGB | undefined;
   angs: number[]; dsp: [string, boolean, number, number | undefined][];
   rec?: boolean;
+  rx?: Rx;
 }
 interface Float { x: number; y: number; t: number; txt: string; c: RGB; sz: number }
 interface Hot { x: number; y: number; t: number; sp: string; done?: boolean }
@@ -146,6 +154,8 @@ interface Coach { idle: number; t: number; kind: string | null; o?: Q | null; o2
 interface Learn {
   absorb?: boolean; snap?: boolean; snapNew?: boolean; hold?: boolean; smash?: boolean; lv?: boolean; throw?: boolean;
   hit?: boolean; heavy?: boolean; pair2?: boolean; ann?: boolean; buy?: boolean; shield?: boolean; pulse?: boolean; recol?: boolean;
+  /** первая покупка в лавке показана сценой обучения */
+  taught?: boolean;
 }
 /** Статистика эпохи для испытаний */
 interface EpochStat { pairs: number; thr: number; empty: number; kinds: number; dry: number; eaten: number; recol: number; waves: number; ann?: number }
@@ -223,4 +233,5 @@ interface ParticlesState {
 
 /** Шаг задания эпохи (hudTask в core.js): t — заголовок, h — подсказка, d — выполнен, res — нужное исследование,
  *  items — галочки, p — [сколько, из скольких], s — что написать по выполнении */
-interface Step { t: string; h?: string | null; s: string; d: boolean; res?: string | null; items?: [string, boolean][]; p?: [number, number] }
+/** Шаг задания; rx — рецепт значками (что с чем столкнуть и с какой силой) */
+interface Step { t: string; h?: string | null; s: string; d: boolean; res?: string | null; items?: [string, boolean][]; p?: [number, number]; rx?: Rx }

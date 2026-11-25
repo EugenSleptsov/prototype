@@ -387,7 +387,7 @@ const Stars = {
     const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > ST_PAR ? [190, 190, 205] : [255, 255, 255], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 4', this.steps(), this.stars, 'Сверхновая!');
-    hudBanner(this.banner, 'УРОВЕНЬ 4 · 100 млн лет', 'Звёзды', 'зажги звезду и выкуй в ней углерод, кислород и азот', al);
+    hudBanner(this.banner, 'УРОВЕНЬ 4 · 100 млн лет', 'Звёзды', 'зажги звезду и выкуй в ней углерод, кислород и азот', al, 'в звёздах куётся углерод → без него не будет живого');
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },
