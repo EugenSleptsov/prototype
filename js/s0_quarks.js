@@ -159,8 +159,9 @@ const Quarks = {
     const c = centroid(grp.m);
     const pts = hand ? 10 : 4; if (!hand) this.st.passive++;
     if (hand) this.handN++;
-    if (this.rs.conf) this.autoN++; // после закона — все барионы, и твои тоже
-    if (!hand && this.rs.conf) Uni.pay(this, 'conf', pts); else this.kn += pts; // барионы Вселенной — в сводку «Законы Вселенной»
+    const conf = this.rs.conf && !Uni.off(this, 'conf');
+    if (conf) this.autoN++; // после закона — все барионы, и твои тоже
+    if (!hand && conf) Uni.pay(this, 'conf', pts); else this.kn += pts; // барионы Вселенной — в сводку «Законы Вселенной»
     this.made[grp.kind]++;
     if (!this.mine && hand) this.mine = grp.id;
     for (const x of grp.m) { x.cap = false; x.hand = 0; }
@@ -248,7 +249,7 @@ const Quarks = {
       this.kn += pts; Sfx.play('upgrade');
       this.float(c.x, c.y - .4, `${pi.fromDelta ? 'каскад: ' : ''}${txt} +${pts} ✦`, GOLD, 15);
       this.once('flip', up ? 'Пион π⁺ отдал нейтрону u вместо d — стал протон' : 'Пион π⁻ отдал протону d вместо u — стал нейтрон');
-    } else if (this.rs.np) { Uni.pay(this, 'np', 3); if (inView(c.x, c.y)) this.float(c.x, c.y - .4, `${txt} +3 ✦`, [200, 220, 240], 12); }
+    } else if (this.rs.np && !Uni.off(this, 'np')) { Uni.pay(this, 'np', 3); if (inView(c.x, c.y)) this.float(c.x, c.y - .4, `${txt} +3 ✦`, [200, 220, 240], 12); }
     else if (inView(c.x, c.y)) this.float(c.x, c.y - .4, txt, [200, 220, 240], 12);
   },
   // Адрон в очаге КГП плавится: асимптотическая свобода — снова свободные кварки
@@ -581,7 +582,7 @@ const Quarks = {
         }
       } else if (grp.kind === 'delta') {
         if ((grp.t -= dt) <= 0) this.decayDelta(grp, null, 'self');
-      } else if (isDq(grp) && act && this.rs.frag && !grp.m.some(o => o.cap) && this.t - grp.born > (grp.byHand ? 4 : .7)) {
+      } else if (isDq(grp) && act && this.rs.frag && !Uni.off(this, 'frag') && !grp.m.some(o => o.cap) && this.t - grp.born > (grp.byHand ? 4 : .7)) {
         this.cut(grp, 'uni'); // «Фрагментация»: струна дикварка рвётся сама
       }
     }
@@ -706,7 +707,7 @@ const Quarks = {
   // Сильному взаимодействию аромат безразличен — p⁺ и n⁰ выходят поровну; с «Балансом n/p» — к нужной доле.
   // С «Фрагментацией» — и пару: её струна тут же рвётся, рождая недостающий кварк.
   autoAsm(dt) {
-    if (!this.rs.conf) return;
+    if (!this.rs.conf || Uni.off(this, 'conf')) return;
     const A = this.asm;
     if (A) {
       A.t += dt;
@@ -724,7 +725,7 @@ const Quarks = {
     }
     if ((this.asmCd -= dt) > 0) return;
     const f = this.freeQ().filter(o => o.age > .6 && Math.hypot(o.x - P.x, o.y - P.y) > this.fr() * .8 && this.hotAt(o.x, o.y) < .3); // поле игрока и очаги не трогаем
-    const sh = this.pShare(), want = !this.rs.np ? null : sh < NP_AIM ? 2 : sh > NP_HI ? 1 : null; // сколько u нужно в тройке
+    const sh = this.pShare(), want = !this.rs.np || Uni.off(this, 'np') ? null : sh < NP_AIM ? 2 : sh > NP_HI ? 1 : null; // сколько u нужно в тройке
     let best = null, bs = Infinity; // ближайшая тройка — где бы она ни была
     for (const a of f) for (const b of f) {
       if (b === a || b.col === a.col) continue;
@@ -736,7 +737,7 @@ const Quarks = {
         if (s < bs && this.hotAt((a.x + b.x + e.x) / 3, (a.y + b.y + e.y) / 3) < .3) { bs = s; best = [a, b, e]; } // слипнутся там, где холодно
       }
     }
-    if (!best && this.rs.frag) for (const a of f) for (const b of f) {
+    if (!best && this.rs.frag && !Uni.off(this, 'frag')) for (const a of f) for (const b of f) {
       if (b === a || b.col === a.col) continue;
       const s = Math.hypot(a.x - b.x, a.y - b.y); if (s < bs && this.hotAt((a.x + b.x) / 2, (a.y + b.y) / 2) < .3) { bs = s; best = [a, b]; }
     }
@@ -744,7 +745,7 @@ const Quarks = {
   },
   // «Баланс n/p»: m_n > m_p — остывая, слабые реакции (n + ν → p + e⁻) чаще превращают нейтроны в протоны
   npTick(dt) {
-    if (!this.rs.np || (this.npCd -= dt) > 0) return;
+    if (!this.rs.np || Uni.off(this, 'np') || (this.npCd -= dt) > 0) return;
     this.npCd = NP_CD;
     const { p, n } = this.liveNP(); if (n < 3 || p / (p + n) >= NP_AIM) return;
     let best = null, bd = Infinity;

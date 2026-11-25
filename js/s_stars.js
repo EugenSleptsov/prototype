@@ -136,6 +136,7 @@ const Stars = {
     this.gas = this.gas.filter(g => !g.dead);
     const have = this.gas.filter(g => inView(g.x, g.y, .5)).length, want = popWant(ST_GAS_D, ST_GAS_CAP);
     for (let i = 0; i < 3 && have + i < want && Math.random() < dt * 30; i++) { const r = rimPos(.3); this.gas.push(this.puff(r.x, r.y, r.nx * 1.2 + randn() * .5, r.ny * 1.2 + randn() * .5, 0)); }
+    haloFill(this.gas, ST_GAS_D, ST_GAS_CAP, dt, (x, y) => { this.gas.push(this.puff(x, y, randn() * .6, randn() * .6, 0)); }, 4); // и за краем — сдвинул карту, там то же
   },
   // Звезда зажглась: камера ныряет в комок. Мир вокруг него растягивается в U раз (на экране — без скачка),
   // газ комка становится ядрами недр на тех же местах (твой — первым), остальной газ комка растворяется в свечении
@@ -216,7 +217,7 @@ const Stars = {
   },
   // «Звёздный синтез»: звезда бросает сама — туда, чего не хватает к сверхновой
   autoFuse(dt) {
-    if (!this.rs.syn || (this.autoCd -= dt) > 0) return;
+    if (!this.rs.syn || Uni.off(this, 'syn') || (this.autoCd -= dt) > 0) return;
     this.autoCd = 1.4;
     const need = k => (ST_NEED[k] || 0) - this.cnt(k);
     const want = [];
@@ -247,6 +248,7 @@ const Stars = {
       const he = nA < nP * 1.2, r = rimPos(1), sp = rnd(1.2, 2.2);
       this.mk(he ? 2 : 1, he ? 2 : 0, r.x, r.y, r.nx * sp + randn() * .4, r.ny * sp + randn() * .4).age = 0;
     }
+    haloFill(this.o, ST_CORE_D, ST_CORE_CAP, dt, (x, y) => { const he = Math.random() < .45; this.mk(he ? 2 : 1, he ? 2 : 0, x, y, randn() * .4, randn() * .4).age = 0; }, 2);
   },
 
   update(dt, act) {

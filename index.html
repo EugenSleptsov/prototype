@@ -87,13 +87,22 @@
   #uni{position:fixed;right:16px;bottom:110px;width:230px;box-sizing:border-box;z-index:4;pointer-events:auto;overflow:hidden;font-size:12px;color:#dde3f0;background:#0b0f1c99;border:1px solid #ffffff1a;border-radius:10px;padding:6px 8px 4px}
   #uni .uh{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;opacity:.85;margin-bottom:4px;white-space:nowrap}
   #uni .uh em{font-style:normal;color:#8fe8b0;font-weight:800;letter-spacing:0;text-transform:none;font-size:12px}
-  #uni .ur{display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:auto auto;column-gap:6px;align-items:center;padding:3px 0;border-top:1px solid #ffffff0d}
+  #uni .ur{display:grid;grid-template-columns:auto 1fr auto auto;grid-template-rows:auto auto;column-gap:6px;align-items:center;padding:3px 0;border-top:1px solid #ffffff0d}
   #uni .ur .ic{grid-row:1/3;min-width:22px;height:22px;padding:0 4px;box-sizing:border-box;border-radius:5px;background:#ffffff12;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#ffd27a}
   #uni .ur b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   #uni .ur b small{opacity:.6;font-weight:700}
   #uni .ur em{font-style:normal;font-weight:800;color:#ffd27a;white-space:nowrap;text-align:right}
   #uni .ur em s{text-decoration:none;color:#8fd0ff;font-weight:700}
   #uni .ur i{grid-column:2/4;font-style:normal;font-size:10px;color:#8fe8b0;opacity:.8}
+  #uni .ur.tg{cursor:pointer}
+  #uni .ur.tg:hover b{text-decoration:underline dotted #ffffff55}
+  #uni .ur .sw{grid-row:1/3;grid-column:4;width:24px;height:13px;border-radius:7px;background:#ffffff1f;position:relative;transition:background .15s}
+  #uni .ur .sw::after{content:'';position:absolute;left:2px;top:2px;width:9px;height:9px;border-radius:50%;background:#9aa3b8;transition:left .15s,background .15s}
+  #uni .ur .sw.on{background:#8fe8b055}
+  #uni .ur .sw.on::after{left:13px;background:#8fe8b0}
+  #uni .ur:not(.tg) .sw{opacity:.45}
+  #uni .ur.dis b,#uni .ur.dis em,#uni .ur.dis .ic{opacity:.45}
+  #uni .ur.dis i{color:#ffb38a;opacity:.9}
   #uni .ur.off{opacity:.45}
   #uni .ur.fl em{animation:uniFl .6s ease-out}
   @keyframes uniFl{0%{color:#fff;text-shadow:0 0 10px #8fe8b0}100%{text-shadow:none}}
@@ -425,20 +434,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=122"></script>
-<script src="js/gestures.js?v=122"></script>
-<script src="js/audio.js?v=122"></script>
-<script src="js/core.js?v=122"></script>
-<script src="js/universe.js?v=122"></script>
-<script src="js/codex.js?v=122"></script>
-<script src="js/sling.js?v=122"></script>
-<script src="js/s0_quarks.js?v=122"></script>
-<script src="js/s_particles.js?v=122"></script>
-<script src="js/s1_nuclei.js?v=122"></script>
-<script src="js/s_stars.js?v=122"></script>
-<script src="js/s2_atoms.js?v=122"></script>
-<script src="js/s3_molecules.js?v=122"></script>
-<script src="js/online.js?v=122"></script>
-<script src="js/main.js?v=122"></script>
+<script src="js/util.js?v=123"></script>
+<script src="js/gestures.js?v=123"></script>
+<script src="js/audio.js?v=123"></script>
+<script src="js/core.js?v=123"></script>
+<script src="js/universe.js?v=123"></script>
+<script src="js/codex.js?v=123"></script>
+<script src="js/sling.js?v=123"></script>
+<script src="js/s0_quarks.js?v=123"></script>
+<script src="js/s_particles.js?v=123"></script>
+<script src="js/s1_nuclei.js?v=123"></script>
+<script src="js/s_stars.js?v=123"></script>
+<script src="js/s2_atoms.js?v=123"></script>
+<script src="js/s3_molecules.js?v=123"></script>
+<script src="js/online.js?v=123"></script>
+<script src="js/main.js?v=123"></script>
 </body>
 </html>

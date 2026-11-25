@@ -138,6 +138,11 @@ function touchBar() {
   document.getElementById('t-mute').textContent = Sfx.muted ? '🔇' : '🔊';
 }
 // Колесо — зум: вглубь до ×2,2, наружу до ×0,55 от обзора этапа. Shift + колесо — действие этапа (вращение молекулы).
+// «Законы Вселенной»: строка — тумблер закона
+document.getElementById('uni').addEventListener('click', e => {
+  const r = e.target instanceof Element ? e.target.closest('.ur') : null;
+  if (r instanceof HTMLElement && r.dataset.k) Uni.toggle(G.stage, r.dataset.k);
+});
 addEventListener('wheel', e => {
   if (e.target !== cv) return;
   if (e.shiftKey && G.stage.wheel) { G.stage.wheel(e.deltaY || e.deltaX); return; }

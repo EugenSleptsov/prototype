@@ -96,9 +96,14 @@ const Atoms = {
     if (have < popWant(A_DENS, A_CAP) && Math.random() < dt * 3) {
       const r = rimPos(1), io = this.ion(this.cosmicZ(), r.x, r.y, 0), sp = rnd(.6, 1.4);
       io.vx += r.nx * sp; io.vy += r.ny * sp;
-      if (this.rs.rec && Math.random() < this.neutral()) io.ne = io.Z;
+      if (this.rs.rec && !Uni.off(this, 'rec') && Math.random() < this.neutral()) io.ne = io.Z;
       this.ions.push(io);
     }
+    haloFill(this.ions, A_DENS, A_CAP, dt, (x, y) => { // и за краем — сдвинул карту, там то же
+      const io = this.ion(this.cosmicZ(), x, y, 0);
+      if (this.rs.rec && !Uni.off(this, 'rec') && Math.random() < this.neutral()) io.ne = io.Z;
+      this.ions.push(io);
+    }, 2);
   },
   // доля нейтральных — по ионам в кадре и рядом: электроны живут только здесь, и улетевшие далеко ядра сверхновой не держат уровень
   neutral() { let n = 0, z = 0; for (const i of this.ions) if (!i.dead && inView(i.x, i.y, 4)) { n += Math.min(i.ne, i.Z); z += i.Z; } return z ? n / z : 0; },
@@ -162,7 +167,7 @@ const Atoms = {
         // захват: заторможенный, близко и медленно
         if (act && e.slow > 0 && d < .95 + .08 * Q && Math.hypot(e.vx - io.vx, e.vy - io.vy) < 2.4 + .3 * Q) { this.capture(io, e); break; }
         // «Рекомбинация»: у иона электрон излучает и тормозит сам
-        if (act && this.rs.rec && d < 4 && e.brk <= 0 && this.doneAt === null && Math.random() < dt * .5) this.brake(e, e.by === 'hand' ? 'hand' : 'auto');
+        if (act && this.rs.rec && !Uni.off(this, 'rec') && d < 4 && e.brk <= 0 && this.doneAt === null && Math.random() < dt * .5) this.brake(e, e.by === 'hand' ? 'hand' : 'auto');
       }
       if (e.dead) continue;
       e.vx += ax * dt; e.vy += ay * dt;
@@ -189,7 +194,7 @@ const Atoms = {
         const hard = this.t > UV_T0 && Math.random() < .45 * this.Ta - .12, v = hard ? UV_V : PH_V; // первые секунды — без УФ: дать оглядеться
         const R = viewRadius() * (hard ? 1.15 : 1.05), a = Math.random() * TAU, h = a + Math.PI + randn() * .35;
         this.ph.push({ x: P.x + Math.cos(a) * R, y: P.y + Math.sin(a) * R, vx: Math.cos(h) * v, vy: Math.sin(h) * v, t: 0, hard, E: hard ? rnd(11, 24) : rnd(1.5, 3.5), life: hard ? 3.4 : 2.4,
-          red: hard && this.rs.red && Math.random() < RED_P ? rnd(.5, 1.3) : 0 }); // red — когда растянется в видимый
+          red: hard && this.rs.red && !Uni.off(this, 'red') && Math.random() < RED_P ? rnd(.5, 1.3) : 0 }); // red — когда растянется в видимый
       }
     }
     const nf = this.neutral();

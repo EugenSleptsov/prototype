@@ -48,6 +48,9 @@ interface Stage {
   /** «Законы Вселенной» (core.js Uni): строки научённого; работает ли сейчас; где показать «+1 ✦» */
   uni?: UniRow[];
   uniOn?(k: string): boolean;
+  uniOff?: Set<string>;
+  doneAt?: number | null;
+  uniSet?(k: string, on: boolean): void;
   /** открыто впервые в забеге — что дальше (строка на карточке открытия) */
   seeNext?(k: string): string;
   uniPop?(k: string): boolean;
@@ -131,7 +134,7 @@ interface Cell { c: string; glu?: boolean }
 type Hit = (Cell & { k: number; why: string }) | { c: null; glu?: undefined; k: number; why: string };
 
 /** Поле детектора: захваченные, заряд q (0…1), энергия E, ступень lv */
-interface Focus { cap: Q[]; q: number; E: number; lv: number; ang: number; t: number; t2?: number; dry?: boolean }
+interface Focus { cap: Q[]; q: number; E: number; lv: number; ang: number; t: number; t2?: number; dry?: boolean; cand?: Q | null; candT?: number }
 
 type Prof = typeof PROF[number];
 /** Разогрев: зона PROF, температура k (T = k·1 ТэВ), сколько света (heat) */
@@ -156,6 +159,8 @@ interface Track {
 }
 interface Float { x: number; y: number; t: number; txt: string; c: RGB; sz: number }
 interface Hot { x: number; y: number; t: number; sp: string; done?: boolean }
+/** горячая область на карте частиц: центр, радиус, возраст и срок */
+interface HotZone { x: number; y: number; r: number; t: number; L: number; em?: number }
 interface Ripple { x: number; y: number; t: number }
 /** Эпоха 4: волна антивещества (cur — летящая сейчас) */
 interface Wave { n: number; cd: number; dir: number | null; cur: { list: Q[]; t: number; eaten0: number } | null }
@@ -229,7 +234,7 @@ interface ParticlesState {
   /** эпоха 0…3 */
   ep: number; epDone: boolean; epGap: number; bannerFor: number; banner: number; epT: number;
   pairs: number; decSeen: Set<string>; tries: Record<string, number>;
-  hot: Hot[]; hotCd: number;
+  hot: Hot[]; hotCd: number; hz: HotZone[]; hzCd: number; hzSeen: boolean; hzSp: number;
   /** эпоха 4: запас кварков в детекторе */
   stock: number; stockQ: Stored[]; soupCd: number;
   /** u и d, что Вселенная накопила к эпохе 4 (фора) */

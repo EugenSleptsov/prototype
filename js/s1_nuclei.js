@@ -69,7 +69,7 @@ const Nuclei = {
   // вещество Вселенной: на нейтрон — три протона (свободные нейтроны со временем распадаются, их всё меньше);
   // после «Нуклеосинтеза» гелий рождается повсюду — и приходит уже с той же долей, что вокруг тебя
   cosmic(x, y, vx, vy) {
-    if (this.rs.syn && Math.random() < this.Y()) return this.mk(2, 2, x, y, vx, vy);
+    if (this.rs.syn && !Uni.off(this, 'syn') && Math.random() < this.Y()) return this.mk(2, 2, x, y, vx, vy);
     const isN = Math.random() < .25 * Math.exp(-this.t / 150), o = this.mk(isN ? 0 : 1, isN ? 1 : 0, x, y, vx, vy);
     if (isN) o.life = rnd(60, 100);
     return o;
@@ -84,6 +84,7 @@ const Nuclei = {
       const r = rimPos(.6), sp = rnd(1, 2.2);
       const o = this.cosmic(r.x, r.y, r.nx * sp + randn() * .4, r.ny * sp + randn() * .4); o.age = 0;
     }
+    haloFill(this.o, N_DENS, N_CAP, dt, (x, y) => { this.cosmic(x, y, randn() * .4, randn() * .4).age = 0; }); // и за краем — сдвинул карту, там то же
   },
   // ядро: Z протонов, N нейтронов; нуклоны уложены спиралью
   mk(Z, N, x, y, vx = 0, vy = 0) {
@@ -243,7 +244,7 @@ const Nuclei = {
   // ---------- Вселенная бросает сама («Синтез сам») ----------
   // выбирает пару, которая продвигает цепочку к гелию, и бросает с нужной силой — в окно между барьером и хрупкостью
   autoFuse(dt) {
-    if (!this.rs.syn || this.doneAt !== null || (this.autoCd -= dt) > 0) return;
+    if (!this.rs.syn || Uni.off(this, 'syn') || this.doneAt !== null || (this.autoCd -= dt) > 0) return;
     this.autoCd = 1.8 / Math.max(.35, this.T());
     const f = this.o.filter(o => this.free(o) && o.age > 1 && o.nb <= 0 && inView(o.x, o.y, -1)); // на виду — чтобы было видно, как Вселенная куёт
     let best = null, bs = -Infinity;
@@ -272,7 +273,7 @@ const Nuclei = {
       const a = f[i], b = f[j];
       if (Math.hypot(a.x - b.x, a.y - b.y) > (a.rad + b.rad) * .8 || a.Z * b.Z > 0) continue;
       a.nb = b.nb = 1;
-      if (Math.random() < .35 && this.outcome(a, b).out) { this.collide(a, b, 1, this.rs.syn ? 'auto' : null); this.spCd = 3; return; }
+      if (Math.random() < .35 && this.outcome(a, b).out) { this.collide(a, b, 1, this.rs.syn && !Uni.off(this, 'syn') ? 'auto' : null); this.spCd = 3; return; }
     }
   },
 

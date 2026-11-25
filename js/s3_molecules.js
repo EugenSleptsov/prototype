@@ -161,6 +161,7 @@ const Mols = {
       const r = rimPos(14), mol = this.newMol(this.needEl(), r.x, r.y), sp = rnd(4, 8);
       mol.vx = r.nx * sp + randn() * 3; mol.vy = r.ny * sp + randn() * 3; mol.age = 0;
     }
+    haloFill(this.m, M_DENS, M_CAP, dt, (x, y) => { const mol = this.newMol(this.needEl(), x, y); mol.vx = randn() * 3; mol.vy = randn() * 3; mol.age = 0; }, 2);
   },
   recompute(mol) {
     let M = 0, cx = 0, cy = 0;
@@ -358,9 +359,9 @@ const Mols = {
 
   // ---------- Вселенная сама сводит куски открытого («Синтез …») ----------
   autoChem(dt) {
-    if (!this.res.size || (this.autoCd -= dt) > 0) return;
+    const goals = COMP.filter(x => this.res.has(x.f) && !Uni.off(this, x.f)); // выключенный «Синтез» Вселенная не варит
+    if (!goals.length || (this.autoCd -= dt) > 0) return;
     this.autoCd = 2.4; // не чаще — у игрока есть время собрать своё
-    const goals = COMP.filter(x => this.res.has(x.f));
     const f = this.m.filter(m => !m.dead && !m.held && m.age > 1 && !(m.hand > 0) && !(m.auto > 0) && !(this.t - (m.mineT ?? -99) < M_MINE) && this.freeSlots(m) && inView(m.x, m.y, -5));
     let best = null, bs = -Infinity;
     for (const g of goals) for (let i = 0; i < f.length; i++) {

@@ -108,6 +108,34 @@ function beyondPos(z1, m, anywhere) {
   }
   return null;
 }
+// Ободок вокруг кадра (доля меньшей половины кадра): Вселенная держит ту же плотность и там, за краем, —
+// сдвинул карту, а там уже не пусто (а не ждать, пока вещество приплывёт от края внутрь).
+const HALO = .5;
+const haloM = () => { const [hw, hh] = halfView(); return HALO * Math.min(hw, hh); };
+/** сколько тел держать в кадре вместе с ободком: та же плотность; потолок — в той же пропорции к площади
+ * @param {number} dens @param {number} cap */
+const haloWant = (dens, cap) => {
+  const [hw, hh] = halfView(), m = haloM(), A = 4 * (hw + m) * (hh + m);
+  return Math.min(Math.round(cap * A / (4 * hw * hh)), Math.round(dens * A));
+};
+/** точка в ободке: за краем кадра, но рядом @returns {[number, number]} */
+function haloPos() {
+  const [hw, hh] = halfView(), m = haloM();
+  for (let i = 0; i < 16; i++) {
+    const x = cam.x + rnd(-hw - m, hw + m), y = cam.y + rnd(-hh - m, hh + m);
+    if (!inView(x, y, m * .15)) return [x, y]; // не у самой кромки: за кадр не впрыгнет
+  }
+  const r = rimPos(m / 2); return [r.x, r.y];
+}
+/** Доливка ободка: в нём меньше, чем положено по плотности, — до n тел за кадр в случайных точках ободка (make кладёт тело)
+ * @param {Array<{ x: number, y: number, dead?: boolean }>} list @param {number} dens @param {number} cap @param {number} dt
+ * @param {(x: number, y: number) => void} make @param {number} [n] */
+function haloFill(list, dens, cap, dt, make, n = 3) {
+  const m = haloM(); let have = 0; // считаем только ободок: перебор в кадре (твоё, только что принесённое) его не отменяет
+  for (const o of list) if (!o.dead && inView(o.x, o.y, m) && !inView(o.x, o.y)) have++;
+  const want = haloWant(dens, cap) - popWant(dens, cap);
+  for (let i = 0; i < n && have + i < want && Math.random() < dt * 30; i++) { const [x, y] = haloPos(); make(x, y); }
+}
 /** Чужое далеко за краем растворяется (dead), своё и занятое (keep) — нет @template {{ x: number, y: number, mine?: boolean, dead?: boolean }} T
  * @param {T[]} arr @param {(o: T) => boolean} [keep] */
 function dissolveFar(arr, keep) { for (const o of arr) if (!o.mine && !o.dead && farOff(o) && !(keep && keep(o))) o.dead = true; }
@@ -609,6 +637,8 @@ const Tally = {
 // События, за которые Вселенная платит и так (её барионы, вспышки e⁺e⁻, снятые распады…), идут через pay() —
 // в ту же строку. Сводка — справа (#uni); в итогах уровня — «✦ от Вселенной».
 // Уровень может дать uniOn(k) — работает ли это сейчас — и uniPop(k) — где показать «+1 ✦».
+// Закон — тумблер: щелчок по строке выключает/включает его (S.uniOff), уровень спрашивает Uni.off(S, k) там, где закон действует,
+// и может дать uniSet(k, on) — что поменять в мире. Уровень (эпоха) завершён — все законы снова включены.
 const UNI_WIN = 60, UNI_LVL = 3; // UNI_LVL — ✦/мин от закона на уровнях после частиц (их события платят ещё)
 /** @type {RGB} */
 const UNI_C = [140, 235, 170];
@@ -630,9 +660,26 @@ const Uni = {
     if (v) r.log.push([G.T, v]);
   },
   /** @param {Stage} S @param {string} k */
-  on(S, k) { return !S.uniOn || S.uniOn(k); },
+  on(S, k) { return !this.off(S, k) && (!S.uniOn || S.uniOn(k)); },
+  /** игрок выключил закон @param {Stage} S @param {string} k */
+  off(S, k) { return !!(S && S.uniOff && S.uniOff.has(k)); },
+  /** тумблер строки (на финише уровня не переключается — там все включены) @param {Stage} S @param {string} k */
+  toggle(S, k) {
+    if (!S || S.doneAt != null || !(S.uni || []).some(r => r.k === k)) return;
+    const L = S.uniOff || (S.uniOff = new Set()), on = L.has(k);
+    if (on) L.delete(k); else L.add(k);
+    if (S.uniSet) S.uniSet(k, on);
+    const r = /** @type {UniRow} */ ((S.uni || []).find(x => x.k === k)); r.fl = G.T;
+    Sfx.play(on ? 'upgrade' : 'fizzle');
+  },
+  /** уровень завершён — все законы снова работают @param {Stage} S */
+  allOn(S) {
+    if (!S.uniOff || !S.uniOff.size) return;
+    for (const k of [...S.uniOff]) { S.uniOff.delete(k); if (S.uniSet) S.uniSet(k, true); }
+  },
   /** ровный доход: копится и выплачивается по 1 ✦ @param {Stage} S @param {number} dt */
   tick(S, dt) {
+    if (S.doneAt != null) this.allOn(S);
     for (const r of S.uni || []) {
       if (!r.rate || !this.on(S, r.k) || (r.acc += r.rate / 60 * dt) < 1) continue;
       r.acc -= 1; this.pay(S, r.k, 1);
@@ -653,11 +700,14 @@ const Uni = {
     const S = G.stage, L = (S && S.uni) || [];
     if (!G.started || G.ended || !L.length) { el.style.display = 'none'; return; }
     let tot = 0;
+    const fin = S.doneAt != null;
     const rows = L.map(r => {
-      const pm = this.perMin(S, r); tot += pm;
+      const pm = this.perMin(S, r), dis = this.off(S, r.k); tot += pm;
       const got = `+${Math.floor(r.kn)} ✦` + (r.en >= 1 ? ` <s>+${Math.round(r.en)} ⚡</s>` : '');
-      return `<div data-k="${r.k}" class="ur${G.T - r.fl < .6 ? ' fl' : ''}${pm ? '' : ' off'}" title="${r.name}: ${pm ? `${fmtPm(pm)} ✦ в минуту` : 'в эту эпоху не работает'} · принесла ${Math.floor(r.kn)} ✦">` +
-        `<span class="ic">${r.ic}</span><b>${r.name}${r.lv > 1 ? ` <small>×${r.lv}</small>` : ''}</b><em>${got}</em><i>${pm ? fmtPm(pm) + '/мин' : 'в эту эпоху — нет'}</i></div>`;
+      const how = dis ? 'выключен' : pm ? `${fmtPm(pm)} ✦ в минуту` : 'в эту эпоху не работает';
+      return `<div data-k="${r.k}" class="ur${G.T - r.fl < .6 ? ' fl' : ''}${pm ? '' : ' off'}${dis ? ' dis' : ''}${fin ? '' : ' tg'}" title="${r.name}: ${how} · принесла ${Math.floor(r.kn)} ✦${fin ? '' : ` · щёлкни — ${dis ? 'включить' : 'выключить'}`}">` +
+        `<span class="ic">${r.ic}</span><b>${r.name}${r.lv > 1 ? ` <small>×${r.lv}</small>` : ''}</b><em>${got}</em><u class="sw${dis ? '' : ' on'}"></u>` +
+        `<i>${dis ? 'выключен — щёлкни, чтобы включить' : pm ? fmtPm(pm) + '/мин' : 'в эту эпоху — нет'}</i></div>`;
     }).join('');
     const html = `<div class="uh"><span>Законы Вселенной</span><em>+${fmtPm(tot)} ✦/мин</em></div>` + rows;
     if (el._h !== html) { el._h = html; el.innerHTML = html; }
