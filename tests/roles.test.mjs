@@ -80,7 +80,8 @@ test('c s b μ τ: каждый снятый распад платит ✦ и в
 
 test('t: распад t Вселенной в кадре — ⚡ до полного, не чаще раза в T_CD; твой t — нет', () => {
   const g = toField(); give(g, 't');
-  const tRun = (uni) => { g.ev(`(() => { const S = G.stage; S.hig = 1; S.en = 0; const o = S.mk('t', false, P.x + 1, P.y, 0, .01); o.born = 1; o.life = .01; o.uni = ${uni}; })()`); g.step(2); return g.ev('G.stage.en'); };
+  g.ev(`(() => { const S = G.stage; S.hz = []; S.hzCd = 999; S.populate = () => {}; })()`); // без света вокруг: ⚡ — только от t
+  const tRun = (uni) => { g.ev(`(() => { const S = G.stage; S.hig = 1; S.en = 0; for (const o of S.p) if (o.sp === 'ph') o.dead = true; const o = S.mk('t', false, P.x + 1, P.y, 0, .01); o.born = 1; o.life = .01; o.uni = ${uni}; })()`); g.step(2); return g.ev('G.stage.en'); };
   assert.equal(tRun(false), 0, 'сделанный руками t не заряжает');
   assert.equal(tRun(true), g.ev('E_CAP'));
   assert.equal(tRun(true), 0, 'перезарядка');

@@ -70,6 +70,14 @@ const Atoms = {
     // C, N, O не из твоей звезды — честно сказать, откуда они (переждал «Звёзды» — тяжёлое пришло от чужих сверхновых)
     this.gift = prev ? [6, 7, 8].filter(Z => !this.ions.some(i => i.mine && i.Z === Z)).map(atSym).join(', ') : '';
     for (let i = 0; i < 26; i++) this.spawnE(true);
+    // кузница частиц: распады μ и τ, научённые Вселенной, выковали электроны — они здесь холодными, у ионов
+    const pS = G.fromI ? null : STAGES.find(s => s.key === 'particles');
+    this.eForge = Math.min(E_FORGE, pS && /** @type {{ eRes?: number }} */ (pS).eRes || 0);
+    const bare = this.ions.filter(i => i.ne < i.Z).sort((u, v) => Math.hypot(u.x - P.x, u.y - P.y) - Math.hypot(v.x - P.x, v.y - P.y)).slice(0, 8); // ближние к тебе ионы
+    for (let k = 0; k < this.eForge && bare.length; k++) {
+      const io = bare[k % bare.length], a = Math.random() * TAU, d = rnd(1.4, 2.2);
+      this.el.push({ x: io.x + Math.cos(a) * d, y: io.y + Math.sin(a) * d, vx: -Math.sin(a) * .6, vy: Math.cos(a) * .6, k: 1, slow: 4.5, brk: 1, by: null, age: 1 });
+    }
     this.stars = pickStars(this.starPool());
   },
   float(x, y, txt, c = [140, 220, 255], sz = 13) { this.floats.push({ x, y, t: 0, txt, c, sz }); Fly.from(x, y, txt); },
@@ -142,6 +150,7 @@ const Atoms = {
     const live = act && G.started;
     this.t += dt; this.Ta = Math.max(.1, 1 - this.t / 120);
     if (live) { this.banner += dt; if (this.doneAt === null) this.clock += dt; P.vx = P.vy = 0; }
+    if (live && this.eForge && this.clock > 1.5) this.once('forge', `Кузница частиц: +${this.eForge} холодных e⁻ — из распадов μ и τ, которым ты научил Вселенную`);
     if (live && this.gift && this.clock > 4) this.once('gift', `${this.gift} — не из твоих звёзд: их принесло от чужих сверхновых. Своё тяжёлое вещество дороже вдвое`);
     for (const f of this.floats) f.t += dt;
     this.floats = this.floats.filter(f => f.t < 1.6);

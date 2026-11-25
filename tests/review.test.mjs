@@ -111,3 +111,58 @@ test('частицы: «Рождение» поколений — по лест�
   const html = g.ev(`(() => { const el = document.getElementById('shop'); G.started = true; el._h = ''; G.stage._pk = null; G.stage.renderShop(el); return el.innerHTML; })()`);
   assert.match(html, /class="res[^"]* g2"/, 'второе поколение — жёлтое');
 });
+
+// кузница: распад научённого тяжёлого — лёгкое в запас; асимметрия — только при трёх поколениях кварков
+function field(g) {
+  g.ev(`(() => { ['e', 'u', 'd', 'g', 'H', 'W', 'Z', 'c', 's', 'b', 'mu', 'ta'].forEach(k => { Codex.see(k); Codex.run.add(k); }); const S = G.stage; S.tut = null; S.rs.coll = 1; S.ep = 2; S.hig = 1; S.T = 40; S.udRes = []; S.eRes = 0; Cine.clear(); Cine.tick(99); })()`);
+}
+const teach = (g, ks) => g.ev(`(() => { const S = G.stage; for (const k of ${JSON.stringify(ks)}) { S.rs[k] = 1; Codex.auto.add(k); Uni.learn(S, k, k, k, 3); } })()`);
+const decay = (g, sp, anti = false) => g.ev(`(() => { const S = G.stage, o = S.mk('${sp}', ${anti}, P.x + 3, P.y, 0, .5); S.decay(o); return S.udRes.length + ',' + S.eRes; })()`);
+
+test('кузница: распад научённого тяжёлого кварка — лёгкий кварк в запас; антикварк и ненаученный — нет; потолок растёт с поколениями', () => {
+  const g = toStage('particles'); field(g);
+  assert.equal(decay(g, 'c'), '0,0', 'не научил «Рождение c» — кузницы нет');
+  teach(g, ['u', 'd', 'c']);
+  assert.equal(decay(g, 'c'), '1,0');
+  assert.equal(decay(g, 'c', true), '1,0', 'антикварк — не вещество');
+  assert.equal(g.ev('G.stage.udCap()'), g.ev('UD_MAX + UD_STEP'));
+  g.ev('G.stage.udRes = Array(G.stage.udCap()).fill("u")');
+  assert.equal(decay(g, 'c'), g.ev('UD_MAX + UD_STEP') + ',0', 'потолок');
+  teach(g, ['s', 'b']);
+  assert.equal(g.ev('G.stage.udCap()'), g.ev('UD_MAX + 2 * UD_STEP'), 'третье поколение — потолок выше');
+  teach(g, ['e', 'mu']);
+  assert.match(decay(g, 'mu'), /,1$/, 'μ → e⁻ к атомам');
+});
+
+test('кузница: выкованное сверх UD_MAX в детектор эпохи 4 не ложится — уходит в «Адроны»; электроны — в «Атомы» холодными', () => {
+  const g = toStage('particles'); field(g);
+  g.ev(`(() => { const S = G.stage; S.udRes = Array(15).fill(0).map((_, i) => i % 2 ? 'u' : 'd'); S.stock = 0; S.stockQ = []; S.eRes = 5; S.startEpoch(3); })()`);
+  assert.equal(g.ev('G.stage.stockQ.length'), g.ev('UD_MAX'), 'задание эпохи 4 — по-прежнему твоё');
+  assert.equal(g.ev('G.stage.forgedQ.length'), 15 - g.ev('UD_MAX'));
+  g.ev('G.stage.endLevel(); G.trans = 99');
+  assert.equal(g.ev('G.stage.key'), 'quarks');
+  assert.ok(g.ev('G.stage.q.filter(q => q.mine).length') >= 15, 'выкованное — материал «Адронов»');
+  while (g.ev('G.stage.key') !== 'atoms') g.ev('advance(); G.trans = 99');
+  assert.equal(g.ev('G.stage.eForge'), 5);
+  assert.ok(g.ev('G.stage.el.filter(e => e.slow > 0).length') >= 5, 'холодные электроны у ионов');
+});
+
+test('асимметрия: нарушение CP — только при трёх поколениях кварков; в эпохе 4 лавка ведёт по лестнице до b', () => {
+  const g = toStage('particles'); field(g);
+  g.ev(`(() => { const S = G.stage; S.startEpoch(3); S.stockQ = [0, 1, 2, 0, 1, 2].map(col => ({ fl: col ? 'u' : 'd', col })); S.kn += 9999; })()`);
+  const res = () => g.ev('G.stage.resList().map(r => r.k).join()');
+  assert.equal(res(), 'u', 'сначала первое поколение');
+  assert.match(g.ev('G.stage.steps()[1].h'), /трёх поколениях кварков/);
+  teach(g, ['u', 'd', 'c', 's']);
+  assert.equal(res(), 'b');
+  assert.equal(g.ev('G.stage.steps()[1].res'), 'b', 'задание подсвечивает нужную ступень');
+  teach(g, ['b']);
+  assert.equal(res(), 'cp', 'три поколения — асимметрия возможна');
+});
+
+test('эпоха 3: цепочка b — в задании всегда', () => {
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const g = loadGame({ seed }); g.ev(PREP.start);
+    assert.ok(g.ev(`G.stage.need2.includes('b')`), `seed ${seed}`);
+  }
+});

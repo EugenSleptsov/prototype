@@ -124,6 +124,10 @@ const CHAINS = [['t', 'b', 'c'], ['ta', 'mu']]; // чьи распады нуж�
 //  c s b μ τ — каждый снятый распад платит ✦ (вдвое против массы) и возвращает ⚡ снимка; такие частицы не уходят в фон
 //  t      — t, рожденный Вселенной, распадается в кадре: ⚡ до полного (не чаще раза в T_CD с; твой t — не в счёт)
 const E_PULL = 2.5, UD_MAX = 6, UD_EVERY = 8, T_CD = 20, DEC_PAY = ['c', 's', 'b', 'mu', 'ta'];
+// Кузница: тяжёлое распадается в лёгкое. Научил «Рождение X» тяжёлого — распад X вещества (эпохи 2–3) кладёт
+// лёгкий кварк в запас к эпохе 4 (каждое научённое тяжёлое поколение — потолок запаса выше на UD_STEP),
+// распады μ и τ куют электроны в «Атомы» (до E_FORGE). Асимметрия (нарушение CP) — только при трёх поколениях кварков.
+const FORGE_Q = ['s', 'c', 'b', 't'], FORGE_L = ['mu', 'ta'], UD_STEP = 6, E_FORGE = 12;
 const COL_N = ['красный', 'зелёный', 'синий']; // цвет кварка; у глюона — цвет и антицвет
 const STOCK_GOAL = 15, TRIO_GOAL = 5; // цель эпохи 4 — пять будущих барионов (по кварку каждого цвета)
 const TRIO_W = TRIO_GOAL < 5 ? 'тройки' : 'троек';
@@ -249,12 +253,13 @@ const Particles = {
     this.learn = {}; this.coach = { idle: 0, t: 0, kind: null }; this.spotted = new Set(); this.missT = -99; this.en = 0; this.enFx = 0; this.shotCd = 0; this.shotFx = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.bannerFor = -1; this.banner = 99; this.epT = 0;
-    this.pairs = 0; this.tries = {}; this.decSeen = new Set(); this._pk = null; this.starsShown = false; this.hot = []; this.hotCd = 3; this.hz = []; this.hzCd = 2; this.hzSeen = false; this.hzSp = 0; this.stock = 0; this.stockQ = []; this.udRes = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
+    this.pairs = 0; this.tries = {}; this.decSeen = new Set(); this._pk = null; this.starsShown = false; this.hot = []; this.hotCd = 3; this.hz = []; this.hzCd = 2; this.hzSeen = false; this.hzSp = 0; this.stock = 0; this.stockQ = []; this.udRes = []; this.eRes = 0; this.forgedQ = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
     Codex.run = new Set(); Codex.dirty = true;
     // цели этого забега: что открыть в эпохе 1 и чьи распады снять в эпохе 3
     this.need0 = [...NEED0];
     // распады эпохи 3 — по порядку поколений: лёгкое раньше тяжёлого
-    this.need2 = pickStars(CHAINS.flat().map(sp => ({ sp })), 3).map(x => x.sp).sort((a, b) => (SM[a].gen ?? 0) - (SM[b].gen ?? 0));
+    // цепочка b — всегда: третье поколение кварков к эпохе 4 открыто (без него нет асимметрии)
+    this.need2 = ['b', ...pickStars(CHAINS.flat().filter(sp => sp !== 'b').map(sp => ({ sp })), 2).map(x => x.sp)].sort((a, b) => (SM[a].gen ?? 0) - (SM[b].gen ?? 0));
     this.newEpochState(0);
     P.x = P.y = P.vx = P.vy = 0; P.dashCd = 0;
   },
@@ -862,7 +867,7 @@ const Particles = {
   /** @param {Q} o */
   decay(o) {
     const pr = this.decayProducts(o); if (!pr) return;
-    o.dead = true;
+    o.dead = true; this.forge(o);
     const m = this.meff(o), E = Math.hypot(o.p, m), base = Math.atan2(o.dy, o.dx), n = pr.length;
     const fan = n === 2 ? [-.65, .65] : [0, -1.15, 1.15];
     const c0 = Math.random() * 3 | 0;
@@ -882,6 +887,26 @@ const Particles = {
     }
     this.event(made, o.x, o.y, o, this.rx([o], made, 0));
   },
+  // Кузница: распад научённого тяжёлого — лёгкое в запас (кварк — к эпохе 4 и «Адронам», электрон — к «Атомам»)
+  /** @param {Q} o */
+  forge(o) {
+    if (o.anti || this.ep >= 3 || !Codex.auto.has(o.sp) || !this.uniOn(o.sp)) return;
+    const vis = onScreen(...W2S(o.x, o.y), 0), s = SM[o.sp].sym;
+    if (FORGE_Q.includes(o.sp)) {
+      const cap = this.udCap(); if (this.udRes.length >= cap) return;
+      const nu = this.udRes.filter(f => f === 'u').length, f = nu * 2 <= this.udRes.length ? 'u' : 'd';
+      this.udRes.push(f); Uni.pay(this, o.sp, 0);
+      if (vis) this.float(o.x, o.y - .4, `${s} ⇒ ${f} · запас ${this.udRes.length}/${cap} ◉`, [140, 235, 170], 11);
+    } else if (FORGE_L.includes(o.sp) && this.eRes < E_FORGE) {
+      this.eRes++; Uni.pay(this, o.sp, 0);
+      if (vis) this.float(o.x, o.y - .4, `${s} ⇒ e⁻ · к атомам ${this.eRes}/${E_FORGE}`, [150, 205, 255], 11);
+    }
+  },
+  // потолок запаса u/d: каждое научённое тяжёлое поколение кварков — ещё UD_STEP
+  /** @param {string} [k] посчитать, будто научен и k (для подсказки лавки) */
+  udCap(k) { const has = (/** @type {string} */ s) => this.rs[s] > 0 || s === k; return UD_MAX + (has('c') || has('s') ? UD_STEP : 0) + (has('b') || has('t') ? UD_STEP : 0); },
+  // нарушение CP — только при трёх поколениях кварков: научено «Рождение b» или «Рождение t» (третье не открыто вовсе — не требуем)
+  cpOk() { return this.rs.b > 0 || this.rs.t > 0 || (!Codex.has('b') && !Codex.has('t')); },
   // Событие оставляет СЛЕД: вершину с лучами осколков. Пока след не погас, его можно заснять.
   /** @param {Q[]} made @param {number} x @param {number} y @param {Q} [parent] @param {Rx} [rx] */
   event(made, x, y, parent, rx) {
@@ -974,6 +999,10 @@ const Particles = {
   /** @returns {Research[]} */
   resList() {
     if (!this.lit) return [];
+    if (this.ep === 3 && !this.rs.cp && !this.cpOk()) { // асимметрии нужно третье поколение кварков — лестница до b прямо здесь
+      const k = this.buyNext('b');
+      return Codex.has(k) ? [{ k, ic: SM[k].sym, name: `Рождение ${SM[k].sym}`, cost: [resNew(this.value(k), this.births())], about: () => k === 'b' ? 'третье поколение — нарушение CP возможно' : 'ступень к третьему поколению кварков' }] : [];
+    }
     if (this.ep === 3) return baryonTrios(this.stockQ) >= HAND_CP || this.rs.cp ? [{ k: 'cp', ic: '⚖', name: 'Асимметрия', cost: RES_COST.cp, about: () => 'вещества чуть больше, чем антивещества' }] : [];
     const ph = { k: 'ph', ic: 'γ', name: 'Свет', cost: RES_COST.ph, about: (/** @type {number} */ l) => l ? `света в мире: ~${this.phN(l)} γ → ~${this.phN(l + 1)} γ` : `Вселенная светит сама: ~${this.phN(1)} γ в мире` };
     const L = [];
@@ -993,9 +1022,10 @@ const Particles = {
   role(sp) {
     if (sp === 'H') return 'всплески поля рождают H';
     if (sp === 'e') return 'e⁺e⁻ гаснут в γγ: +1 ✦, на виду +1 ⚡';
-    if (sp === 'u' || sp === 'd') { const o = sp === 'u' ? 'd' : 'u'; return `запас к эпохе 4: ${this.udRes.length}/${UD_MAX} ◉` + (Codex.auto.has(o) ? '' : ` — тройке нужен и ${o}`); }
-    if (sp === 't') return `t Вселенной в кадре — ⚡ полный (раз в ${T_CD} с)`;
-    if (DEC_PAY.includes(sp)) return `снятый распад +${this.decPay(sp)} ✦, снимок бесплатно`;
+    if (sp === 'u' || sp === 'd') { const o = sp === 'u' ? 'd' : 'u'; return `запас к эпохе 4: ${this.udRes.length}/${this.udCap()} ◉` + (Codex.auto.has(o) ? '' : ` — тройке нужен и ${o}`); }
+    const fg = FORGE_Q.includes(sp) ? ` · кузница: распад → u/d в запас (потолок ${this.udCap(sp)})` : FORGE_L.includes(sp) ? ' · кузница: распад → e⁻ к атомам' : '';
+    if (sp === 't') return `t Вселенной в кадре — ⚡ полный (раз в ${T_CD} с)${fg}`;
+    if (DEC_PAY.includes(sp)) return `снятый распад +${this.decPay(sp)} ✦${fg}`;
     return `столкновения рождают ${SM[sp].sym}`;
   },
   /** @param {string} k */
@@ -1159,11 +1189,11 @@ const Particles = {
   /** @param {number} dt */
   reserve(dt) {
     const fl = ['u', 'd'].filter(f => Codex.auto.has(f));
-    if (this.ep >= 3 || !this.rs.coll || Uni.off(this, 'coll') || !fl.length || this.udRes.length >= UD_MAX || (this.udT += dt) < UD_EVERY) return;
+    if (this.ep >= 3 || !this.rs.coll || Uni.off(this, 'coll') || !fl.length || this.udRes.length >= this.udCap() || (this.udT += dt) < UD_EVERY) return;
     this.udT = 0;
     const nu = this.udRes.filter(f => f === 'u').length, f = fl.length === 1 ? fl[0] : nu * 2 <= this.udRes.length ? 'u' : 'd';
     this.udRes.push(f); Uni.pay(this, f, 0); // в сводке — вспышка строки: Вселенная сделала своё
-    this.float(P.x, P.y + this.hr() + .3, `+${f} в запас · ${this.udRes.length}/${UD_MAX} ◉`, [140, 235, 170], 11);
+    this.float(P.x, P.y + this.hr() + .3, `+${f} в запас · ${this.udRes.length}/${this.udCap()} ◉`, [140, 235, 170], 11);
   },
   // точка в кадре, не у самого детектора
   /** @returns {[number, number]} */
@@ -1318,6 +1348,8 @@ const Particles = {
       const p = this.safePos(t, c), out = rnd(1.2, 2);
       list.push({ x: p.x, y: p.y, vx: Math.cos(p.a) * out, vy: Math.sin(p.a) * out, fl, col: c });
     });
+    // выкованное кузницей — тоже материал «Адронов»: вырывается из детектора вместе со сбережённым
+    this.forgedQ.forEach((fl, i) => { const a = Math.random() * TAU, out = rnd(2.2, 3.4); list.push({ x: P.x + Math.cos(a) * .3, y: P.y + Math.sin(a) * .3, vx: Math.cos(a) * out, vy: Math.sin(a) * out, fl, col: i % 3 }); });
     this.handoff = list;
     this.stockOut = true;
     fxFlash(P.x, P.y, this.hr(), [255, 255, 255], .5); fxRing(P.x, P.y, this.hr() * .5, [140, 235, 170], this.hr() * 3, .9);
@@ -1402,6 +1434,9 @@ const Particles = {
       for (let k = 0; k < 9; k++) { const [x, y] = this.randPos(false); this.pair(pick(['u', 'd']), x, y, rnd(.1, .4)).forEach(o => o.cd = 2.5); }
       for (let k = 0; k < 4; k++) { const [x, y] = this.randPos(false); this.mk(pick(['u', 'd']), false, x, y, Math.random() * TAU, rnd(.1, .4)); }
       // запас: u и d, что Вселенная накопила за прошлые эпохи, сразу в детекторе — цвета поровну, чтобы сложились тройки
+      // сверх UD_MAX — выкованное кузницей: в детектор не ложится (задание эпохи — твоё), уходит прямо в «Адроны»
+      this.forgedQ = this.udRes.slice(UD_MAX); this.udRes = this.udRes.slice(0, UD_MAX);
+      if (this.forgedQ.length) msg(`Кузница: ещё ${this.forgedQ.length} ◉ из распадов тяжёлых поколений — ждут в «Адронах»`, 4);
       if (this.udRes.length) {
         let u = this.udRes.filter(f => f === 'u').length, d = this.udRes.length - u;
         const order = [];
@@ -1660,8 +1695,9 @@ const Particles = {
         const a = this.safe.length;
         return [{ t: `Собери ${TRIO_GOAL} ${TRIO_W} R·G·B`, h: 'лови кварки недостающего цвета; глюон в золотом кольце перекрасит лишний — зажми рядом, щит его втянет', p: [Math.min(t, TRIO_GOAL), TRIO_GOAL], s: `${TRIO_GOAL} ${TRIO_W}`, d: t >= TRIO_GOAL },
           { t: 'Сформируй закон сбережения вещества', h: this.rs.cp ? 'Вселенная сберегает тройки — они зелёные, вокруг детектора'
-            : t < HAND_CP ? `сначала ${HAND_CP} тройки руками — потом исследуй «⚖ Асимметрия»` : `исследуй «⚖ Асимметрия» ${buy('cp')}`,
-            p: [Math.min(a, AUTO_TRIO), AUTO_TRIO], s: 'вещество сбережено', d: a >= AUTO_TRIO, res: 'cp' }];
+            : t < HAND_CP ? `сначала ${HAND_CP} тройки руками — потом исследуй «⚖ Асимметрия»`
+            : !this.cpOk() ? `нарушение CP — только при трёх поколениях кварков: научи Вселенную ${this.ladder('b')}, потом «⚖ Асимметрия»` : `исследуй «⚖ Асимметрия» ${buy('cp')}`,
+            p: [Math.min(a, AUTO_TRIO), AUTO_TRIO], s: 'вещество сбережено', d: a >= AUTO_TRIO, res: this.rs.cp || this.cpOk() ? 'cp' : this.buyNext('b') }];
       }
     }
   },

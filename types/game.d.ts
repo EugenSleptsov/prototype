@@ -234,7 +234,7 @@ interface ParticlesState {
   /** эпоха 4: запас кварков в детекторе */
   stock: number; stockQ: Stored[]; soupCd: number;
   /** u и d, что Вселенная накопила к эпохе 4 (фора) */
-  udRes: string[];
+  udRes: string[]; eRes: number; forgedQ: string[];
   /** таймер запаса u/d; когда t Вселенной последний раз зарядил ⚡ (время уровня) */
   udT: number; tAt: number;
   handoff: Handoff[] | null; stockOut: boolean; finale: number;
