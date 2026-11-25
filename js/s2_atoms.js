@@ -5,9 +5,14 @@
    - ион с зарядом Q = Z − (пойманные электроны) притягивает электроны (кулон);
    - захват только заторможенного электрона (след или «Рекомбинация») — сам по себе горячий пролетит мимо, ждать бесполезно;
    - электроны горячие и быстрые; Вселенная остывает, они медленнеют (вести след легче), но сами не садятся;
-   - жёсткий свет выбивает электрон обратно, пока горячо.
-   Глагол: проведи пальцем (или мышью с зажатой кнопкой) — за ним тормозящий след. Электрон, пересёкший след,
-   отдаёт энергию фотоном и замедляется — ближайший ион его ловит. Играешь по всему полю.
+   - пойманный электрон сначала на возбуждённой орбите (O*): держится слабо — его сбивает даже видимый свет,
+     пока не спрыгнет на основную сам (EX_T) или от следа; спрыгнул — фотон своей спектральной линии,
+     и такой же возбуждённый атом на его пути спрыгивает тоже (вынужденное излучение — каскад);
+   - оболочки: первые два электрона — K, их жёсткий свет не берёт (сотни эВ); гелий весь такой (24,6 эВ и 54 эВ),
+     внешние (L) и водород — уязвимы (11–15 эВ); жёсткий УФ здесь 11–24 эВ;
+   - туман — рассеяние света на свободных электронах: чем больше нейтральных, тем прозрачнее (последнее рассеяние).
+   Глагол один — след (палец или мышь с зажатой кнопкой): поперёк электрона — тормозит (ион его ловит),
+   через дрожащий атом — осаживает электрон, поперёк луча УФ — рассеивает его в безвредный свет.
    Исследование «Рекомбинация»: электроны у ионов тормозят сами (излучают), Вселенная нейтрализуется без тебя.
    Мир без края: ионы — ядра твоей сверхновой там, куда их вынесло; Вселенная приносит ионы, электроны и свет из-за края кадра. */
 // обзор; ионы Вселенной: плотность и предел в кадре; электронов в кадре — не больше
@@ -15,7 +20,19 @@ const A_VIEW = 14.5, A_DENS = .025, A_CAP = 40, A_ECAP = 30, A_COST = 30, A_GOAL
 const AT_EL = { 1: ['H', [235, 235, 240]], 2: ['He', [200, 250, 255]], 3: ['Li', [200, 120, 255]], 6: ['C', [150, 150, 165]], 7: ['N', [110, 145, 255]], 8: ['O', [250, 95, 80]] };
 const atSym = Z => (AT_EL[Z] || [elemOf(Z)[0]])[0];
 const atCol = Z => (AT_EL[Z] || [0, [220, 220, 230]])[1];
+// символ с зарядом: O, O⁺, O³⁺
+const ionSym = (Z, ne) => { const Q = Z - ne; return atSym(Z) + (Q > 0 ? (Q > 1 ? sup(Q) : '') + '⁺' : ''); };
 const AT_NEED = [1, 2, 6, 7, 8]; // какие атомы собрать: H, He, C, N, O
+// EX_T — сколько живёт возбуждённая орбита; УФ летит медленнее видимого — успеть перечеркнуть
+const EX_T = 3.2, UV_V = 13, PH_V = 22, RES_V = 14, UV_T0 = 6;
+// спектральная линия элемента (вспышка, когда электрон спрыгивает на основную орбиту): Hα, He D₃, Li, C, N, зелёная линия O
+const AT_SPEC = { 1: [255, 80, 95], 2: [255, 235, 120], 3: [255, 90, 60], 6: [120, 200, 255], 7: [150, 120, 255], 8: [90, 255, 160] };
+const atSpec = Z => AT_SPEC[Z] || [255, 255, 255];
+// сколько эВ нужно, чтобы выбить внешний электрон из основного состояния (по нейтральному атому — упрощённо):
+// K-оболочка (первые два) у C/N/O — сотни эВ, гелий — 24,6 (He⁺ — 54): жёсткий свет здесь до 24 эВ их не берёт
+const AT_IE = { 1: 13.6, 3: 5.4, 6: 11.3, 7: 14.5, 8: 13.6 };
+const ionE = (Z, ne) => Z === 2 || (Z > 2 && ne <= 2) ? Infinity : AT_IE[Z] ?? 12;
+const UV_C = [215, 190, 255];
 // пересекаются ли отрезки ab и cd
 function segX(ax, ay, bx, by, cx, cy, dx, dy) {
   const d1 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx), d2 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
@@ -32,19 +49,19 @@ function segDist(x, y, ax, ay, bx, by) {
 
 const Atoms = {
   key: 'atoms', name: 'Атомы', bg: [10, 14, 42], sling: true, // sling — палец сам рисует след (без кнопки действия)
-  controls: 'Проведи по пути электронов — след их тормозит',
+  controls: 'След: поперёк электрона — тормозит, через дрожащий атом — осаживает, поперёк УФ — рассеивает',
 
   enter(prev) {
     this.t = 0; this.clock = 0; this.Ta = 1; this.ions = []; this.el = []; this.ph = []; this.tr = []; this.floats = [];
     this.kn = 0; this.uni = []; this.spent = 0; this.rs = { rec: 0 }; this.banner = -1.5; this.tk = {}; this.doneAt = null; this.endCd = -1;
     this.advanced = false; this.cheated = false; this.seenN = new Set(); this.phT = 0; this.was = false; this.stroke = 0;
-    this.st = { brakes: 0, ionized: 0, best: 0 }; this.caps = { hand: 0, auto: 0 };
+    this.st = { brakes: 0, ionized: 0, best: 0, relaxed: 0, cascade: 0, cut: 0, shield: 0 }; this.caps = { hand: 0, auto: 0 }; this.msgs = new Set();
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     this.fromStars = !!(prev && prev.o);
     // ионы — ядра со «Звёзд», каждое там, куда его вынесла сверхновая, и с той же скоростью (структура ядра больше не видна — голый ион)
     if (prev && prev.o) for (const o of prev.o) {
       if (o.dead || o.Z < 1) continue;
-      this.ions.push({ Z: o.Z === 4 ? 2 : o.Z, ne: 0, x: o.x, y: o.y, vx: o.vx, vy: o.vy, age: 1, rot: Math.random() * TAU, mine: true, src: o }); // ⁸Be — уже два гелия
+      this.ions.push(Object.assign(this.ion(o.Z === 4 ? 2 : o.Z, o.x, o.y, 1), { vx: o.vx, vy: o.vy, mine: true, src: o })); // ⁸Be — уже два гелия
     }
     // с нуля — набор по умолчанию в кадре
     if (!prev) for (const Z of [6, 6, 7, 8, 8, 2, 2, 2, ...Array(14).fill(1)]) {
@@ -59,7 +76,10 @@ const Atoms = {
     this.stars = pickStars(this.starPool());
   },
   float(x, y, txt, c = [140, 220, 255], sz = 13) { this.floats.push({ x, y, t: 0, txt, c, sz }); Fly.from(x, y, txt); },
-  ion(Z, x, y, age) { return { Z, ne: 0, x, y, vx: randn() * .3, vy: randn() * .3, age, rot: Math.random() * TAU, mine: false, src: null }; },
+  // ex — сколько электронов на возбуждённой орбите (внешние из ne), exT — сколько ей ещё жить, by — кто их поймал, kDone — K-оболочка закрыта (награда — раз)
+  ion(Z, x, y, age) { return { Z, ne: 0, ex: 0, exT: 0, exAt: -9, by: null, kDone: false, x, y, vx: randn() * .3, vy: randn() * .3, age, rot: Math.random() * TAU, mine: false, src: null }; },
+  /** подсказка словами — один раз за уровень @param {string} k @param {string} txt */
+  once(k, txt) { if (!this.msgs.has(k)) { this.msgs.add(k); msg(txt); } },
   // ион Вселенной: в основном водород и гелий; тяжёлые — только те, что уже выковали звёзды (или каких вокруг ещё нет)
   cosmicZ() {
     const r = Math.random();
@@ -129,6 +149,15 @@ const Atoms = {
       const k = Math.exp(-dt * .6); io.vx *= k; io.vy *= k;
       io.x += io.vx * dt; io.y += io.vy * dt;
       if (io.src && G.prev) { const [px, py] = toPrev(io.x, io.y); io.src.x = px; io.src.y = py; io.src.vx = io.src.vy = 0; } // ядро гаснет там, где проявляется ион
+      if (act && io.ex > 0 && (io.exT -= dt) <= 0) this.relax(io, 'self'); // спрыгнул на основную сам
+    }
+    // след через дрожащий атом — электрон спрыгивает на основную орбиту (след, проведённый ещё до захвата, не считается)
+    if (live && this.tr.length > 1) for (const io of this.ions) {
+      if (!(io.ex > 0)) continue;
+      for (let i = 1; i < this.tr.length; i++) {
+        const p = this.tr[i - 1], q = this.tr[i];
+        if (q.t > io.exAt + .25 && segDist(io.x, io.y, p.x, p.y, q.x, q.y) < .9) { this.relax(io, 'hand'); break; }
+      }
     }
     for (const e of this.el) {
       if (e.dead) continue;
@@ -143,7 +172,7 @@ const Atoms = {
         // захват: заторможенный, близко и медленно
         if (act && e.slow > 0 && d < .95 + .08 * Q && Math.hypot(e.vx - io.vx, e.vy - io.vy) < 2.4 + .3 * Q) { this.capture(io, e); break; }
         // «Рекомбинация»: у иона электрон излучает и тормозит сам
-        if (act && this.rs.rec && d < 4 && e.brk <= 0 && this.doneAt === null && Math.random() < dt * 1.2) this.brake(e, e.by === 'hand' ? 'hand' : 'auto');
+        if (act && this.rs.rec && d < 4 && e.brk <= 0 && this.doneAt === null && Math.random() < dt * .5) this.brake(e, e.by === 'hand' ? 'hand' : 'auto');
       }
       if (e.dead) continue;
       e.vx += ax * dt; e.vy += ay * dt;
@@ -167,16 +196,38 @@ const Atoms = {
       this.phT += dt * 2.5 * this.Ta;
       while (this.phT > 1) {
         this.phT--;
-        const R = viewRadius(), a = Math.random() * TAU, h = a + Math.PI + randn() * .35;
-        this.ph.push({ x: P.x + Math.cos(a) * R * 1.05, y: P.y + Math.sin(a) * R * 1.05, vx: Math.cos(h) * 22, vy: Math.sin(h) * 22, t: 0, hard: Math.random() < .45 * this.Ta - .12 });
+        const hard = this.t > UV_T0 && Math.random() < .45 * this.Ta - .12, v = hard ? UV_V : PH_V; // первые секунды — без УФ: дать оглядеться
+        const R = viewRadius() * (hard ? 1.15 : 1.05), a = Math.random() * TAU, h = a + Math.PI + randn() * .35;
+        this.ph.push({ x: P.x + Math.cos(a) * R, y: P.y + Math.sin(a) * R, vx: Math.cos(h) * v, vy: Math.sin(h) * v, t: 0, hard, E: hard ? rnd(11, 24) : rnd(1.5, 3.5), life: hard ? 3.4 : 2.4 });
       }
     }
+    const nf = this.neutral();
     for (const p of this.ph) {
+      const ox = p.x, oy = p.y;
       p.x += p.vx * dt; p.y += p.vy * dt; p.t += dt;
-      if (!act || p.dead || !p.hard) continue;
-      for (const io of this.ions) if (io.ne > 0 && (io.x - p.x) ** 2 + (io.y - p.y) ** 2 < .8) { this.ionize(io, p); p.dead = true; break; }
+      if (!act || p.dead) continue;
+      // мутная плазма: видимый свет блуждает на свободных электронах — пока Вселенная не нейтральна
+      if (!p.hard && !p.res && Math.random() < dt * 3 * (1 - nf)) { const w = randn() * .8, c = Math.cos(w), s = Math.sin(w); [p.vx, p.vy] = [p.vx * c - p.vy * s, p.vx * s + p.vy * c]; }
+      // перечеркнул УФ следом — рассеян в безвредный видимый свет
+      if (live && p.hard && this.tr.length > 1) for (let i = 1; i < this.tr.length; i++) {
+        const a = this.tr[i - 1], b = this.tr[i];
+        if (segX(ox, oy, p.x, p.y, a.x, a.y, b.x, b.y) || segDist(p.x, p.y, a.x, a.y, b.x, b.y) < TR_W * 1.3) { this.cutUV(p); break; }
+      }
+      for (const io of this.ions) {
+        if (io.ne <= 0 || io === p.from || io === p.pass) continue;
+        const d2 = (io.x - p.x) ** 2 + (io.y - p.y) ** 2;
+        if (d2 > (p.res === io.Z && io.ex > 0 ? 1.6 : .8)) continue;
+        if (io.ex > 0) {
+          if (p.res === io.Z) { this.relax(io, p.hand ? 'casc' : 'self'); p.dead = true; break; } // вынужденное излучение: та же линия осаживает такой же атом (цепочку начал твой след — каскад твой)
+          if (p.hard || Math.random() < .5) { this.ionize(io, p); p.dead = true; break; } // возбуждённый держится слабо — сбивает и видимый свет
+          p.pass = io; continue; // пронесло (одна проверка на атом)
+        }
+        if (!p.hard) continue;
+        if (p.E >= ionE(io.Z, io.ne)) this.ionize(io, p); else this.shield(io);
+        p.dead = true; break;
+      }
     }
-    this.ph = this.ph.filter(p => !p.dead && p.t < 2.4);
+    this.ph = this.ph.filter(p => !p.dead && p.t < (p.life || 2.4));
     this.el = this.el.filter(e => !e.dead);
     if (act) this.tide(dt);
     this.Zsum = this.ions.reduce((s, i) => s + i.Z, 0);
@@ -189,31 +240,64 @@ const Atoms = {
     if (this.doneAt === null && this.steps().every(s => s.d)) {
       this.doneAt = this.clock; this.endCd = 2; this.tr = [];
       this.tickStars(true);
-      msg('Вселенная стала нейтральной и прозрачной');
+      fxRing(P.x, P.y, 1, GOLD, viewRadius() * 1.3, 1.8); fxFlash(P.x, P.y, viewRadius(), [255, 240, 210], .35);
+      msg('Последнее рассеяние: свет летит свободно — Вселенная прозрачна');
     }
     if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; advance(); } // молекулам — эти же атомы, на своих местах
   },
+  // пойман — но сперва на возбуждённой орбите: награда за атом — когда спрыгнет на основную
   capture(io, e) {
-    e.dead = true; io.ne++;
-    if (e.by === 'hand') this.caps.hand++; else this.caps.auto++;
-    const c = atCol(io.Z);
-    fxRing(io.x, io.y, .3, c, 1.6, .5);
+    e.dead = true; io.ne++; io.ex = (io.ex || 0) + 1; io.exT = EX_T; io.exAt = G.T;
+    if (e.by === 'hand') { this.caps.hand++; io.by = 'hand'; } else { this.caps.auto++; if (io.by !== 'hand') io.by = 'auto'; }
+    fxRing(io.x, io.y, .3, atCol(io.Z), 1.6, .5);
     Sfx.play('catch', Math.min(3, io.ne - 1));
-    if (io.ne >= io.Z) { // нейтральный атом
-      const s = atSym(io.Z);
-      let pts = e.by === 'hand' ? 4 : 2, txt = s; Codex.note('a:' + io.Z); // своими руками — дороже
-      if (!this.seenN.has(io.Z)) { this.seenN.add(io.Z); pts += 10; txt = `НОВЫЙ АТОМ ${s} · ${elemOf(io.Z)[1].toLowerCase()}`; Sfx.play('fresh'); }
-      if (e.by === 'auto') Uni.pay(this, 'rec', pts); else this.kn += pts; // атом собрала Вселенная — в сводку
-      fxFlash(io.x, io.y, 1.4, c, .6);
-      this.float(io.x, io.y - .8, `${txt} +${pts} ✦`, pts > 2 ? [255, 215, 110] : [140, 220, 255], pts > 2 ? 16 : 13);
+    this.once('ex', 'Пойман, но дрожит на внешней орбите — проведи следом через атом, пока свет его не сбил');
+  },
+  // электроны спрыгнули на основную орбиту: вспышка своей линии и фотон этой линии (how: 'hand' — след, 'casc' — фотон соседа, 'self' — сам)
+  relax(io, how) {
+    if (!(io.ex > 0)) return;
+    io.ex = 0; io.exT = 0;
+    const c = atSpec(io.Z), s = atSym(io.Z), me = how !== 'self' || io.by === 'hand'; io.by = null;
+    fxFlash(io.x, io.y, how === 'self' ? .9 : 1.6, c, how === 'self' ? .35 : .65); fxRing(io.x, io.y, .3, c, how === 'self' ? 1.3 : 2.4, .55);
+    const a = Math.random() * TAU; this.ph.push({ x: io.x, y: io.y, vx: Math.cos(a) * RES_V, vy: Math.sin(a) * RES_V, t: 0, hard: false, E: 2, res: io.Z, from: io, hand: how !== 'self', life: 1.6 });
+    let pts = 0, txt = '', big = false;
+    const is = ionSym(io.Z, io.ne);
+    if (how === 'hand') { this.st.relaxed++; pts += 1; txt = `${is}* → ${is}`; Sfx.play('catch', 3); }
+    else if (how === 'casc') { this.st.cascade++; pts += 2; txt = `каскад ${is}`; Sfx.play('catch', 3); this.once('casc', 'Фотон той же линии осадил такой же атом — каскад'); }
+    if (io.Z > 2 && io.ne >= 2 && !io.kDone) { io.kDone = true; if (me) { pts += 2; txt = (txt || is) + ' · K-оболочка'; } }
+    if (io.ne >= io.Z) { // нейтральный атом — своими руками дороже
+      Codex.note('a:' + io.Z); pts += me ? 4 : 2; if (!txt || how === 'self') txt = s;
+      if (!this.seenN.has(io.Z)) { this.seenN.add(io.Z); pts += 10; txt = `НОВЫЙ АТОМ ${s} · ${elemOf(io.Z)[1].toLowerCase()}`; big = true; Sfx.play('fresh'); }
+      fxFlash(io.x, io.y, 1.4, atCol(io.Z), .6);
     }
+    if (!pts) return;
+    if (me) this.kn += pts; else Uni.pay(this, 'rec', pts); // осадила и собрала Вселенная — в сводку
+    this.float(io.x, io.y - .8, `${txt} +${pts} ✦`, big ? [255, 215, 110] : c, big ? 16 : 13);
   },
   ionize(io, p) {
-    io.ne--; this.st.ionized++;
+    const exc = io.ex > 0;
+    io.ne--; this.st.ionized++; if (exc) io.ex--; if (!io.ex) io.by = null;
     const a = Math.atan2(p.vy, p.vx) + randn() * .5, v = 12;
     this.el.push({ x: io.x, y: io.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, k: 1, slow: 0, brk: .5, by: null, age: 1 });
     fxFlash(io.x, io.y, .9, [255, 255, 255], .3);
-    if (!this.ionMsg) { this.ionMsg = true; msg('Жёсткий свет выбил электрон — пока горячо, так будет'); }
+    if (exc && !p.hard) this.once('soft', 'Свет сбил электрон с возбуждённой орбиты — осаживай следом сразу');
+    else this.once('ion', 'Жёсткий свет выбил электрон — перечеркни луч следом, пока он летит');
+  },
+  // жёсткий свет ударил в закрытую оболочку — не взял
+  shield(io) {
+    if (G.T - (io.shT || -9) < .4) return;
+    io.shT = G.T; this.st.shield++;
+    fxRing(io.x, io.y, .5, [160, 240, 255], 1.2, .35);
+    this.once('shield', io.Z === 2 ? 'Гелий держит жёсткий свет: его оболочка закрыта' : 'Закрытую K-оболочку жёсткий свет не берёт');
+  },
+  // след поперёк луча УФ: рассеян, теперь это безвредный видимый свет
+  cutUV(p) {
+    const a = Math.atan2(p.vy, p.vx) + (Math.random() < .5 ? -1 : 1) * rnd(.6, 1.4);
+    p.hard = false; p.E = rnd(1.5, 3); p.vx = Math.cos(a) * PH_V; p.vy = Math.sin(a) * PH_V; p.cut = true; p.life = p.t + 1;
+    this.st.cut++; this.kn += 1; Sfx.play('pop');
+    fxFlash(p.x, p.y, .7, UV_C, .35); fxRing(p.x, p.y, .2, UV_C, .9, .3);
+    this.float(p.x, p.y - .4, 'УФ рассеян +1 ✦', UV_C, 12);
+    this.once('cut', 'Перечеркнул жёсткий свет — рассеялся, стал безвредным');
   },
 
   // ---------- исследование ----------
@@ -234,15 +318,18 @@ const Atoms = {
     const n = this.neutral(), touch = isTouch();
     return [
       { t: 'Затормози электрон', h: touch ? 'проведи пальцем поперёк его пути' : 'зажми мышь и проведи поперёк его пути', s: 'электрон замедлился', d: this.st.brakes > 0 },
-      { t: 'Одень ядра электронами', h: 'медленный электрон ион ловит сам; углероду нужно шесть', items: AT_NEED.map(Z => [atSym(Z), this.seenN.has(Z)]), s: 'H, He, C, N, O', d: AT_NEED.every(Z => this.seenN.has(Z)) },
+      { t: 'Осади пойманный электрон', h: 'он дрожит на внешней орбите — проведи следом через атом', s: 'спектральная линия', d: this.st.relaxed > 0 },
+      { t: 'Одень ядра электронами', h: 'гелий и закрытую K-оболочку жёсткий свет не берёт', items: AT_NEED.map(Z => [atSym(Z), this.seenN.has(Z)]), s: 'H, He, C, N, O', d: AT_NEED.every(Z => this.seenN.has(Z)) },
       { t: 'Сформируй закон «Рекомбинация»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${A_COST} ✦`, s: 'рекомбинация', d: this.rs.rec > 0, res: 'rec' },
-      { t: 'Нейтральная Вселенная', h: 'электроны садятся на ионы — помогай следом', p: [Math.min(90, Math.round(n * 100)), 90], s: 'Вселенная прозрачна', d: n >= A_GOAL },
+      { t: 'Сделай Вселенную прозрачной', h: 'свет рассеивают свободные электроны — нейтрализуй 90 %', p: [Math.min(90, Math.round(n * 100)), 90], s: 'последнее рассеяние', d: n >= A_GOAL },
     ];
   },
   starPool() {
     return [
       { t: 'свет не выбил ни одного электрона', bad: () => this.st.ionized > 0, atEnd: true },
       { t: 'один росчерк — 3 электрона', ok: () => this.st.best >= 3 },
+      { t: 'перечеркни 5 лучей УФ', ok: () => this.st.cut >= 5 },
+      { t: 'каскад: атом осадил атом', ok: () => this.st.cascade >= 1 },
       { t: 'быстрее 2:00', bad: () => this.clock > 120, atEnd: true },
       { t: 'кислород раньше углерода', ok: () => this.seenN.has(8) && !this.seenN.has(6), bad: () => this.seenN.has(6) && !this.seenN.has(8) },
     ];
@@ -250,16 +337,20 @@ const Atoms = {
   tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 1, '★ +10 ✦', [255, 215, 110], 17); }); },
   tally() {
     const n = this.caps.hand + this.caps.auto, at = this.ions.filter(i => i.ne >= i.Z).length;
-    return { name: 'Атомы', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['нейтральных атомов', `${at} из ${this.ions.length}`], ['электроны — следом', this.caps.hand], ['электроны — Вселенная', this.caps.auto]], auto: [this.caps.auto, n], stars: this.stars };
+    return { name: 'Атомы', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['нейтральных атомов', `${at} из ${this.ions.length}`], ['электроны — следом', this.caps.hand], ['электроны — Вселенная', this.caps.auto], ['осажено следом · каскадом', `${this.st.relaxed} · ${this.st.cascade}`], ['УФ перечёркнуто', this.st.cut]], auto: [this.caps.auto, n], stars: this.stars };
   },
-  cheat() { this.cheated = true; for (const io of this.ions) { io.ne = io.Z; this.seenN.add(io.Z); } this.st.brakes++; this.rs.rec = 1; },
+  cheat() { this.cheated = true; for (const io of this.ions) { io.ne = io.Z; io.ex = 0; this.seenN.add(io.Z); } this.st.brakes++; this.rs.rec = 1; },
 
   // ---------- рисование ----------
   draw(al) {
     const z = cam.z;
     for (const p of this.ph) {
-      const [sx, sy] = W2S(p.x, p.y);
-      line(sx, sy, sx - p.vx * .05 * z, sy - p.vy * .05 * z, p.hard ? [235, 220, 255] : [255, 200, 140], (p.hard ? .6 : .25) * al, Math.max(1.2, .08 * z));
+      const [sx, sy] = W2S(p.x, p.y); if (!onScreen(sx, sy, 40)) continue;
+      if (p.hard) { // УФ: яркий, с длинным хвостом — видно издалека, успей перечеркнуть
+        line(sx, sy, sx - p.vx * .09 * z, sy - p.vy * .09 * z, UV_C, .85 * al, Math.max(2, .14 * z));
+        glow(sx, sy, Math.max(6, .5 * z), UV_C, (.45 + .25 * Math.sin(G.T * 18)) * al);
+      } else if (p.res) { const c = atSpec(p.res); line(sx, sy, sx - p.vx * .06 * z, sy - p.vy * .06 * z, c, .7 * al, Math.max(1.5, .1 * z)); glow(sx, sy, Math.max(4, .3 * z), c, .5 * al); }
+      else line(sx, sy, sx - p.vx * .05 * z, sy - p.vy * .05 * z, p.cut ? UV_C : [255, 200, 140], (p.cut ? .4 : .25) * al, Math.max(1.2, .08 * z));
     }
     // след
     for (let i = 1; i < this.tr.length; i++) {
@@ -273,12 +364,21 @@ const Atoms = {
       if (Q <= 0) glow(sx, sy, r * 3.2, c, .22 * a);
       else ring(sx, sy, (.95 + .08 * Q) * z, [255, 255, 255], .12 * a, 1, [3, 4]); // зона захвата
       ball(sx, sy, r, c, a);
-      for (let i = 0; i < io.ne; i++) {
-        const inner = i < 2, n = inner ? Math.min(io.ne, 2) : io.ne - 2, k = inner ? i : i - 2;
+      const ex = io.ex || 0, gn = io.ne - ex; // на основных орбитах / на возбуждённой
+      // закрытая оболочка — щит: гелий целиком, у C/N/O — K (первые два)
+      if (io.Z >= 2 && gn >= 2) ring(sx, sy, .55 * z + r, [160, 240, 255], (io.Z === 2 ? .55 : .3) * a, io.Z === 2 ? 2 : 1.2);
+      for (let i = 0; i < gn; i++) {
+        const inner = i < 2, n = inner ? Math.min(gn, 2) : gn - 2, k = inner ? i : i - 2;
         const R = (inner ? .55 : .95) * z + r, an = io.rot * (inner ? 1.4 : .9) + k / n * TAU;
         ball(sx + Math.cos(an) * R, sy + Math.sin(an) * R, Math.max(1.4, .09 * z), [200, 235, 255], a);
       }
-      label(atSym(io.Z) + (Q > 0 ? (Q > 1 ? sup(Q) : '') + '⁺' : ''), sx, sy - r - (io.ne > 2 ? 1.2 : .8) * z, 12, Q > 0 ? [210, 215, 235] : [255, 255, 255], .85 * a, 700);
+      if (ex > 0) { // возбуждённая орбита: широкая, дрожит, цвет линии элемента; дуга — сколько ей ещё жить
+        const sc = atSpec(io.Z), Rx = (1.45 + .08 * Math.sin(G.T * 14)) * z + r;
+        ring(sx, sy, Rx, sc, .35 * a, 1, [4, 4]);
+        arc(sx, sy, Rx + 4, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(io.exT / EX_T, 0, 1), sc, .7 * a, 2);
+        for (let k = 0; k < ex; k++) { const an = -io.rot * 1.7 + k / ex * TAU, ex2 = sx + Math.cos(an) * Rx, ey2 = sy + Math.sin(an) * Rx; glow(ex2, ey2, Math.max(4, .3 * z), sc, .7 * a); ball(ex2, ey2, Math.max(1.6, .1 * z), [255, 255, 255], a); }
+      }
+      label(ionSym(io.Z, io.ne) + (ex ? '*' : ''), sx, sy - r - (ex ? 1.8 : io.ne > 2 ? 1.2 : .8) * z, 12, ex ? atSpec(io.Z) : Q > 0 ? [210, 215, 235] : [255, 255, 255], .85 * a, 700);
     }
     for (const e of this.el) {
       const [sx, sy] = W2S(e.x, e.y); if (!onScreen(sx, sy, 20)) continue;
@@ -293,13 +393,22 @@ const Atoms = {
       // подсказка: ближайший к центру быстрый электрон
       const e = this.el.filter(e => e.slow <= 0 && e.age > .5).sort((u, v) => Math.hypot(u.x - P.x, u.y - P.y) - Math.hypot(v.x - P.x, v.y - P.y))[0];
       if (e) { const [sx, sy] = W2S(e.x, e.y); ring(sx, sy, 14 + 3 * Math.sin(G.T * 5), GOLD, .8 * al, 2); label('проведи поперёк его пути', sx, sy + 30, 13, [255, 255, 255], .85 * al, 700); ghostSwipe(sx, sy, e.vx, e.vy, al); }
+    } else if (G.started && !G.paused && !G.prev && this.doneAt === null && !this.tr.length) {
+      // следующий урок — показом: дрожащий атом (осади), потом луч УФ (перечеркни)
+      // только то, что видно: не под панелью задания сверху и не у края
+      const near = o => Math.hypot(o.x - P.x, o.y - P.y), clear = o => { const [x, y] = W2S(o.x, o.y); return x > 70 && x < G.W - 70 && y > Math.min(230, G.H * .35) && y < G.H - 90; };
+      const io = this.st.relaxed === 0 ? this.ions.filter(i => i.ex > 0 && G.T - i.exAt > .3 && clear(i)).sort((u, v) => near(u) - near(v))[0] : null;
+      const p = !io && this.st.cut === 0 ? this.ph.find(p => p.hard && p.t > .4 && clear(p)) : null;
+      if (io) { const [sx, sy] = W2S(io.x, io.y); ring(sx, sy, 1.9 * cam.z + 8 + 3 * Math.sin(G.T * 5), atSpec(io.Z), .8 * al, 2); label('проведи через атом', sx, sy + 1.9 * cam.z + 26, 13, [255, 255, 255], .85 * al, 700); ghostSwipe(sx, sy, 0, 1, al); }
+      else if (p) { const [sx, sy] = W2S(p.x, p.y); ring(sx, sy, 16 + 3 * Math.sin(G.T * 5), UV_C, .8 * al, 2); label('перечеркни луч', sx, sy + 32, 13, [255, 255, 255], .85 * al, 700); ghostSwipe(sx, sy, p.vx, p.vy, al); }
     }
     for (const fl of this.floats) { const [fx, fy] = W2S(fl.x, fl.y); labelIn(fl.txt, fx, fy - 16 - fl.t * 26, fl.sz, fl.c, clamp(1.6 - fl.t, 0, 1), 700); }
     ctx.globalAlpha = 1;
   },
+  // туман: свет рассеивается на свободных электронах — редеет, как только они садятся на ядра (последнее рассеяние)
+  fog() { return .5 * (1 - smooth(.15, A_GOAL, this.neutral())) * smooth(0, 2, this.t); },
   overlay(al) {
-    // туман: пока горячо, свет рассеивается на свободных электронах
-    const fog = .4 * smooth(.35, .9, this.Ta) * al;
+    const fog = this.fog() * al;
     if (fog > .01) { ctx.fillStyle = `rgba(255,170,110,${fog * .4})`; ctx.fillRect(0, 0, G.W, G.H); }
     if (!G.started) return;
     const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
