@@ -36,19 +36,6 @@ const atSpec = Z => AT_SPEC[Z] || [255, 255, 255];
 const AT_IE = { 1: 13.6, 3: 5.4, 6: 11.3, 7: 14.5, 8: 13.6 };
 const ionE = (Z, ne) => Z === 2 || (Z > 2 && ne <= 2) ? Infinity : AT_IE[Z] ?? 12;
 const UV_C = [215, 190, 255];
-// пересекаются ли отрезки ab и cd
-function segX(ax, ay, bx, by, cx, cy, dx, dy) {
-  const d1 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx), d2 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
-  const d3 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax), d4 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
-  return d1 * d2 < 0 && d3 * d4 < 0;
-}
-
-// расстояние от точки до отрезка
-/** @param {number} x @param {number} y @param {number} ax @param {number} ay @param {number} bx @param {number} by */
-function segDist(x, y, ax, ay, bx, by) {
-  const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy, t = L ? clamp(((x - ax) * dx + (y - ay) * dy) / L, 0, 1) : 0;
-  return Math.hypot(x - ax - dx * t, y - ay - dy * t);
-}
 
 const Atoms = {
   key: 'atoms', name: 'Атомы', bg: [10, 14, 42], sling: true, // sling — палец сам рисует след (без кнопки действия)

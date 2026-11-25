@@ -130,9 +130,9 @@ document.getElementById('tbar').addEventListener('pointerdown', e => {
 function touchBar() {
   if (!isTouch()) return;
   const s = G.stage, on = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
-  const hold = s.key === 'particles' || s.key === 'quarks';
+  const hold = s.key === 'particles';
   on('act', G.started && hold && !G.paused);
-  actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держи' : s.ep === 3 ? 'держи — щит' : 'тап — снимок · держи — поле') : 'держи — поле';
+  actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держи' : s.ep === 3 ? 'держи — щит' : 'тап — снимок · держи — поле') : '';
   on('t-ff', G.started && s.enterKey); on('t-dash', G.started && s.dash);
   on('t-cx', G.started && (!s.showCodex || s.showCodex() !== null)); on('t-rl', false); on('t-rr', false); on('t-x', false); // взятое само поворачивается по ходу броска
   document.getElementById('t-mute').textContent = Sfx.muted ? '🔇' : '🔊';
