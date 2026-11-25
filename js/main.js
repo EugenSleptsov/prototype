@@ -34,7 +34,7 @@ function advance() {
   G.prev = G.stage; G.stageI++; G.stage = STAGES[G.stageI]; G.trans = 0; G.prevU = { s: 1, ox: 0, oy: 0 }; Sfx.hum(0); Sfx.play('segment');
   G.stage.enter(G.prev); G.stage.scoreAt = G.score;
   // остаток ÷ 10 — в копилку нового уровня (траты «в минус»: ✦ уровня, а значит и очки, не растут)
-  if (carry > 0) { G.stage.spent = (G.stage.spent || 0) - carry; G.stage.carryIn = carry; }
+  if (carry > 0) G.stage.carryIn = carry; // в копилку — когда переход кончится (вместе с искрами: счётчик не прыгает вверх-вниз)
 }
 function endGame(text) {
   if (G.ended) return;
@@ -195,7 +195,10 @@ function update(dt) {
   G.stage.update(dt, true);
   if (G.started) Uni.tick(G.stage, dt); // чему научил — приносит ✦ само
   // принесённые с прошлого уровня ✦ — искрами к счётчику, как только он на виду
-  if (G.stage.carryIn && !G.prev && G.T - Fly.seen < .2 && G.stage.float) { G.stage.float(P.x, P.y - 70 / cam.z, `с прошлого уровня +${G.stage.carryIn} ✦`, GOLD, 16); G.stage.carryIn = 0; }
+  if (G.stage.carryIn && !G.prev) {
+    const c = G.stage.carryIn; G.stage.carryIn = 0; G.stage.spent = (G.stage.spent || 0) - c; // траты «в минус»: ✦ уровня (и очки) не растут
+    if (G.stage.float) G.stage.float(P.x, P.y - 70 / cam.z, `с прошлого уровня +${c} ✦`, GOLD, 16);
+  }
   if (G.prev) {
     G.trans += dt / TRANS_DUR;
     G.prev.update(dt, false);

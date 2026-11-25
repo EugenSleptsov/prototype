@@ -60,6 +60,28 @@ test('молекулы: двойной клик быстрее кадра (об�
   assert.equal(g.ev('G.stage.sl.eat'), false);
 });
 
+test('молекулы: «связал — разорвал — связал» не фармит очки', () => {
+  const g = toStage('molecules');
+  g.ev('for (const m of G.stage.m) m.dead = true; G.stage.m = []');
+  const s0 = g.ev('G.score');
+  g.ev(pairH);
+  assert.equal(g.ev('G.score') - s0, 40, 'первая связь — +40');
+  for (let i = 0; i < 3; i++) {
+    g.ev(`(() => { const mol = G.stage.m.find(m => !m.dead && m.bonds.length); G.stage.splitBond(mol, 0); G.stage.st.tear++;
+      for (const m of G.stage.m) m.dead = true; G.stage.m = []; })()`);
+    g.ev(pairH);
+  }
+  assert.equal(g.ev('G.score') - s0, 40, 'повторы после разрыва — без очков');
+});
+
+test('звёзды: два ⁴He в ядре звезды сами сливаются в ⁸Be (скорость — в окне нового барьера)', () => {
+  const g = toStage('stars');
+  g.ev(`const S = G.stage, a = S.mk(2, 2, P.x, P.y), b = S.mk(2, 2, P.x + .5, P.y); a.age = b.age = 2;
+    globalThis.__ok = S.collide(a, b, lerp(S.vBar(a, b), S.vMax(a, b), .3), null)`);
+  assert.equal(g.ev('__ok'), true);
+  assert.ok(g.ev(`G.stage.o.some(o => !o.dead && o.Z === 4 && o.N === 4)`), '⁸Be родился');
+});
+
 test('молекулы: Вселенная не трогает то, что ты недавно брал', () => {
   const g = toStage('molecules');
   g.ev(`G.stage.res.add('H₂'); for (const m of G.stage.m) m.dead = true; G.stage.m = [];
@@ -79,14 +101,15 @@ test('✦ с собой: остаток уровня ÷ 10 — в копилку
   const sc = g.ev('G.score');
   g.ev('advance()');
   assert.equal(g.ev('G.stage.key'), 'nuclei');
-  assert.equal(g.ev('G.stage.bal()'), 5);
-  assert.equal(g.ev('G.stage.kn'), 0, '✦ уровня (и очки) — только заработанные здесь');
   assert.match(g.ev(`document.getElementById('tally').innerHTML`), /с собой.*\+5/);
-  g.ev('G.trans = 99'); g.step(2);
+  assert.equal(g.ev('G.stage.bal()'), 0, 'пока идёт переход — ещё не в копилке (счётчик не прыгает)');
   const sc2 = g.ev('G.score');
   g.ev('G.prev = null; Fly.seen = G.T; update(1 / 60)');
+  assert.equal(g.ev('G.stage.bal()'), 5);
+  assert.equal(g.ev('G.stage.kn'), 0, '✦ уровня (и очки) — только заработанные здесь');
   assert.ok(g.ev('G.stage.floats.some(f => /с прошлого уровня \\+5 ✦/.test(f.txt))'), 'показано при входе');
   assert.equal(g.ev('G.stage.carryIn'), 0, 'один раз');
+  g.step(5); assert.equal(g.ev('G.stage.bal()'), 5);
   assert.ok(g.ev('G.score') - sc2 < 1, 'перенос не даёт очков');
   assert.ok(sc2 >= sc);
 });

@@ -46,7 +46,7 @@ const Mols = {
   enter(prev) {
     this.m = []; this.t = 0; this.clock = 0; this.hints = []; this.lowEMsgT = 0; this.floats = []; this.tk = {}; this.banner = -1.5;
     this.kn = 0; this.uni = []; this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
-    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, tear: 0 }; this.tore = false;
+    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, tear: 0 }; this.tore = false; this.paidB = 0;
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     // атомы с прошлого уровня — на своих местах: мир растягивается в M_U раз, камера — во столько же отъезжает
     if (prev && prev.ions) {
@@ -190,7 +190,12 @@ const Mols = {
   // связь возникла: насыщенная молекула из каталога — открытие
   afterMerge(host, src, x, y) {
     host.hand = 0; host.auto = 0;
-    if (src === 'hand') { host.mine = true; this.st.bonds++; addScore(40); if (this.st.bonds === 1) msg('Ковалентная связь: общая пара электронов'); }
+    if (src === 'hand') {
+      host.mine = true; this.st.bonds++;
+      // очки — только за чистый прирост связей: «связал — разорвал двойным кликом — связал» не фармит
+      if (this.st.bonds - this.st.tear > this.paidB) { this.paidB = this.st.bonds - this.st.tear; addScore(40); }
+      if (this.st.bonds === 1) msg('Ковалентная связь: общая пара электронов');
+    }
     if (this.freeSlots(host)) return;
     const cp = COMP_BY[ckey(this.counts(host))];
     if (!cp) return;

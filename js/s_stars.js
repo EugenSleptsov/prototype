@@ -208,7 +208,8 @@ const Stars = {
       if (al.length >= 4 && this.cnt('4,4') < 2) {
         let best = null, bd = 3.2;
         for (let i = 0; i < al.length; i++) for (let j = i + 1; j < al.length; j++) { const d = Math.hypot(al[i].x - al[j].x, al[i].y - al[j].y); if (d < bd) { bd = d; best = [al[i], al[j]]; } }
-        if (best) { this.collide(best[0], best[1], 5.5, null); if (!this.learn.be) { this.learn.be = true; msg('⁸Be живёт миг — брось в него ещё ⁴He'); } }
+        // скорость — внутри окна слияния (барьер растёт вместе с N_SPD); сообщение — только если ⁸Be правда родился
+        if (best && this.collide(best[0], best[1], lerp(this.vBar(best[0], best[1]), this.vMax(best[0], best[1]), .3), null) && !this.learn.be) { this.learn.be = true; msg('⁸Be живёт миг — брось в него ещё ⁴He'); }
       }
     }
     this.autoFuse(dt);
