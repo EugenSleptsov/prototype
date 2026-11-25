@@ -63,3 +63,25 @@ test('кадр-пауза: начало нового уровня — один �
   g.step(30, true);
   assert.equal(g.ev('Cine.on'), false, 'заголовок уровня не повторяется');
 });
+
+test('кадр-пауза: закон глюонов — пауза с тем, что теперь сталкивать: g + γ и g + g', () => {
+  const g = lit({ protoCodex: JSON.stringify(['ph', 'g']) });
+  g.ev(`Codex.see('ph'); G.stage.kn += 500; G.stage.buy(G.stage.shopItems().findIndex(it => it.r && it.r.k === 'ph')); Cine.clear(); Cine.tick(99)`);
+  g.ev(`Codex.see('g'); Cine.clear(); Cine.tick(99); document.getElementById('card').style.opacity = 0`);
+  g.ev(`G.stage.buy(G.stage.shopItems().findIndex(it => it.r && it.r.k === 'g'))`);
+  assert.equal(g.ev('Cine.on'), true, 'закон глюонов — важное знание');
+  const h = html(g);
+  assert.match(h, /Закон сформирован/);
+  assert.match(h, /Сталкивай их с фотонами и друг с другом/);
+  assert.equal((h.match(/class="rx"/g) || []).length, 3, 'значок закона и две схемы');
+  assert.match(h, />γ<\/span><i>\+<\/i><span class="cs boson">g</, 'g + γ');
+  assert.match(h, />g<\/span><i>\+<\/i><span class="cs boson">g</, 'g + g');
+  assert.match(h, /<svg/, 'жест: зажми у двух — отпусти');
+});
+
+test('карточка открытия глюона: дальше — закон глюонов', () => {
+  const g = lit({ protoCodex: JSON.stringify(['ph']) });
+  g.ev(`Codex.see('ph'); Cine.clear(); Cine.tick(99); Codex.see('g')`);
+  assert.match(html(g), /Дальше — сформируй закон глюонов/);
+  assert.equal(g.ev(`G.stage.seeNext('e')`), '', 'у других — без этой строки');
+});

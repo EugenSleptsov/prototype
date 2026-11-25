@@ -1023,7 +1023,19 @@ const Particles = {
     const pay = `<div class="cg">и это приносит +${fmtPm(pm)} ✦ в минуту — справа, в «Законах Вселенной»</div>`;
     // первый закон — важное знание (так устроена вся игра): кадр-пауза; дальше — сцена над лавкой
     if (first) Cine.show(html + `<div class="cg">Он платит: +${fmtPm(pm)} ✦ в минуту, пока ты занят своим. Справа — все законы, которые ты ей дал</div>`, 6, .8);
+    else if (k === 'g' && l === 1 && this.ep === 0) Cine.show(html + this.gluPairs() + pay, 8, .8);
     else showScene(html + pay, 3.4);
+  },
+  // открыт впервые в забеге — что дальше (строка на карточке открытия)
+  /** @param {string} k */
+  seeNext(k) { return k === 'g' && this.ep === 0 && !this.rs.g && !this.tut ? 'Дальше — сформируй закон глюонов: они появятся в мире без тебя' : ''; },
+  // что теперь можно сталкивать с глюонами: жест и две схемы — g + γ и g + g (первое поколение)
+  gluPairs() {
+    const how = isTouch() ? '<span>коснись и держи у двух — дольше держишь, сильнее удар; отпусти</span>'
+      : `<span class="gest">${GEST.hold()}<span>зажми у двух</span></span><span class="gest">${GEST.release()}<span>отпусти — столкнуть</span></span>`;
+    const u = this.rxOf('u'), d = this.rxOf('d');
+    return `<div class="cp">Сталкивай их с фотонами и друг с другом:</div><div class="hw">${how}</div>` +
+      (u ? rxHtml(u, '') : '') + (d ? rxHtml(d, '') : '');
   },
   /** @param {HTMLElement & { _h?: string }} el */
   renderShop(el) {
@@ -1898,6 +1910,8 @@ const Particles = {
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [c], .6 * a, 1.6);
           ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,32,.85)'; ctx.beginPath(); ctx.arc(sx, sy, 7.5, 0, TAU); ctx.fill(); // кружок — на оси: волна бежит, а он стоит
           ring(sx, sy, 7.5, [235, 245, 255], .9, 1.3); label('?', sx, sy + .5, 10, [255, 255, 255], 1, 800); ctx.globalAlpha = 1;
+          // нужный для задания квант (глюон третьей струи) — золотые дуги и что сделать
+          if (this.wanted(o.sp, o)) { const s0 = G.T * 2; for (let k = 0; k < 4; k++) arc(sx, sy, 17, s0 + k * Math.PI / 2, s0 + k * Math.PI / 2 + .9, GOLD, .9 * a, 2.2); glow(sx, sy, 26, GOLD, .18 * a); this.wantTag(o, sx, sy, 17); }
         } else if (o.sp === 'ph' && this.ep === 3) { // аннигиляция: свет — фон, фокус на кварках и глюонах
           waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [[220, 225, 240]], .18 * a, 1.2);
         } else if (o.sp === 'ph') {
@@ -1956,6 +1970,13 @@ const Particles = {
       arc(sx, sy, rr, sp, sp + Math.PI * 1.5, c, .5, 1.1);
     }
   },
+  // эпоха 1: нужное — снять; в круге и снимок готов — «клик!», иначе у глюона третьей струи — «наведи круг»
+  /** @param {Q} o @param {number} sx @param {number} sy @param {number} r — радиус меток */
+  wantTag(o, sx, sy, r) {
+    if (this.ep !== 0) return;
+    if (Math.hypot(o.x - P.x, o.y - P.y) < this.hr() && this.canShot()) label(isTouch() ? 'коснись!' : 'клик!', sx, sy + r + 12, 13, GOLD, .7 + .3 * Math.sin(G.T * 10), 800);
+    else if (o.sp === 'g') label('глюон — наведи круг', sx, sy + r + 12, 12, GOLD, .9, 700);
+  },
   // распадётся и даст новое: распад этого вида ещё не снят
   /** @param {Q} o */
   willTell(o) { return this.hig > .5 && o.life < Infinity && !this.decSeen.has(o.sp) && SM[o.sp].kind !== 'nu'; },
@@ -1981,6 +2002,7 @@ const Particles = {
     if (this.wanted(o.sp, o)) {
       const sp = G.T * 2;
       for (let k = 0; k < 4; k++) arc(sx, sy, r + 16, sp + k * Math.PI / 2, sp + k * Math.PI / 2 + .9, this.ep === 0 ? [255, 255, 255] : GOLD, .9, 2.2);
+      this.wantTag(o, sx, sy, r + 16);
     }
     const fs = Math.max(9, r * .95);
     if (s.kind === 'nu') {
@@ -2249,7 +2271,10 @@ const Particles = {
       else if (I.A > .8 && !I.snaps) t = 'у красной черты — толкай короче';
     }
     else if (this.ep === 0 && this.lit && !this.rs.ph) t = this.bal() >= RES_COST.ph[0] ? 'нажми «Сформировать закон» внизу — Вселенная засветит сама' : null;
-    else if (this.ep === 0 && Codex.has('g') && !this.gOn) t = this.keyOf('g') && this.bal() >= RES_COST.g[0] ? `клавиша ${this.keyOf('g')} — отдай глюоны Вселенной` : `лови фотоны — ✦ на глюоны: ${this.bal()}/${RES_COST.g[0]}`;
+    else if (this.ep === 0 && !Codex.has('g') && this.p.some(o => !o.dead && o.sp === 'g' && onScreen(...W2S(o.x, o.y), 0)))
+      t = this.canShot() ? `глюон! наведи на него круг и ${isTouch() ? 'коснись' : 'кликни'} — снимок` : 'глюон! для снимка нужна ⚡ — лови фотоны';
+    else if (this.ep === 0 && Codex.has('g') && !this.gOn) t = this.bal() < RES_COST.g[0] ? `глюон открыт — копи ✦ на закон глюонов: ${this.bal()}/${RES_COST.g[0]}`
+      : this.keyOf('g') && !isTouch() && this.learn.buy ? `глюон открыт — клавиша ${this.keyOf('g')}: сформируй закон глюонов` : 'глюон открыт — «Сформировать закон» внизу';
     else if (this.enOn() && !this.measured()) t = 'лови фотоны кругом — измерь свой свет';
     else if (this.enOn() && (!this.full || this.en < E_SHOT + .5)) t = 'лови фотоны — энергия';
     else if (!this.learn.snap) t = 'клик — снимок';

@@ -31,7 +31,8 @@ const Codex = {
     Sfx.play('fresh');
     // открылось следующее поколение — сказать на той же карточке, кто теперь может родиться
     const nx = Object.keys(GEN_PREV).filter(sp => GEN_PREV[sp].includes(k) && !this.run.has(sp) && genOpen(sp));
-    showCard(k, first, nx.length ? `Открыто ${GEN_N[SM[nx[0]].gen]} поколение: теперь могут родиться ${nx.map(sp => SM[sp].sym).join(' и ')}` : '', rx);
+    const then = G.stage && G.stage.seeNext ? G.stage.seeNext(k) : ''; // уровень подсказывает, что дальше
+    showCard(k, first, nx.length ? `Открыто ${GEN_N[SM[nx[0]].gen]} поколение: теперь могут родиться ${nx.map(sp => SM[sp].sym).join(' и ')}` : then || '', rx);
 
     return first ? 'new' : 'run';
   },

@@ -48,6 +48,8 @@ interface Stage {
   /** «Законы Вселенной» (core.js Uni): строки научённого; работает ли сейчас; где показать «+1 ✦» */
   uni?: UniRow[];
   uniOn?(k: string): boolean;
+  /** открыто впервые в забеге — что дальше (строка на карточке открытия) */
+  seeNext?(k: string): string;
   uniPop?(k: string): boolean;
   cheated?: boolean;
   /** время уровня, с (для таблицы рекордов) */
