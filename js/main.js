@@ -86,11 +86,12 @@ function markDbl(e) {
 }
 addEventListener('pointerdown', e => {
   Sfx.unlock(); // звук включается первым жестом игрока (так требует браузер)
-  if (Cine.on) { Cine.skip(); if (e.pointerType !== 'mouse') touchMode(); return; } // кадр-пауза: касание — дальше, в игру не идёт
-  if (Spot.on) { Spot.skip(); return; } // стоп-кадр со стрелкой: так же
+  if (Cine.on) { e.stopPropagation(); Cine.skip(); if (e.pointerType !== 'mouse') touchMode(); return; } // кадр-пауза: касание — дальше, в игру не идёт
+  if (Spot.on) { e.stopPropagation(); Spot.skip(); return; } // стоп-кадр со стрелкой: так же
   if (e.pointerType === 'mouse') {
     if (e.button !== 0 && G.stage.sling) { if (e.target === cv) mpan = { x: e.clientX, y: e.clientY }; return; } // правая/средняя — тянуть карту
-    mouse.down = true; if (e.target === cv && G.started) { mouse.clicked = true; mouse.x = e.clientX; mouse.y = e.clientY; markDbl(e); } return;
+    if (e.target !== cv) return; // кнопки, лавка, кодекс — не поле
+    mouse.down = true; if (G.started) { mouse.clicked = true; mouse.x = e.clientX; mouse.y = e.clientY; markDbl(e); } return;
   }
   touchMode();
   if (e.target !== cv) return;
@@ -105,6 +106,12 @@ function ptrUp(e) {
   if (e.pointerId === steerId) { steerId = null; mouse.idle = true; if (G.stage.sling) mouse.down = false; } // отпустил — детектор тормозит (рогатка — бросок)
 }
 addEventListener('pointerup', ptrUp); addEventListener('pointercancel', ptrUp);
+// окно потеряло фокус (Alt+Tab, уведомление) — отпустить всё: иначе кнопка и клавиши «залипают» до следующего нажатия;
+// тело в рогатке — отмена, а не бросок в никуда
+addEventListener('blur', () => {
+  if (G.stage.sling && mouse.down) mouse.cancel = true;
+  mouse.down = false; keys.clear(); ptrs.clear(); steerId = null; pinch0 = null; mpan = null; mouse.idle = true;
+});
 cv.addEventListener('contextmenu', e => e.preventDefault());
 // Кнопка действия: тап — как клик, удержание — как зажатая кнопка мыши
 const actBtn = document.getElementById('act');
@@ -148,7 +155,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Escape' && G.tutor) { endTut(false); return; }
   if (G.stage.sling && /^Arrow/.test(e.code)) e.preventDefault(); // стрелки двигают карту, а не страницу
   if (e.code === 'Space' && !G.paused) { e.preventDefault(); G.stage.dash && G.stage.dash(); }
-  if (e.code === 'Enter' || e.code === 'NumpadEnter') G.stage.enterKey && G.stage.enterKey();
+  if (!G.paused && (e.code === 'Enter' || e.code === 'NumpadEnter')) G.stage.enterKey && G.stage.enterKey();
   if (e.code === 'KeyX') G.stage.detach && G.stage.detach();
   if (/^Digit[1-9]$/.test(e.code)) { const i = +e.code.slice(5) - 1; if (G.paused) G.stage.pick && G.stage.pick(i); else G.stage.buy && G.stage.buy(i); }
   if (G.paused && (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter')) { e.preventDefault(); G.stage.closeCard && G.stage.closeCard(); return; }
@@ -176,7 +183,7 @@ document.getElementById('tutskip').onclick = () => endTut(false);
 // Кончилось или пропущено — настоящий забег с начала: счёт, часы и кодекс забега обнуляются
 function endTut(done) {
   if (!G.tutor) return;
-  G.tutor = false; document.body.classList.remove('tut');
+  G.tutor = false; document.body.classList.remove('tut'); Cine.clear(); Spot.end();
   try { localStorage.setItem('proto.tut', '1'); } catch (e) { /* без хранилища */ }
   G.stage.enter(); G.score = 0; G.knOf = null; G.runT0 = Date.now(); G.fx = []; mouse.down = false;
   msg(done ? 'Обучение пройдено — теперь по-настоящему' : 'Обучение пропущено — начинаем', 2.5);
@@ -190,7 +197,7 @@ function update(dt) {
   Tally.tick(dt); Hint.tick(dt); Fly.tick(dt);
   if (G.stage.sling) tickPan(dt);
   G.stage.update(dt, true);
-  if (G.started) Uni.tick(G.stage, dt); // чему научил — приносит ✦ само
+  if (G.started) Uni.tick(G.stage, dt * (G.stage.ff > 1 ? G.stage.ff : 1)); // чему научил — приносит ✦ само (на ×4 — вчетверо, как и всё время уровня)
   // принесённые с прошлого уровня ✦ — искрами к счётчику, как только он на виду
   if (G.stage.carryIn && !G.prev) {
     const c = G.stage.carryIn; G.stage.carryIn = 0; G.stage.spent = (G.stage.spent || 0) - c; // траты «в минус»: ✦ уровня (и очки) не растут

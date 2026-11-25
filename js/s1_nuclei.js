@@ -40,7 +40,7 @@ const Nuclei = {
 
   enter(prev) {
     this.o = []; this.g = []; this.el = []; this.floats = []; this.t = 0; this.clock = 0; this.doneAt = null; this.endCd = -1;
-    this.kn = 0; this.uni = []; this.spent = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.autoCd = 1;
+    this.kn = 0; this.uni = []; this.spent = 0; this.failed = false; this.stuckT = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.autoCd = 1;
     this.advanced = false; this.cheated = false; this.gT = 0; this.spCd = 0; this.seen = new Set(); this.tk = {};
     this.st = { decayed: 0, broken: 0, bounce: 0, shat: 0 }; this.he = { hand: 0, auto: 0 };
     this.hr = prev && prev.hr != null ? (typeof prev.hr === 'function' ? prev.hr() : prev.hr) : 1.4;
@@ -334,8 +334,9 @@ const Nuclei = {
     if (!live) return;
     if (this.doneAt === null) this.tickStars(false);
     const goal = this.steps().every(s => s.d);
-    if (this.doneAt === null && (goal || this.stuck() || this.t > N_WIN)) {
-      this.doneAt = this.clock; this.endCd = 2; this.sl.held = null;
+    this.stuckT = this.doneAt === null && this.stuck() ? (this.stuckT || 0) + dt : 0;
+    if (this.doneAt === null && (goal || this.stuckT > 4 || this.t > N_WIN)) {
+      this.doneAt = this.clock; this.endCd = 2; this.sl.held = null; this.failed = !goal;
       for (const o of this.o) o.held = false;
       if (!goal) this.float(P.x, P.y - 2, this.t > N_WIN ? 'остыло — синтез окончен' : 'нейтронов больше нет — синтез окончен', [200, 210, 240], 16);
       this.tickStars(true);
@@ -348,7 +349,7 @@ const Nuclei = {
     return c;
   },
   // гелию больше не из чего взяться: нет свободных нейтронов, ²H, ³H и пары ³He — и Вселенная почти не приносит нейтронов
-  stuck() { const c = this.counts(); return .25 * Math.exp(-this.t / 150) < .05 && c.n === 0 && c.mid - c.he3 === 0 && c.he3 < 2; },
+  stuck() { const c = this.counts(); return this.t > 60 && c.n === 0 && c.mid - c.he3 === 0 && c.he3 < 2; },
   // доля массы в гелии-4 и всём, что из него выросло (³He не в счёт — он ещё «недостроен»), среди всех ядер вокруг
   Y() { let m = 0, all = 0; for (const o of this.o) { all += o.Z + o.N; if (o.Z >= 2 && o.Z + o.N >= 4) m += o.Z + o.N; } return m / Math.max(1, all); },
 
@@ -382,7 +383,7 @@ const Nuclei = {
       { t: 'Слей нейтрон с протоном', h: 'зажми нейтрон, оттяни и отпусти в протон', s: 'дейтерий ²H', d: s.has('1,1') },
       { t: 'Собери гелий-4', h: 'к ²H — нейтрон, потом протон: его бросай сильнее',
         items: [['²H', s.has('1,1')], ['³H или ³He', s.has('1,2') || s.has('2,1')], ['⁴He', s.has('2,2')]], s: 'гелий-4', d: s.has('2,2') },
-      { t: 'Исследуй «Нуклеосинтез»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${SYN_COST} ✦`, s: 'нуклеосинтез', d: this.rs.syn > 0, res: 'syn' },
+      { t: 'Сформируй закон «Нуклеосинтез»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${SYN_COST} ✦`, s: 'нуклеосинтез', d: this.rs.syn > 0, res: 'syn' },
       { t: 'Набери 25 % гелия', h: 'столько гелия в нашей Вселенной', p: [Math.min(Y, 25), 25], s: 'гелий как в нашей Вселенной', d: this.Y() >= Y_GOAL },
     ];
   },
@@ -395,10 +396,10 @@ const Nuclei = {
       { t: 'не разбей ни одного ядра', bad: () => st.shat > 0, atEnd: true },
       { t: `быстрее ${fmtClock(N_PAR)}`, bad: () => this.clock > N_PAR, atEnd: true },
       { t: 'сделай литий или бериллий', ok: () => ['3,3', '3,4', '4,3'].some(k => this.seen.has(k)), can: () => this.nN >= 3 },
-      { t: 'гелий Y ≥ 33 %', ok: () => this.Y() >= .33, can: () => this.nN * 2 / this.nB >= .4 },
+      { t: 'гелий Y ≥ 33 % ещё до закона', ok: () => !this.rs.syn && this.Y() >= .33, bad: () => this.rs.syn > 0, can: () => this.nN * 2 / this.nB >= .4 }, // с законом уровень кончается на 25 %
     ];
   },
-  tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 2, '★ +10 ✦', [255, 215, 110], 17); }); },
+  tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 2, '★ +10 ✦', [255, 215, 110], 17); }, this.failed); },
 
   tally() {
     const c = this.counts(), n = this.he.hand + this.he.auto;

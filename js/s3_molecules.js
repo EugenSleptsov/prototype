@@ -122,10 +122,11 @@ const Mols = {
           const sa = this.slotNear(b, ia, th, 1), sb = this.slotNear(T, ib, th + Math.PI, 1.6); // у цели связь доворачивается навстречу
           const ea = EA(b.atoms[ia].el, T.atoms[ib].el), hit = [pa[0] + dx * ra / (ra + rb), pa[1] + dy * ra / (ra + rb)];
           let label, c;
-          if (!this.freeSlots(T) || !this.freeSlots(b)) { label = 'насыщена — отскочит'; c = [170, 175, 195]; }
-          else if (sa >= 0 && sb >= 0 && vn >= ea) { label = `связь ${b.atoms[ia].el}–${T.atoms[ib].el}`; c = [120, 240, 160]; }
-          else if (sa >= 0 && sb >= 0) { label = 'слабо — оттяни сильнее'; c = [255, 200, 110]; }
+          const free = this.freeSlots(T) && this.freeSlots(b);
+          if (free && sa >= 0 && sb >= 0 && vn >= ea) { label = `связь ${b.atoms[ia].el}–${T.atoms[ib].el}`; c = [120, 240, 160]; }
           else if (vn > BREAK_V && (b.bonds.length || T.bonds.length)) { label = 'порвёт связь'; c = [255, 90, 80]; }
+          else if (!free) { label = 'насыщена — отскочит'; c = [170, 175, 195]; }
+          else if (sa >= 0 && sb >= 0) { label = 'слабо — оттяни сильнее'; c = [255, 200, 110]; }
           else { label = 'мимо свободной связи'; c = [200, 205, 225]; }
           return { pts, x: hit[0], y: hit[1], label, c, hit: true };
         }
@@ -376,7 +377,7 @@ const Mols = {
     let [A, B, d] = best; if (A.m > B.m) [A, B] = [B, A];
     const dx = B.x - A.x, dy = B.y - A.y;
     this.orient(A, dx, dy); this.orient(B, -dx, -dy); A.w = B.w = 0;
-    const v = 16; A.vx = B.vx + dx / d * v; A.vy = B.vy + dy / d * v; A.thrown = 0; A.auto = 3; B.auto = 3;
+    const v = 16; d = d || 1; A.vx = B.vx + dx / d * v; A.vy = B.vy + dy / d * v; A.thrown = 0; A.auto = 3; B.auto = 3;
   },
 
   update(dt, act) {

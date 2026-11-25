@@ -69,7 +69,7 @@ const PH_CLS = [
 // Цены исследований: новое в мире (новый вид частиц) — дорого, автоматизация уже имеющегося — дешевле
 // Цены «Сформировать закон». «Рождение X»: тяжелее X — дороже; каждое следующее «Рождение» — ещё на RES_UP дороже (их много,
 // а научённое приносит ✦ само — без роста цен Вселенная к концу эпохи 3 покупала бы себя сама).
-const RES_COST = { ph: [10, 30, 60], g: [40], coll: [60], cp: [60] }, RES_UP = .2;
+const RES_COST = { ph: [10, 30, 60], g: [40], coll: [60], cp: [40] }, RES_UP = .2;
 const resNew = (/** @type {number} */ v, n = 0) => Math.round((40 + 15 * v) * (1 + RES_UP * n) / 5) * 5;
 // Доход от научённого, ✦/мин (сводка «Законы Вселенной»): свет — по уровню, «Рождение X» — 2 + ценность X
 /** @type {Record<string, number>} */
@@ -378,7 +378,8 @@ const Particles = {
     this.heat = p.heat;
     // свет не беднее тёплого: не попал в такт ни разу — Вселенная всё равно светит хотя бы тёплым (иначе мало ⚡ и ✦ на весь уровень)
     if (!this.tut && !this.inf.made.slice(1).some(n => n > 0)) { this.inf.made[1] = 1; this.float(P.x, P.y - this.hr() * 3, 'Вселенная добавила тёплый свет', PH_CLS[1].c, 15); }
-    this.T = this.T0 = T_START * p.k;
+    const T0 = this.T; this.T = this.T0 = T_START * p.k;
+    if (T0 > 0) for (const o of this.p) if (!o.dead && !o.cap && this.isQ(o)) o.p *= this.T / T0;
     this.en = Math.max(this.en, E_START);
     fxRing(P.x, P.y, .5, PH_C, this.wr(), 2.5); fxFlash(P.x, P.y, this.hr() * 2, [255, 240, 200], .6);
     // разогрев — чистый скилл: очки за каждый процент шкалы и отдельный рекорд температуры
@@ -598,7 +599,7 @@ const Particles = {
     } else if (two) { // вещество разгоняется, только когда пара в поле
       const bd = this.band(f), inB = bd && f.E > bd[0] && f.E < bd[1];
       let dq = Math.min(dt / CHARGE_T * (inB ? .3 : 1), 1 - f.q); // на резонансе стрелка замедляется — успей отпустить
-      if (this.enOn()) { dq = Math.min(dq, this.en / E_FIELD); this.en -= dq * E_FIELD; if (dq <= 0 && f.q < 1) this.noEnergy(); }
+      if (this.enOn()) { dq = Math.min(dq, this.en / E_FIELD); this.en -= dq * E_FIELD; if (dq <= 0 && f.q < 1 && !f.dry) { f.dry = true; this.noEnergy(); } }
       f.q += dq; f.E = this.chargeE(f.q);
     }
     if (two) { f.t2 = (f.t2 || 0) + dt; if (f.t2 > .4) this.learn.hold = true; if (!this.isQ(f.cap[0])) this.learn.pair2 = true; }
@@ -641,6 +642,7 @@ const Particles = {
         o.thrown = true; o.sib = c[1 - k] || null; o.mate = null;
       });
       fxRing(P.x, P.y, this.hr() * .4, GOLD, this.hr() * .9, .35); Sfx.play('throw');
+      if (c.length < 2 && this.isQ(c[0])) this.float(P.x, P.y - this.hr() - .3, 'один квант не зарядить — возьми два', [200, 205, 220], 13);
       this.learn.throw = true;
       return;
     }
@@ -1015,13 +1017,13 @@ const Particles = {
   // Исследовано — теперь это делает сама Вселенная
   /** @param {Research} r */
   research(r) {
-    const k = r.k, l = this.rs[k] = this.rLvl(k) + 1; Sfx.play('upgrade');
+    const k = r.k, gain = this.uniGain(k), l = this.rs[k] = this.rLvl(k) + 1; Sfx.play('upgrade');
     if (k === 'ph' && l === 1) { this.autoT = 0; Codex.auto.add('ph'); fxRing(P.x, P.y, .5, PH_C, this.wr(), 2.5); fxFlash(P.x, P.y, this.hr() * 2, [255, 240, 200], .5); }
     else if (k === 'g') { Codex.auto.add('g'); this.unlockGluons(); }
     else if (k === 'cp') this.saveCd = .8;
     else if (k !== 'ph' && k !== 'coll') Codex.auto.add(k);
     Codex.dirty = true;
-    const pm = this.uniGain(k) || this.uniRate(k, l); Uni.learn(this, k, r.ic, r.name, this.uniRate(k, l));
+    const pm = gain || this.uniRate(k, l); Uni.learn(this, k, r.ic, r.name, this.uniRate(k, l));
     fxRing(P.x, P.y, this.hr(), GOLD, this.hr() * 1.8, .7);
     // сцена: что теперь происходит в мире (первый закон и закон глюонов — кадр-пауза)
     const what = k === 'ph' ? (l > 1 ? `Света во Вселенной больше: ${Math.round(PH_DENS[l] * 100)} %` : 'Вселенная светит твоим светом. Лови его кругом — это ⚡ и ✦')
@@ -1045,7 +1047,7 @@ const Particles = {
       && (['H', 'W', 'Z'].includes(o.sp) || !this.spotted.size));
     if (!o || this.spotted.has(o.sp) || Codex.known.has(o.sp)) return;
     this.spotted.add(o.sp);
-    const tap = isTouch() ? 'коснись' : 'кликни';
+    const tap = isTouch() ? 'нажми ◉' : 'кликни';
     Spot.show(o, o.sp === 'g' ? 'Третья струя — глюон!' : 'Новая частица!', `наведи на неё круг и ${tap} — снимок`);
   },
   // открыт впервые в забеге — что дальше (строка на карточке открытия)
@@ -1053,7 +1055,7 @@ const Particles = {
   seeNext(k) { return k === 'g' && this.ep === 0 && !this.rs.g && !this.tut ? 'Дальше — сформируй закон глюонов, и мир наполнится ими' : ''; },
   // что теперь можно сталкивать с глюонами: жест и две схемы — g + γ и g + g (первое поколение)
   gluPairs() {
-    const how = isTouch() ? '<span>коснись и держи у двух — дольше держишь, сильнее удар; отпусти</span>'
+    const how = isTouch() ? '<span>держи ◉ у двух — дольше держишь, сильнее удар; отпусти</span>'
       : `<span class="gest">${GEST.hold()}<span>зажми у двух</span></span><span class="gest">${GEST.release()}<span>отпусти — столкнуть</span></span>`;
     const u = this.rxOf('u'), d = this.rxOf('d');
     return `<div class="cp">Сталкивай их с фотонами и друг с другом:</div><div class="hw">${how}</div>` +
@@ -1270,7 +1272,7 @@ const Particles = {
     this.safe.push({ a: Math.random() * TAU, r: this.hr() * (1.5 + .3 * (k % 4)) + rnd(0, .15), w: rnd(.12, .2) * (k % 2 ? -1 : 1), t0: G.T, q: Math.random() < .5 ? ['u', 'u', 'd'] : ['u', 'd', 'd'] });
     const p = this.safePos(this.safe[k]);
     fxRing(p.x, p.y, .1, [140, 235, 170], .9, .6); fxFlash(p.x, p.y, .4, [200, 255, 220], .25);
-    this.kn += 2; this.float(p.x, p.y - .35, '⚖ R·G·B', [140, 235, 170], 13); Sfx.play('pop');
+    Uni.pay(this, 'cp', 2); this.float(p.x, p.y - .35, '⚖ R·G·B +2 ✦', [140, 235, 170], 13); Sfx.play('pop');
   },
   // центр сбережённой тройки (c — один из кварков: вершина маленького треугольника)
   /** @param {Safe} t @param {number} [c] */
@@ -1520,7 +1522,7 @@ const Particles = {
   steps() {
     if (this.tut) return this.tutSteps();
     const has = (/** @type {string} */ sp) => Codex.has(sp), sym = (/** @type {string} */ sp) => SM[sp].sym, touch = isTouch();
-    const buy = (/** @type {string} */ sp) => touch || !this.learn.buy ? 'кнопкой «Сформировать закон» внизу' : `за ✦, клавиша ${this.keyOf(sp) || '?'}`, tap = touch ? 'коснись' : 'кликни';
+    const buy = (/** @type {string} */ sp) => touch || !this.learn.buy ? 'кнопкой «Сформировать закон» внизу' : `за ✦, клавиша ${this.keyOf(sp) || '?'}`, tap = touch ? 'нажми ◉' : 'кликни';
     const next0 = this.need0.find(sp => !has(sp));
     /** @type {Rx} */
     const G4 = { l: [['γ', 'boson'], ['γ', 'boson']], r: [['u', 'quark'], ['u̅', 'quark'], ['g', 'boson']], k: LV_N };
@@ -1600,7 +1602,7 @@ const Particles = {
   startTut() { this.enter(); this.inVoid = false; this.cheated = true; this.tut = { i: 0, t: 0, abs: 0, weak: 0, lep: 0, q: 0, end: -1 }; },
   /** @returns {Step[]} */
   tutSteps() {
-    const T = /** @type {Tut} */ (this.tut), tap = isTouch() ? 'коснись ◉' : 'кликни';
+    const T = /** @type {Tut} */ (this.tut), tap = isTouch() ? 'нажми ◉' : 'кликни';
     return [
       { t: 'Попади в такт', h: 'зажми, когда шарик покатится влево, и отпусти на левом краю. Каждый проход дна рождает свет', p: [Math.min(this.inf.good, TUT_GOOD), TUT_GOOD], s: 'свет родился', d: T.i > 0 },
       { t: 'Зарегистрируй фотон', h: `наведи круг детектора на волну света и ${tap} — снимок`, s: 'фотон в кодексе', d: T.i > 1 },
@@ -1620,7 +1622,7 @@ const Particles = {
   },
   // строка у детектора на шагах 2–4 (в такте — подсказки пролога)
   tutHint() {
-    const T = /** @type {Tut} */ (this.tut), f = this.focus, tap = isTouch() ? 'коснись ◉' : 'клик';
+    const T = /** @type {Tut} */ (this.tut), f = this.focus, tap = isTouch() ? 'нажми ◉' : 'клик';
     if (T.i === 1) return `наведи круг на волну и ${tap} — снимок`;
     if (T.i === 2) return `пролетай сквозь свет — энергия ⚡ ${T.abs}/${TUT_ABS}`;
     if (T.i !== 3) return null;
@@ -1984,7 +1986,7 @@ const Particles = {
   /** @param {Q} o @param {number} sx @param {number} sy @param {number} r — радиус меток */
   wantTag(o, sx, sy, r) {
     if (this.ep !== 0) return;
-    if (Math.hypot(o.x - P.x, o.y - P.y) < this.hr() && this.canShot()) label(isTouch() ? 'коснись!' : 'клик!', sx, sy + r + 12, 13, GOLD, .7 + .3 * Math.sin(G.T * 10), 800);
+    if (Math.hypot(o.x - P.x, o.y - P.y) < this.hr() && this.canShot()) label(isTouch() ? '◉!' : 'клик!', sx, sy + r + 12, 13, GOLD, .7 + .3 * Math.sin(G.T * 10), 800);
     else if (o.sp === 'g') label('глюон — наведи круг', sx, sy + r + 12, 12, GOLD, .9, 700);
   },
   // распадётся и даст новое: распад этого вида ещё не снят
@@ -2285,9 +2287,9 @@ const Particles = {
       else if (I.A > .8 && !I.snaps) t = 'у красной черты — толкай короче';
     }
     else if (this.ep === 0 && this.lit && !this.rs.ph) { t = this.bal() >= RES_COST.ph[0] ? 'нажми «Сформировать закон» внизу — Вселенная засветит сама' : null; g = 'shop'; }
-    else if (!this.learn.smash && this.fieldOn() && this.t - this.missT < 5) { t = isTouch() ? 'не вышло: коснись и держи у двух квантов, потом отпусти' : 'не вышло: зажми у двух квантов и отпусти'; g = 'holdrel'; }
+    else if (!this.learn.smash && this.fieldOn() && this.t - this.missT < 5) { t = isTouch() ? 'не вышло: держи ◉ у двух квантов, потом отпусти' : 'не вышло: зажми у двух квантов и отпусти'; g = 'holdrel'; }
     else if (this.ep === 0 && !Codex.has('g') && this.p.some(o => !o.dead && o.sp === 'g' && onScreen(...W2S(o.x, o.y), 0)))
-      [t, g] = this.canShot() ? [`глюон! наведи на него круг и ${isTouch() ? 'коснись' : 'кликни'} — снимок`, 'click'] : ['глюон! для снимка нужна ⚡ — лови фотоны', 'move'];
+      [t, g] = this.canShot() ? [`глюон! наведи на него круг и ${isTouch() ? 'нажми ◉' : 'кликни'} — снимок`, 'click'] : ['глюон! для снимка нужна ⚡ — лови фотоны', 'move'];
     else if (this.ep === 0 && Codex.has('g') && !this.gOn) [t, g] = this.bal() < RES_COST.g[0] ? [`глюон открыт — копи ✦ на закон глюонов: ${this.bal()}/${RES_COST.g[0]}`, 'move']
       : [this.keyOf('g') && !isTouch() && this.learn.buy ? `глюон открыт — клавиша ${this.keyOf('g')}: сформируй закон глюонов` : 'глюон открыт — «Сформировать закон» внизу', 'shop'];
     else if (this.enOn() && !this.measured()) [t, g] = ['лови фотоны кругом — измерь свой свет', 'move'];

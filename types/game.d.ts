@@ -54,6 +54,8 @@ interface Stage {
   cheated?: boolean;
   /** копилка уровня: ✦ на руках; потрачено (в минус — принесено с прошлого уровня, carryIn — ещё не показано) */
   bal?(): number; spent?: number; carryIn?: number;
+  /** уровень кончился по времени (или тупику), а цель не выполнена — без бонуса уровня */
+  failed?: boolean;
   float?(x: number, y: number, txt: string, c?: RGB, sz?: number): void;
   /** время уровня, с (для таблицы рекордов) */
   clock?: number; t?: number;

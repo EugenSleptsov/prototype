@@ -30,7 +30,7 @@ const Stars = {
 
   enter(prev) {
     this.o = []; this.floats = []; this.t = 0; this.clock = 0; this.doneAt = null; this.endCd = -1; this.advanced = false; this.cheated = false;
-    this.kn = 0; this.uni = []; this.spent = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.seen = new Set(); this.tk = {};
+    this.kn = 0; this.uni = []; this.spent = 0; this.failed = false; this.stuckT = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.seen = new Set(); this.tk = {};
     this.st = { bounce: 0, shat: 0 }; this.made = { hand: 0, auto: 0 }; this.phase = 'gas'; this.igT = 0; this.ignAt = null;
     this.hT = 0; this.beT = 2; this.flowT = 0; this.autoCd = 1; this.boom = 0; this.well = null;
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
@@ -170,7 +170,7 @@ const Stars = {
     for (const o of this.o) {
       if (o.dead) continue;
       o.age += dt; o.nb -= dt; o.rot += dt * .6;
-      if (o.Z === 4 && (o.life -= dt) <= 0 && !o.held) { this.beSplit(o, '⁸Be → 2 ⁴He'); continue; }
+      if (!o.held && o.Z === 4 && (o.life -= dt) <= 0) { this.beSplit(o, '⁸Be → 2 ⁴He'); continue; }
       if (o.held) continue;
       if (this.doneAt !== null) { const k = Math.exp(-dt * 1.5); o.vx *= k; o.vy *= k; } // выброс сверхновой тормозит и остывает
       else if (o.fly > 0) { if ((o.fly -= dt) <= 0) o.thrown = null; }
@@ -268,7 +268,7 @@ const Stars = {
     this.o = this.o.filter(o => !o.dead);
     if (!live) return;
     if (this.doneAt === null) this.tickStars(false);
-    if (this.doneAt === null && (this.steps().every(s => s.d) || this.t > ST_WIN)) this.supernova();
+    if (this.doneAt === null && (this.steps().every(s => s.d) || this.t > ST_WIN)) { this.failed = !this.steps().every(s => s.d); this.supernova(); } // по времени — без бонуса уровня
     if (this.boom > 0) this.boom -= dt;
     if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; advance(); } // атомам — эти же ядра, там, куда их вынесло
   },
@@ -311,7 +311,7 @@ const Stars = {
       { t: 'Сделай углерод', h: '⁴He в ⁴He → ⁸Be, он живёт миг — брось в него ещё ⁴He', items: [['⁸Be', s.has('4,4')], ['¹²C', s.has('6,6')]], s: 'углерод', d: s.has('6,6') },
       { t: 'Сделай кислород', h: 'брось ⁴He в ¹²C', s: 'кислород', d: s.has('8,8') },
       { t: 'Сделай азот', h: 'брось протон в ¹²C, потом ещё один', items: [['¹³C', s.has('6,7')], ['¹⁴N', s.has('7,7')]], s: 'азот', d: s.has('7,7') },
-      { t: 'Исследуй «Звёздный синтез»', h: `${isTouch() ? 'в лавке' : 'клавиша 1'} за ${ST_COST} ✦`, s: 'звёздный синтез', d: this.rs.syn > 0, res: 'syn' },
+      { t: 'Сформируй закон «Звёздный синтез»', h: `${isTouch() ? 'в лавке' : 'клавиша 1'} за ${ST_COST} ✦`, s: 'звёздный синтез', d: this.rs.syn > 0, res: 'syn' },
       { t: 'Накопи на сверхновую', h: 'звезда взорвётся и разнесёт их по Вселенной', items: [[`¹²C ${Math.min(n('6,6'), 2)}/2`, n('6,6') >= 2], [`¹⁶O ${Math.min(n('8,8'), 2)}/2`, n('8,8') >= 2], [`¹⁴N ${Math.min(n('7,7'), 1)}/1`, n('7,7') >= 1]], s: 'сверхновая', d: Object.keys(ST_NEED).every(k => n(k) >= ST_NEED[k]) },
     ];
   },
@@ -324,7 +324,7 @@ const Stars = {
       { t: 'кислорода больше, чем углерода', ok: () => this.cnt('8,8') > this.cnt('6,6') && this.cnt('8,8') >= 2 },
     ];
   },
-  tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 2, '★ +10 ✦', [255, 215, 110], 17); }); },
+  tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 2, '★ +10 ✦', [255, 215, 110], 17); }, this.failed); },
   tally() {
     const n = this.made.hand + this.made.auto;
     return { name: 'Звёзды', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['¹²C · ¹⁶O · ¹⁴N', `${this.cnt('6,6')} · ${this.cnt('8,8')} · ${this.cnt('7,7')}`], ['выковано рогаткой', this.made.hand], ['выковано звездой', this.made.auto]], auto: [this.made.auto, n], stars: this.stars };

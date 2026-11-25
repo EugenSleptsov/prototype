@@ -252,12 +252,12 @@ const Spot = {
     // темнота вокруг, светлое пятно на цели
     ctx.save(); ctx.globalAlpha = .55 * a; ctx.fillStyle = '#04060d';
     ctx.beginPath(); ctx.rect(0, 0, G.W, G.H); ctx.arc(x, y, R + 10, 0, TAU, true); ctx.fill('evenodd'); ctx.restore();
-    const p = (G.T * 1.6) % 1;
-    ring(x, y, R + 4 * Math.sin(G.T * 6), SPOT_C, .9 * a, 2.5);
+    const p = (this.t * 1.6) % 1;
+    ring(x, y, R + 4 * Math.sin(this.t * 6), SPOT_C, .9 * a, 2.5);
     ring(x, y, R + 30 * p, SPOT_C, .5 * a * (1 - p), 2);
     // строка — над целью (у верха экрана — под ней), стрелка от строки к цели «кивает»
     const up = y > G.H * .35, ty = clamp(up ? y - R - 96 : y + R + 96, 60, G.H - 80), tx = clamp(x, 160, G.W - 160);
-    const bob = 6 * Math.sin(G.T * 7), ay0 = up ? ty + 30 : ty - 30, ay1 = up ? y - R - 10 - bob : y + R + 10 + bob;
+    const bob = 6 * Math.sin(this.t * 7), ay0 = up ? ty + 30 : ty - 30, ay1 = up ? y - R - 10 - bob : y + R + 10 + bob;
     const an = Math.atan2(ay1 - ay0, x - tx);
     line(tx, ay0, x, ay1, SPOT_C, a, 3.5);
     ctx.fillStyle = rgb(SPOT_C, a); ctx.beginPath(); ctx.moveTo(x, ay1);
@@ -278,7 +278,7 @@ const Fly = {
   /** @type {Stage | null} */ of: null,
   tx: 0, ty: 0, seen: -9, pulse: -9, lag: 0,
   /** надпись в мире: «+N ✦» в тексте — искры от неё @param {number} wx @param {number} wy @param {string} txt */
-  from(wx, wy, txt) { const m = /\+(\d+) ✦/.exec(txt); if (m) { const [x, y] = W2S(wx, wy); this.add(x, y - 16, +m[1]); } },
+  from(wx, wy, txt) { const m = /\+(\d+(?:[.,]\d+)?) ✦/.exec(txt); if (m) { const [x, y] = W2S(wx, wy); this.add(x, y - 16, +m[1].replace(',', '.')); } },
   /** от элемента страницы (строка «Законов Вселенной») @param {string} sel @param {number} v */
   fromEl(sel, v) { const el = document.querySelector(sel); if (!el) return; const r = el.getBoundingClientRect(); if (r.width) this.add(r.left + 14, r.top + r.height / 2, v); },
   /** @param {number} sx @param {number} sy @param {number} v */
@@ -404,12 +404,12 @@ function pickStars(pool, n = 2) {
   return a.slice(0, n).map(s => ({ ...s, st: 0 }));
 }
 // end — эпоха закончилась (всё несделанное проваливается); onWin(s) — награда
-/** @param {Star[]} stars @param {boolean} end @param {(s: Star) => void} onWin */
-function tickStars(stars, end, onWin) {
+/** @param {Star[]} stars @param {boolean} end @param {(s: Star) => void} onWin @param {boolean} [failed] цель не выполнена: «до конца без ошибок» не засчитывается */
+function tickStars(stars, end, onWin, failed = false) {
   for (const s of stars) {
     if (s.st) continue;
     if (s.bad && s.bad()) s.st = -1;
-    else if ((s.ok && s.ok()) || (end && s.atEnd)) { s.st = 1; onWin(s); }
+    else if ((s.ok && s.ok()) || (end && s.atEnd && !failed)) { s.st = 1; onWin(s); } // «до конца без ошибок» — только если цель выполнена
     else if (end) s.st = -1;
   }
 }
@@ -559,11 +559,11 @@ const Tally = {
   // итоги пройденного уровня (из advance)
   /** @param {Stage} st */
   show(st) {
-    /** @type {TallyData} */
     flushKn(); // ✦ последнего кадра уровня — в очки до итогов
+    /** @type {TallyData} */
     const d = st.tally ? st.tally() : { name: st.name, rows: [] };
-    const auto = d.auto && d.auto[1] > 0 ? clamp(d.auto[0] / d.auto[1], 0, 1) : null;
-    addScore(LVL_BONUS); if (auto !== null) addScore(AUTO_BONUS * auto);
+    const won = !st.failed, auto = won && d.auto && d.auto[1] > 0 ? clamp(d.auto[0] / d.auto[1], 0, 1) : null;
+    if (won) addScore(LVL_BONUS); if (auto !== null) addScore(AUTO_BONUS * auto);
     const lvl = Math.round(G.score - (st.scoreAt || 0));
     /** @type {number | null} */
     let place = null;
@@ -573,10 +573,10 @@ const Tally = {
     const rows = [...d.rows];
     if (uk > 0) rows.push(['✦ от Вселенной', uk]);
     const carry = carryOf(st); if (carry > 0) rows.push([`✦ с собой (остаток ÷ ${CARRY_DIV})`, '+' + carry, 'tb']);
-    rows.push(['уровень пройден', '+' + LVL_BONUS, 'tb']);
+    rows.push(won ? ['уровень пройден', '+' + LVL_BONUS, 'tb'] : ['цель не выполнена', 'без бонуса', 'tx']);
     if (auto !== null) rows.push(['отдано Вселенной', '+' + Math.round(AUTO_BONUS * auto), 'tb']);
     rows.push(['очки за уровень', fmtScore(lvl), 'tl'], ['всего', fmtScore(G.score), 'tt']);
-    this.note(`УРОВЕНЬ ${G.stageI + 1} · ПРОЙДЕН`, d.name, rows, d.stars || [], place, '', auto);
+    this.note(`УРОВЕНЬ ${G.stageI + 1} · ${won ? 'ПРОЙДЕН' : 'ВРЕМЯ ВЫШЛО'}`, d.name, rows, d.stars || [], place, '', auto);
   },
   // любая сводка сбоку: шапка, имя, строки [подпись, значение, класс], ★, место в таблице, сноска, доля Вселенной
   /** @param {string} kick @param {string} name @param {TallyData['rows']} rows @param {Star[]} stars @param {number | null} place @param {string} [foot] @param {number | null} [auto] */

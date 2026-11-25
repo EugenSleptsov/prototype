@@ -142,8 +142,10 @@ const Quarks = {
       this.hold += dt;
       if (this.hold > .12 && !this.focus) {
         this.focus = { cap: [], had: [], ang: Math.random() * TAU, t: 0, tog: 0, tog2: 0 };
-        // зажал прямо на адроне (и рядом нет свободных кварков) — поле берёт его целиком
-        const h = this.hadronAt(); if (h && !this.q.some(o => this.canCap(o, []) && Math.hypot(o.x - P.x, o.y - P.y) < this.fr())) this.grabHadron(h);
+        // зажал прямо на адроне (на нём подсказка «зажми — взять целиком») — поле берёт его целиком;
+        // рядом с адроном — тоже, если поблизости нет свободных кварков
+        const on = this.hadronAt(.7), h = on || this.hadronAt();
+        if (h && (on || !this.q.some(o => this.canCap(o, []) && Math.hypot(o.x - P.x, o.y - P.y) < this.fr()))) this.grabHadron(h);
       }
     }
   },
@@ -151,10 +153,10 @@ const Quarks = {
   // (пару, которая не помещается, поле разнимает и берёт один кварк)
   capSet(o, cap) {
     if (o.dead || o.cap || o.anti || o.age < .4 || o.nb > 0 || cap.length >= 3) return null;
-    // три разных цвета; и не три одинаковых аромата (uuu/ddd — Δ, сразу распадётся)
+    // три разных цвета (три одинаковых аромата uuu/ddd поле тоже возьмёт — выйдет Δ и сразу распадётся; см. updGroups)
     const fits = s => {
       const all = [...cap, ...s];
-      return all.length <= 3 && new Set(all.map(x => x.col)).size === all.length && !(all.length === 3 && all.every(x => x.fl === all[0].fl));
+      return all.length <= 3 && new Set(all.map(x => x.col)).size === all.length;
     };
     if (!o.g) return fits([o]) ? [o] : null;
     const g = this.groups.get(o.g);
@@ -168,11 +170,15 @@ const Quarks = {
     f.had = f.had.filter(g => this.groups.get(g.id) === g);
     if (f.had.length) { this.holdHadrons(f, dt); return; }
     if (f.cap.length < 3) {
-      let best = null, bd = this.fr();
+      // ближайший подходящий; тот, с кем выйдет Δ (uuu/ddd), — только если других в поле нет: Δ — ошибка, но не ловушка
+      let best = null, bd = this.fr(), bad = null, bdd = this.fr();
+      const delta = (/** @type {any} */ o) => { const all = [...f.cap, ...this.capSet(o, f.cap)]; return all.length === 3 && all.every(x => x.fl === all[0].fl); };
       for (const o of this.q) {
         if (!this.canCap(o, f.cap)) continue;
-        const d = Math.hypot(o.x - P.x, o.y - P.y); if (d < bd) { bd = d; best = o; }
+        const d = Math.hypot(o.x - P.x, o.y - P.y);
+        if (delta(o)) { if (d < bdd) { bdd = d; bad = o; } } else if (d < bd) { bd = d; best = o; }
       }
+      best = best || bad;
       if (best) {
         const set = this.capSet(best, f.cap);
         for (const x of set) { if (set.length === 1 && x.g) this.detach(x); x.cap = true; f.cap.push(x); }
@@ -547,7 +553,7 @@ const Quarks = {
     return [
       { t: 'Жди конфайнмента', h: 'плазма остывает — кварки вот-вот начнут слипаться…', s: 'конфайнмент', d: this.conf > .5 },
       { t: 'Собери барионы полем', h: 'зажми возле трёх кварков разных цветов — R, G и B', p: [Math.min(this.handN, HAND_Q), HAND_Q], s: `${HAND_Q} бариона полем`, d: this.handN >= HAND_Q },
-      { t: 'Исследуй «Конфайнмент»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${CONF_COST} ✦`, s: 'конфайнмент', d: this.rs.conf > 0 },
+      { t: 'Сформируй закон «Конфайнмент»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${CONF_COST} ✦`, s: 'конфайнмент', d: this.rs.conf > 0 },
       { t: 'Барионы по всей Вселенной', h: 'кварки слипаются в p⁺ и n⁰ повсюду — помогай полем', p: [Math.min(this.autoN, AUTO_Q), AUTO_Q], s: 'конфайнмент повсюду', d: this.autoN >= AUTO_Q },
     ];
   },

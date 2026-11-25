@@ -61,3 +61,35 @@ test('рогатка: щипок без тела в руке не отменяе
   g.ev('mouse.cancel = true; G.stage.sl.update()');
   assert.equal(g.ev('mouse.cancel'), false);
 });
+
+test('кварки: Δ собрать можно (uuu), но поле сперва берёт тот, с кем выйдет протон', () => {
+  const g = toStage('quarks');
+  g.ev(`(() => { const S = G.stage; for (const o of S.q) o.dead = true; S.q = [];
+    const a = S.mk(P.x, P.y, 0, false, 'u'), b = S.mk(P.x, P.y, 1, false, 'u'); a.cap = b.cap = true;
+    globalThis.__u = S.mk(P.x + .2, P.y, 2, false, 'u'); globalThis.__d = S.mk(P.x + .5, P.y, 2, false, 'd'); __u.age = __d.age = 1;
+    S.focus = { cap: [a, b], had: [], ang: 0, t: 0, tog: 0, tog2: 0 }; S.tickFocus(1 / 60); })()`);
+  assert.equal(g.ev('__d.cap'), true, 'ближе u, но взят d — выйдет uud');
+  assert.ok(!g.ev('__u.cap'));
+  g.ev(`(() => { const S = G.stage; __d.cap = false; __d.dead = true; S.focus.cap = S.focus.cap.filter(o => o !== __d); S.tickFocus(1 / 60); })()`);
+  assert.equal(g.ev('__u.cap'), true, 'другого нет — берёт и u: Δ достижим');
+});
+
+test('ядра: тупик (нет нейтронов) — конец через несколько секунд, без бонуса уровня и ★ «до конца»', () => {
+  const g = toStage('nuclei');
+  g.ev(`G.stage.t = 61; G.stage.stuck = () => true`); // тупик: в кадре ни нейтронов, ни «недостроенного»
+  g.step(60 * 3);
+  assert.equal(g.ev('G.stage.doneAt'), null, 'миг тупика — ещё не конец');
+  g.step(60 * 2);
+  assert.notEqual(g.ev('G.stage.doneAt'), null, 'уровень кончился');
+  assert.equal(g.ev('G.stage.failed'), true);
+  assert.ok(g.ev(`G.stage.stars.filter(s => s.atEnd).every(s => s.st !== 1)`), '«до конца без ошибок» не засчитан');
+});
+
+test('частицы: ⚡ кончилась на разгоне вещества — один «пшик», а не каждый кадр', () => {
+  const g = toStage('particles');
+  const dry = g.ev(`(() => { const S = G.stage; const d0 = S.st.dry; S.en = 0;
+    S.focus = { cap: [], q: 0, E: 0, lv: 0, ang: 0, t: 0 };
+    const a = S.mk('e', false, P.x, P.y, 0, 1), b = S.mk('e', true, P.x, P.y, 0, 1); a.cap = b.cap = true; a.born = b.born = 1; S.focus.cap = [a, b];
+    const on = S.enOn; S.enOn = () => true; for (let i = 0; i < 30; i++) S.tickFocus(1 / 60); S.enOn = on; return S.st.dry - d0; })()`);
+  assert.equal(dry, 1);
+});
