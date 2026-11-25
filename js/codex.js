@@ -255,14 +255,53 @@ function sceneAbove(el) {
   const r = document.getElementById('shop').getBoundingClientRect();
   el.style.bottom = r.height > 0 && r.top > G.H * .5 ? Math.round(G.H - r.top + 10) + 'px' : '';
 }
+// Кадр-пауза для важного знания (как в кино): время стоит, сверху и снизу наезжают чёрные полосы,
+// поперёк экрана — тёмная лента с открытием, вокруг детектора — светлое пятно (на него и смотреть).
+// Сама уходит через dur секунд; клик, тап или клавиша — дальше. Несколько подряд — по очереди.
+const Cine = {
+  on: false, t: 0, dur: 0, slow: 0, /** @type {{html: string, dur: number, slow: number}[]} */ q: [],
+  /** @param {string} html @param {number} [dur] @param {number} [slow] — замедление после паузы, с */
+  show(html, dur = 6, slow = 0) {
+    this.q.push({ html, dur, slow });
+    if (!this.on) this.next();
+  },
+  next() {
+    const it = this.q.shift(), el = document.getElementById('cine');
+    if (!it) { this.on = false; el.classList.remove('show'); setTimeout(() => { if (!this.on) el.classList.remove('on'); }, 400); return; }
+    this.on = true; this.t = 0; this.dur = it.dur; this.slow = it.slow;
+    const [sx, sy] = G.stage.key === 'particles' ? W2S(P.x, P.y) : [G.W / 2, G.H / 2];
+    el.style.cssText = `--sx:${Math.round(sx)}px;--sy:${Math.round(sy)}px;--d:${it.dur}s`; // пятно — на детекторе, полоска — на всё время
+    document.getElementById('cinein').innerHTML = it.html +
+      `<div class="go"><b></b><span>${isTouch() ? 'коснись' : 'клик или любая клавиша'} — дальше</span></div>`;
+    document.getElementById('card').style.opacity = 0; cardT = 0; // маленькая сцена под лентой не нужна
+    el.classList.add('on'); void el.offsetWidth; el.classList.add('show');
+  },
+  // кадр стоит, пока идёт пауза; true — игре не двигаться
+  /** @param {number} dt */
+  tick(dt) {
+    if (!this.on) return false;
+    if ((this.t += dt) >= this.dur) this.done();
+    return this.on;
+  },
+  done() { if (this.slow) G.slowT = Math.max(G.slowT || 0, this.slow); this.next(); },
+  // дальше — не сразу: клик, который как раз родил частицу, не должен смахнуть её открытие
+  skip() { if (this.on && this.t > .6) this.done(); },
+  clear() { this.q = []; if (this.on) this.next(); },
+};
 function showCard(k, first, extra, rx) {
   const s = SM[k], el = document.getElementById('card');
-  // открытие — сцена: «это с тем столкнулось — появилось вот это» и одна строка простыми словами;
-  // впервые в жизни — ещё и замедление времени
-  if (rx || first) {
+  // впервые в жизни — важное знание: кадр-пауза на весь экран
+  if (first) {
+    Cine.show(`<div class="ck">Новое знание</div>` + (rx ? rxHtml(rx, s.sym) : '') +
+      `<div class="cn"><span class="cs ${s.kind}">${s.sym}</span> ${s.name}</div><div class="cp">${SM_PLAIN[k] || SM_FACT[k]}</div>` +
+      (extra ? `<div class="cg">${extra}</div>` : ''), 6.5, SCENE_SLOW);
+    return;
+  }
+  // открытие в забеге — сцена: «это с тем столкнулось — появилось вот это» и одна строка простыми словами
+  if (rx) {
     showScene(`<div class="ck">${first ? 'Новое открытие' : 'Открыто в этом забеге'}</div>` + (rx ? rxHtml(rx, s.sym) : '') +
       `<div class="cn"><span class="cs ${s.kind}">${s.sym}</span> ${s.name}</div><div class="cp">${SM_PLAIN[k] || SM_FACT[k]}</div>` +
-      (extra ? `<div class="cg">${extra}</div>` : ''), first || extra ? SCENE_T : 3.2, first ? SCENE_SLOW : 0);
+      (extra ? `<div class="cg">${extra}</div>` : ''), extra ? SCENE_T : 3.2);
     return;
   }
   // на широком экране — справа под сеткой Стандартной модели; на узком — под панелью задания

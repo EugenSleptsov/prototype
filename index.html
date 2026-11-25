@@ -139,6 +139,38 @@
   .cfx{margin-top:12px;font-size:13px;line-height:1.45;opacity:.9}
   @media (max-width:640px){.cxb{grid-template-columns:1fr}.cc b{font-size:16px}.cc.mol b{font-size:13px}#cxgrid{gap:4px}.cxh b{font-size:16px}.cxw{padding:14px}}
   #card{position:fixed;left:50%;top:30%;transform:translateX(-50%);max-width:min(420px,calc(100vw - 24px));z-index:7;background:#000a;border:1px solid #ffffff30;border-radius:10px;padding:10px 14px;opacity:0;transition:opacity .4s;pointer-events:none}
+  /* кадр-пауза важного знания: чёрные полосы, тёмная лента поперёк экрана, светлое пятно на детекторе */
+  #cine{position:fixed;inset:0;z-index:25;display:none;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;opacity:0;transition:opacity .35s;background:radial-gradient(circle at var(--sx,50%) var(--sy,50%),#0000 60px,#000000b0 280px)}
+  #cine.on{display:block}
+  #cine.show{opacity:1}
+  #cine .bar{position:absolute;left:0;right:0;height:9vh;background:#000;transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+  #cine .bar.t{top:0;transform:translateY(-100%)}
+  #cine .bar.b{bottom:0;transform:translateY(100%)}
+  #cine.show .bar{transform:none}
+  #cine .band{position:absolute;left:0;right:0;bottom:calc(9vh + 3vh);padding:18px 16px 14px;text-align:center;color:#eef2fa;background:linear-gradient(90deg,#04060c00,#04060cf2 14%,#04060cf2 86%,#04060c00);transform:scaleY(0);transition:transform .45s cubic-bezier(.2,.8,.2,1) .12s}
+  #cine .band::before,#cine .band::after{content:'';position:absolute;left:8%;right:8%;height:1px;background:linear-gradient(90deg,#0000,#ffd27acc,#0000)}
+  #cine .band::before{top:0}
+  #cine .band::after{bottom:0}
+  #cine.show .band{transform:none}
+  #cine .in{opacity:0;transition:opacity .35s .35s}
+  #cine.show .in{opacity:1}
+  #cine .ck{font-size:13px;font-weight:700;letter-spacing:.32em;text-transform:uppercase;color:#ffd27a}
+  #cine .rx{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;font-size:28px;font-weight:700;margin:10px 0 6px}
+  #cine .rx .cs{min-width:40px;padding:2px 8px;border-radius:9px}
+  #cine .rx .cs.me{box-shadow:0 0 0 2px #ffd27a,0 0 16px #ffd27a88}
+  #cine .rx i{font-style:normal;opacity:.6;font-weight:400}
+  #cine .lv{display:inline-flex;align-items:center;gap:3px;margin-left:4px}
+  #cine .lv b{width:8px;height:20px;border-radius:2px;background:#ffffff26}
+  #cine .lv b.on{background:#ffd27a}
+  #cine .lv small{font-size:14px;color:#ffd27a;margin-left:4px}
+  #cine .cn{font-size:30px;font-weight:800;margin:4px 0}
+  #cine .cn .cs{font-size:24px;padding:0 8px;border-radius:7px;vertical-align:3px}
+  #cine .cp{font-size:18px;max-width:640px;margin:6px auto 0;line-height:1.45;opacity:.92}
+  #cine .cg{margin-top:8px;color:#ffd27a;font-weight:700;font-size:15px}
+  #cine .go{margin:14px auto 0;width:min(240px,60vw);display:flex;flex-direction:column;gap:6px;align-items:center;font-size:12px;opacity:.55}
+  #cine .go b{display:block;height:2px;width:100%;background:#ffd27a;transform-origin:left;animation:cineT var(--d,6s) linear forwards}
+  @keyframes cineT{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+  @media (max-width:700px),(max-height:600px){#cine .bar{height:7vh}#cine .band{bottom:calc(7vh + 2vh);padding:12px 12px 10px}#cine .rx{font-size:20px;gap:5px}#cine .rx .cs{min-width:30px}#cine .cn{font-size:22px}#cine .cn .cs{font-size:18px}#cine .cp{font-size:15px}#cine .cg{font-size:13px}}
   #card .ck{font-size:11px;opacity:.6;text-transform:uppercase;letter-spacing:.08em}
   #card .cn{font-size:17px;font-weight:600;margin:3px 0}
   #card .cf{font-size:13px;opacity:.85;line-height:1.4}
@@ -315,6 +347,7 @@
   <div class="cxb"><div id="cxgrid"></div><div id="cxi"></div></div>
 </div></div>
 <div id="card" class="shadow"></div>
+<div id="cine" aria-live="polite"><div class="bar t"></div><div class="band"><div class="in" id="cinein"></div></div><div class="bar b"></div></div>
 <div id="upg" class="shadow"></div>
 <div id="shop"></div>
 <div id="tally"></div>
@@ -354,20 +387,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=101"></script>
-<script src="js/gestures.js?v=101"></script>
-<script src="js/audio.js?v=101"></script>
-<script src="js/core.js?v=101"></script>
-<script src="js/universe.js?v=101"></script>
-<script src="js/codex.js?v=101"></script>
-<script src="js/sling.js?v=101"></script>
-<script src="js/s0_quarks.js?v=101"></script>
-<script src="js/s_particles.js?v=101"></script>
-<script src="js/s1_nuclei.js?v=101"></script>
-<script src="js/s_stars.js?v=101"></script>
-<script src="js/s2_atoms.js?v=101"></script>
-<script src="js/s3_molecules.js?v=101"></script>
-<script src="js/online.js?v=101"></script>
-<script src="js/main.js?v=101"></script>
+<script src="js/util.js?v=102"></script>
+<script src="js/gestures.js?v=102"></script>
+<script src="js/audio.js?v=102"></script>
+<script src="js/core.js?v=102"></script>
+<script src="js/universe.js?v=102"></script>
+<script src="js/codex.js?v=102"></script>
+<script src="js/sling.js?v=102"></script>
+<script src="js/s0_quarks.js?v=102"></script>
+<script src="js/s_particles.js?v=102"></script>
+<script src="js/s1_nuclei.js?v=102"></script>
+<script src="js/s_stars.js?v=102"></script>
+<script src="js/s2_atoms.js?v=102"></script>
+<script src="js/s3_molecules.js?v=102"></script>
+<script src="js/online.js?v=102"></script>
+<script src="js/main.js?v=102"></script>
 </body>
 </html>

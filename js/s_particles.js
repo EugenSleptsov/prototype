@@ -990,8 +990,11 @@ const Particles = {
       : k === 'g' ? 'глюоны рождаются в мире сами' : k === 'coll' ? 'кванты сталкиваются сами и рождают то, чему ты научил'
       : k === 'cp' ? 'Вселенная сама сберегает вещество' : k === 'H' ? 'всплески поля сами рождают H' : `Вселенная рождает ${SM[k].sym} сама · ${this.role(k)}`;
     const first = !this.learn.taught; this.learn.taught = true;
-    showScene(`<div class="ck">Вселенная научилась</div><div class="rx"><span class="cs res">${r.ic}</span></div><div class="cn">${r.name}</div>` +
-      `<div class="cp">Теперь — без тебя: ${what}</div>` + (first ? '<div class="cg">Знания ✦ копятся дальше — следующее «Научить» уже ждёт</div>' : ''), first ? SCENE_T : 3.4, first ? .8 : 0);
+    const html = `<div class="ck">Вселенная научилась</div><div class="rx"><span class="cs res">${r.ic}</span></div><div class="cn">${r.name}</div>` +
+      `<div class="cp">Теперь — без тебя: ${what}</div>`;
+    // первое «Научить» — важное знание (так устроена вся игра): кадр-пауза; дальше — сцена над лавкой
+    if (first) Cine.show(html + '<div class="cg">Знания ✦ копятся дальше — следующее «Научить» уже ждёт</div>', 6, .8);
+    else showScene(html, 3.4);
   },
   /** @param {HTMLElement & { _h?: string }} el */
   renderShop(el) {
@@ -1571,6 +1574,7 @@ const Particles = {
   enterKey() { this.ff = this.ff > 1 ? 1 : 4; msg(this.ff > 1 ? '×4' : '×1', 1); },
   cheat() {
     for (const k of Object.keys(SM)) Codex.see(k);
+    Cine.clear(); // чит — без кадров-пауз на каждое открытие
     this.kn += 100; this.pairs++; this.cheated = true; this.en = E_CAP; if (!this.lit) this.ignite(); this.rs.ph = Math.max(1, this.rs.ph); Codex.auto.add('ph'); Codex.auto.add('g'); this.rs.g = 1; PH_CLS.forEach((c, i) => this.phSeen.add(i)); this.full = true; if (!this.gOn) this.unlockGluons();
     for (const sp of CHAINS.flat()) this.decSeen.add(sp);
     if (this.ep === 1) this.higT = 99;
