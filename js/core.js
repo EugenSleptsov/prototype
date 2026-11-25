@@ -20,7 +20,7 @@ function addScore(n) { G.score += Math.max(0, Math.round(n)); }
 const fmtScore = (/** @type {number} */ n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const cam = { x: 0, y: 0, z: 40 };
 // idle — палец отпущен: цели нет, тело плавно тормозит (мышь остаётся на месте и ведёт дальше)
-const mouse = { x: 0, y: 0, has: false, down: false, idle: false, clicked: false };
+const mouse = { x: 0, y: 0, has: false, down: false, idle: false, clicked: false, dbl: false }; // dbl — это нажатие второе подряд (двойной клик)
 const keys = new Set();
 // P — «точка игрока» в мире. Активный этап держит её в актуальном состоянии.
 const P = { x: 0, y: 0, vx: 0, vy: 0, dashCd: 0, dashT: 0 };
@@ -192,6 +192,14 @@ function ghostSwipe(ex, ey, vx, vy, al = 1) {
   const x0 = px + uy * 44, y0 = py - ux * 44, x = lerp(x0, px - uy * 44, s), y = lerp(y0, py + ux * 44, s);
   if (k > .2) line(x0, y0, x, y, SHOW_C, .7 * a, 3);
   ghostCursor(x, y, k > .2 && k < .75, a);
+}
+// двойной клик: курсор подлетает и дважды жмёт — от точки разлетаются две искры (разрыв)
+/** @param {number} x @param {number} y @param {number} [al] */
+function ghostDouble(x, y, al = 1) {
+  const k = (G.T % 2.2) / 2.2, a = al * .85 * smooth(0, .1, k) * (1 - smooth(.88, 1, k)), s = smooth(0, .3, k);
+  const press = (k > .36 && k < .42) || (k > .5 && k < .56);
+  if (k > .5) { const u = smooth(.5, .8, k); ring(x, y, 6 + 26 * u, [255, 170, 120], a * (1 - u), 2); line(x - 4 - 14 * u, y - 4 - 10 * u, x - 4, y - 4, [255, 170, 120], a * (1 - u), 2); line(x + 4, y + 4, x + 4 + 14 * u, y + 4 + 10 * u, [255, 170, 120], a * (1 - u), 2); }
+  ghostCursor(x + 40 * (1 - s), y + 34 * (1 - s), press, a);
 }
 // зажми и веди: курсор зажат и описывает круг (сгребает)
 /** @param {number} cx @param {number} cy @param {number} [al] */
@@ -536,6 +544,10 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
 // Уровень даёт tally(): { name, rows: [[подпись, значение]], auto: [сама, всего] | null, stars }.
 // Здесь же: бонус за пройденный уровень и за долю, отданную Вселенной; рекорд уровня — молча в таблицу.
 const TALLY_T = 8, LVL_BONUS = 500, AUTO_BONUS = 1000;
+// ✦ переходят на следующий уровень: остаток ÷ CARRY_DIV (у каждого уровня свои цены — копилка не переносится целиком)
+const CARRY_DIV = 10;
+/** @param {Stage} st */
+const carryOf = st => st.bal ? Math.floor(Math.max(0, st.bal()) / CARRY_DIV) : 0;
 const Tally = {
   t: 0,
   // итоги пройденного уровня (из advance)
@@ -553,6 +565,7 @@ const Tally = {
     /** @type {TallyData['rows']} */
     const rows = [...d.rows];
     if (uk > 0) rows.push(['✦ от Вселенной', uk]);
+    const carry = carryOf(st); if (carry > 0) rows.push([`✦ с собой (остаток ÷ ${CARRY_DIV})`, '+' + carry, 'tb']);
     rows.push(['уровень пройден', '+' + LVL_BONUS, 'tb']);
     if (auto !== null) rows.push(['отдано Вселенной', '+' + Math.round(AUTO_BONUS * auto), 'tb']);
     rows.push(['очки за уровень', fmtScore(lvl), 'tl'], ['всего', fmtScore(G.score), 'tt']);

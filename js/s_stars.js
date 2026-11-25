@@ -65,8 +65,8 @@ const Stars = {
     if (ka === '8,8' || kb === '8,8' || ka === '7,7' || kb === '7,7') return { why: 'дальше — в следующих звёздах' };
     return { why: 'такие не связываются' };
   },
-  vBar(a, b) { const zz = a.Z * b.Z; return zz ? (2 + 2.5 * Math.sqrt(zz)) * .7 : 0; }, // в ядре звезды горячо — барьер ниже
-  vMax(a, b) { return this.vBar(a, b) + 6; },
+  vBar(a, b) { const zz = a.Z * b.Z; return zz ? (2 + 2.5 * Math.sqrt(zz)) * .7 * N_SPD : 0; }, // в ядре звезды горячо — барьер ниже
+  vMax(a, b) { return this.vBar(a, b) + 6 * N_SPD; },
   fragile(a, b) { return nkey(a) === '4,4' ? a : nkey(b) === '4,4' ? b : null; },
   collide(a, b, v, src) {
     const j = this.judge(a, b, v), hand = src === 'hand';
@@ -91,7 +91,7 @@ const Stars = {
     const k = nkey(o), nm = NUC_NAME[k]; let pts = 0, txt = '';
     Codex.note('n:' + k);
     if (!this.seen.has(k)) { this.seen.add(k); pts += 10; txt = `НОВОЕ ${nm[0]} ${nm[1]}`; }
-    if (ST_NEED[k]) pts += 5;
+    if (ST_NEED[k]) pts += src === 'hand' ? 8 : 5; // своими руками — дороже
     if (!pts) return;
     if (src === 'auto') Uni.pay(this, 'syn', pts); else this.kn += pts; // звезда куёт сама — в сводку
     this.float(o.x, o.y - .4, `${txt || nm[0]} +${pts} ✦`, txt ? [255, 215, 110] : [140, 220, 255], txt ? 16 : 14);

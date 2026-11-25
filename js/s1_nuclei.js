@@ -23,7 +23,7 @@ const ELEM = [['n', 'Нейтрон', 0], ['H', 'Водород', 1], ['He', 'Г
 const elemOf = Z => ELEM[clamp(Z, 0, ELEM.length - 1)];
 const NR = .8; // радиус нуклона в масштабе уровня атомов (части ядра передаются туда)
 // N_FLY — сколько летит брошенное (минимум), N_REACH — сколько оно пролетает самое меньшее: мягкий бросок летит дольше и долетает
-const NU_R = .42, N_WIN = 120, N_PAR = 75, N_VIEW = 9, N_DENS = .075, N_CAP = 60, N_FLY = 1.3, N_REACH = 11, N_VMAX = 15, SYN_COST = 30, Y_GOAL = .25;
+const NU_R = .42, N_WIN = 120, N_PAR = 75, N_VIEW = 9, N_DENS = .075, N_CAP = 60, N_FLY = 1.3, N_REACH = 11, N_SPD = 1.75, N_VMAX = 15 * N_SPD, SYN_COST = 30, Y_GOAL = .25;
 const NUC_NAME = {
   '1,0': ['p', 'протон'], '0,1': ['n', 'нейтрон'], '1,1': ['²H', 'дейтерий'], '1,2': ['³H', 'тритий'], '2,1': ['³He', 'гелий-3'],
   '2,2': ['⁴He', 'гелий-4'], '3,3': ['⁶Li', 'литий-6'], '3,4': ['⁷Li', 'литий-7'], '4,3': ['⁷Be', 'бериллий-7'],
@@ -142,9 +142,10 @@ const Nuclei = {
     return { why: 'такие не связываются' };
   },
   // скорость, нужная, чтобы пробить кулоновский барьер (с нейтроном — 0)
-  vBar(a, b) { const zz = a.Z * b.Z; return zz ? 2 + 2.5 * Math.sqrt(zz) : 0; },
+  // (N_SPD — бросок быстрее и резче, пороги — вместе с ним: какая доля резинки нужна, не изменилось)
+  vBar(a, b) { const zz = a.Z * b.Z; return zz ? (2 + 2.5 * Math.sqrt(zz)) * N_SPD : 0; },
   // скорость, выше которой хрупкое ядро разобьётся (или нуклоны просто разлетятся)
-  vMax(a, b) { const f = [N_BIND[nkey(a)], N_BIND[nkey(b)]].filter(Boolean); return this.vBar(a, b) + 5 + 1.5 * (f.length ? Math.min(...f) : 2); },
+  vMax(a, b) { const f = [N_BIND[nkey(a)], N_BIND[nkey(b)]].filter(Boolean); return this.vBar(a, b) + (5 + 1.5 * (f.length ? Math.min(...f) : 2)) * N_SPD; },
   fragile(a, b) { const fa = N_BIND[nkey(a)], fb = N_BIND[nkey(b)]; return fa && (!fb || fa <= fb) ? a : fb ? b : null; },
   // вердикт удара со скоростью v: {kind, label, c}
   judge(a, b, v, sure) {
@@ -205,7 +206,7 @@ const Nuclei = {
     Codex.note('n:' + k);
     let pts = 0, txt = '';
     if (!this.seen.has(k)) { this.seen.add(k); pts += 10; txt = `НОВОЕ ${nm[0]} ${nm[1]}`; }
-    if (k === '2,2') pts += 5; else if (o.Z >= 3) pts += 15;
+    if (k === '2,2') pts += src === 'hand' ? 8 : 5; else if (o.Z >= 3) pts += 15;
     if (!pts) return;
     if (src === 'auto') Uni.pay(this, 'syn', pts); else this.kn += pts; // ядра Вселенной — в сводку
     this.float(o.x, o.y - .3 * i, `${txt || nm[0]} +${pts} ✦`, txt ? [255, 215, 110] : [140, 220, 255], txt ? 16 : 14);

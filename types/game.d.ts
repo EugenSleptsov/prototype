@@ -52,6 +52,9 @@ interface Stage {
   seeNext?(k: string): string;
   uniPop?(k: string): boolean;
   cheated?: boolean;
+  /** копилка уровня: ✦ на руках; потрачено (в минус — принесено с прошлого уровня, carryIn — ещё не показано) */
+  bal?(): number; spent?: number; carryIn?: number;
+  float?(x: number, y: number, txt: string, c?: RGB, sz?: number): void;
   /** время уровня, с (для таблицы рекордов) */
   clock?: number; t?: number;
   /** уровень управляется рогаткой: палец — сам жест */

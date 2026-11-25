@@ -30,8 +30,11 @@ function jumpTo(i) {
 function advance() {
   if (G.stageI >= STAGES.length - 1) return;
   Tally.show(G.stage);
+  const carry = carryOf(G.stage); mouse.clicked = false; // нажатие прошлого уровня — не в новый
   G.prev = G.stage; G.stageI++; G.stage = STAGES[G.stageI]; G.trans = 0; G.prevU = { s: 1, ox: 0, oy: 0 }; Sfx.hum(0); Sfx.play('segment');
   G.stage.enter(G.prev); G.stage.scoreAt = G.score;
+  // остаток ÷ 10 — в копилку нового уровня (траты «в минус»: ✦ уровня, а значит и очки, не растут)
+  if (carry > 0) { G.stage.spent = (G.stage.spent || 0) - carry; G.stage.carryIn = carry; }
 }
 function endGame(text) {
   if (G.ended) return;
@@ -72,18 +75,26 @@ addEventListener('pointermove', e => {
   }
   if (e.pointerId === steerId) { mouse.x = e.clientX; mouse.y = e.clientY; }
 });
+// двойной клик или касание: второе нажатие рядом с первым в пределах 0,4 с — ловим здесь, а не по кадрам (быстрый дабл-клик короче кадра)
+let lastDown = { t: -1e9, x: 0, y: 0 };
+/** @param {PointerEvent} e */
+function markDbl(e) {
+  const t = performance.now();
+  mouse.dbl = t - lastDown.t < 400 && Math.hypot(e.clientX - lastDown.x, e.clientY - lastDown.y) < 36;
+  lastDown = { t: mouse.dbl ? -1e9 : t, x: e.clientX, y: e.clientY };
+}
 addEventListener('pointerdown', e => {
   Sfx.unlock(); // звук включается первым жестом игрока (так требует браузер)
   if (Cine.on) { Cine.skip(); if (e.pointerType !== 'mouse') touchMode(); return; } // кадр-пауза: касание — дальше, в игру не идёт
   if (Spot.on) { Spot.skip(); return; } // стоп-кадр со стрелкой: так же
   if (e.pointerType === 'mouse') {
     if (e.button !== 0 && G.stage.sling) { if (e.target === cv) mpan = { x: e.clientX, y: e.clientY }; return; } // правая/средняя — тянуть карту
-    mouse.down = true; if (e.target === cv && G.started) mouse.clicked = true; return;
+    mouse.down = true; if (e.target === cv && G.started) { mouse.clicked = true; mouse.x = e.clientX; mouse.y = e.clientY; markDbl(e); } return;
   }
   touchMode();
   if (e.target !== cv) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; if (G.stage.sling) mouse.down = true; } // рогатка: палец — сам жест
+  if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; markDbl(e); if (G.stage.sling) mouse.down = true; } // рогатка: палец — сам жест
   else if (ptrs.size === 2) { const [p, q] = [...ptrs.values()]; pinch0 = { d: Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)), z: G.zoom || 1, mx: (p.x + q.x) / 2, my: (p.y + q.y) / 2 }; mouse.idle = true; if (G.stage.sling && mouse.down) { mouse.cancel = true; mouse.down = false; } }
 }, true);
 function ptrUp(e) {
@@ -183,6 +194,8 @@ function update(dt) {
   if (G.stage.sling) tickPan(dt);
   G.stage.update(dt, true);
   if (G.started) Uni.tick(G.stage, dt); // чему научил — приносит ✦ само
+  // принесённые с прошлого уровня ✦ — искрами к счётчику, как только он на виду
+  if (G.stage.carryIn && !G.prev && G.T - Fly.seen < .2 && G.stage.float) { G.stage.float(P.x, P.y - 70 / cam.z, `с прошлого уровня +${G.stage.carryIn} ✦`, GOLD, 16); G.stage.carryIn = 0; }
   if (G.prev) {
     G.trans += dt / TRANS_DUR;
     G.prev.update(dt, false);

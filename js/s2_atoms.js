@@ -3,15 +3,15 @@
    Материал — ядра со «Звёзд» (C, N, O, гелий, водород); при запуске отсюда — набор по умолчанию.
    Физика (упрощённо):
    - ион с зарядом Q = Z − (пойманные электроны) притягивает электроны (кулон);
-   - захват только медленного электрона: относительная скорость < 1,6 + 0,35·Q — быстрый пролетит мимо;
-   - электроны горячие и быстрые; Вселенная остывает, они медленнеют;
+   - захват только заторможенного электрона (след или «Рекомбинация») — сам по себе горячий пролетит мимо, ждать бесполезно;
+   - электроны горячие и быстрые; Вселенная остывает, они медленнеют (вести след легче), но сами не садятся;
    - жёсткий свет выбивает электрон обратно, пока горячо.
    Глагол: проведи пальцем (или мышью с зажатой кнопкой) — за ним тормозящий след. Электрон, пересёкший след,
    отдаёт энергию фотоном и замедляется — ближайший ион его ловит. Играешь по всему полю.
    Исследование «Рекомбинация»: электроны у ионов тормозят сами (излучают), Вселенная нейтрализуется без тебя.
    Мир без края: ионы — ядра твоей сверхновой там, куда их вынесло; Вселенная приносит ионы, электроны и свет из-за края кадра. */
 // обзор; ионы Вселенной: плотность и предел в кадре; электронов в кадре — не больше
-const A_VIEW = 14.5, A_DENS = .025, A_CAP = 40, A_ECAP = 30, A_COST = 30, A_GOAL = .9, TR_LIFE = .8;
+const A_VIEW = 14.5, A_DENS = .025, A_CAP = 40, A_ECAP = 30, A_COST = 30, A_GOAL = .9, TR_LIFE = 1.1, TR_W = .55; // TR_W — полуширина следа (мир)
 const AT_EL = { 1: ['H', [235, 235, 240]], 2: ['He', [200, 250, 255]], 3: ['Li', [200, 120, 255]], 6: ['C', [150, 150, 165]], 7: ['N', [110, 145, 255]], 8: ['O', [250, 95, 80]] };
 const atSym = Z => (AT_EL[Z] || [elemOf(Z)[0]])[0];
 const atCol = Z => (AT_EL[Z] || [0, [220, 220, 230]])[1];
@@ -21,6 +21,13 @@ function segX(ax, ay, bx, by, cx, cy, dx, dy) {
   const d1 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx), d2 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
   const d3 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax), d4 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
   return d1 * d2 < 0 && d3 * d4 < 0;
+}
+
+// расстояние от точки до отрезка
+/** @param {number} x @param {number} y @param {number} ax @param {number} ay @param {number} bx @param {number} by */
+function segDist(x, y, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy, t = L ? clamp(((x - ax) * dx + (y - ay) * dy) / L, 0, 1) : 0;
+  return Math.hypot(x - ax - dx * t, y - ay - dy * t);
 }
 
 const Atoms = {
@@ -61,7 +68,7 @@ const Atoms = {
     const heavy = [6, 7, 8].filter(Z => !this.fromStars || Codex.has('n:' + Z + ',' + Z) || !this.ions.some(i => i.Z === Z));
     return heavy.length ? pick(heavy) : 1;
   },
-  vth() { return 2.5 + 8 * this.Ta; },
+  vth() { return 4.5 + 6 * this.Ta; },
   // электрон: any — где угодно в кадре (начало), иначе — из-за края кадра, внутрь
   spawnE(any) {
     const v = this.vth();
@@ -132,8 +139,8 @@ const Atoms = {
         const dx = io.x - e.x, dy = io.y - e.y, d2 = dx * dx + dy * dy; if (d2 > (e.slow > 0 ? 40 : 20)) continue;
         const d = Math.sqrt(d2) || 1e-6, f = (e.slow > 0 ? 9 : 5) * Q / (d2 + .6); // медленного кулон дотягивает издалека
         ax += dx / d * f; ay += dy / d * f;
-        // захват: близко и медленно
-        if (act && d < .95 + .08 * Q && Math.hypot(e.vx - io.vx, e.vy - io.vy) < 2.4 + .3 * Q) { this.capture(io, e); break; }
+        // захват: заторможенный, близко и медленно
+        if (act && e.slow > 0 && d < .95 + .08 * Q && Math.hypot(e.vx - io.vx, e.vy - io.vy) < 2.4 + .3 * Q) { this.capture(io, e); break; }
         // «Рекомбинация»: у иона электрон излучает и тормозит сам
         if (act && this.rs.rec && d < 4 && e.brk <= 0 && this.doneAt === null && Math.random() < dt * 1.2) this.brake(e, e.by === 'hand' ? 'hand' : 'auto');
       }
@@ -147,10 +154,10 @@ const Atoms = {
       }
       if (s > 25) { e.vx *= 25 / s; e.vy *= 25 / s; }
       e.x += e.vx * dt; e.y += e.vy * dt;
-      // пересёк след — тормозит
+      // пересёк след или прошёл рядом с ним — тормозит
       if (live && e.brk <= 0 && this.tr.length > 1) for (let i = 1; i < this.tr.length; i++) {
         const p = this.tr[i - 1], q = this.tr[i];
-        if (segX(ox, oy, e.x, e.y, p.x, p.y, q.x, q.y)) { this.brake(e, 'hand'); break; }
+        if (segX(ox, oy, e.x, e.y, p.x, p.y, q.x, q.y) || segDist(e.x, e.y, p.x, p.y, q.x, q.y) < TR_W) { this.brake(e, 'hand'); break; }
       }
       if (farOff(e)) e.dead = true;
     }
@@ -193,7 +200,7 @@ const Atoms = {
     Sfx.play('catch', Math.min(3, io.ne - 1));
     if (io.ne >= io.Z) { // нейтральный атом
       const s = atSym(io.Z);
-      let pts = 2, txt = s; Codex.note('a:' + io.Z);
+      let pts = e.by === 'hand' ? 4 : 2, txt = s; Codex.note('a:' + io.Z); // своими руками — дороже
       if (!this.seenN.has(io.Z)) { this.seenN.add(io.Z); pts += 10; txt = `НОВЫЙ АТОМ ${s} · ${elemOf(io.Z)[1].toLowerCase()}`; Sfx.play('fresh'); }
       if (e.by === 'auto') Uni.pay(this, 'rec', pts); else this.kn += pts; // атом собрала Вселенная — в сводку
       fxFlash(io.x, io.y, 1.4, c, .6);

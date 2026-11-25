@@ -24,7 +24,7 @@ const CHEM = {
   F: { r: 9, c: [150, 240, 100], s: [0], m: 19 },
   Ne: { r: 9, c: [255, 150, 120], s: [], m: 20 },
 };
-const TOL = .42, BREAK_V = 30;
+const TOL = .42, M_VMAX = 70, BREAK_V = 52, M_MINE = 8; // M_MINE — сколько секунд Вселенная не трогает то, что ты брал
 const EA = (x, y) => (x === 'H' && y === 'H') ? 1 : 2;
 const M_U = 5, M_VIEW = 78, M_DENS = .0012, M_CAP = 60, M_COST = 20;
 // соединения из одинарных связей (двойные модель не умеет) — {f: формула, n: название, c: состав}
@@ -41,12 +41,12 @@ const fits = (c, t) => Object.keys(c).every(k => (t[k] || 0) >= c[k]);
 const Mols = {
   key: 'molecules', name: 'Молекулы', bg: [6, 24, 44], sling: true,
   // взятое поворачивают Q / E или Shift + колесо (на сенсоре оно поворачивается само по ходу броска)
-  get controls() { return 'Зажми атом, оттяни, отпусти' + (isTouch() ? '' : ' · Q / E или Shift + колесо — повернуть'); },
+  get controls() { return 'Зажми атом, оттяни, отпусти · ' + (isTouch() ? 'двойное касание связи — разорвать' : 'двойной клик по связи — разорвать · Q / E или Shift + колесо — повернуть'); },
 
   enter(prev) {
     this.m = []; this.t = 0; this.clock = 0; this.hints = []; this.lowEMsgT = 0; this.floats = []; this.tk = {}; this.banner = -1.5;
     this.kn = 0; this.uni = []; this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
-    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0 };
+    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, tear: 0 }; this.tore = false;
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     // атомы с прошлого уровня — на своих местах: мир растягивается в M_U раз, камера — во столько же отъезжает
     if (prev && prev.ions) {
@@ -71,10 +71,29 @@ const Mols = {
   bodies() { return this.doneAt !== null ? [] : this.m.filter(m => !m.dead && m.age > .3); },
   grabR(b) { return b.R + 14 / cam.z; },
   full() { return slingFullPx() / cam.z; },
-  vmax() { return 40; },
-  hold(b) { b.held = true; b.vx = b.vy = 0; b.w = 0; },
+  vmax() { return M_VMAX; },
+  hold(b) { b.held = true; b.vx = b.vy = 0; b.w = 0; b.mineT = this.t; },
   launch(b, vx, vy) { b.held = false; b.vx = vx; b.vy = vy; b.thrown = 0; if (Math.hypot(vx, vy) > 1) b.hand = 3; },
-  damp() { return .3; },
+  damp() { return .22; },
+  // двойной клик (касание) по молекуле — рвётся связь, ближайшая к пальцу
+  tap2(x, y) {
+    if (this.doneAt !== null) return false;
+    let best = null, bd = Infinity;
+    for (const mol of this.m) {
+      if (mol.dead || !mol.bonds.length || Math.hypot(mol.x - x, mol.y - y) > mol.R + 14 / cam.z) continue;
+      mol.bonds.forEach((b, bi) => { const p = mol.wp[b[0]], q = mol.wp[b[1]], d = Math.hypot((p[0] + q[0]) / 2 - x, (p[1] + q[1]) / 2 - y); if (d < bd) { bd = d; best = [mol, bi]; } });
+    }
+    if (!best) return false;
+    const [mol, bi] = best, [i, j] = mol.bonds[bi], s = `${mol.atoms[i].el}–${mol.atoms[j].el}`;
+    const mx = (mol.wp[i][0] + mol.wp[j][0]) / 2, my = (mol.wp[i][1] + mol.wp[j][1]) / 2;
+    const other = this.splitBond(mol, bi);
+    mol.mineT = this.t; if (other) other.mineT = this.t;
+    this.st.tear++; this.tore = true;
+    fxRing(mx, my, 1.5, [255, 170, 120], 9, .45);
+    Sfx.play('snap');
+    this.float(mx, my, `✂ ${s}`, [255, 170, 120], 14);
+    return true;
+  },
   // взятое поворачивается свободной связью по ходу броска
   orient(b, dx, dy) {
     const th = Math.atan2(dy, dx); let best = null, bd = Infinity;
@@ -334,9 +353,9 @@ const Mols = {
   // ---------- Вселенная сама сводит куски открытого («Синтез …») ----------
   autoChem(dt) {
     if (!this.res.size || (this.autoCd -= dt) > 0) return;
-    this.autoCd = 1.2;
+    this.autoCd = 2.4; // не чаще — у игрока есть время собрать своё
     const goals = COMP.filter(x => this.res.has(x.f));
-    const f = this.m.filter(m => !m.dead && !m.held && m.age > 1 && !(m.hand > 0) && !(m.auto > 0) && this.freeSlots(m) && inView(m.x, m.y, -5));
+    const f = this.m.filter(m => !m.dead && !m.held && m.age > 1 && !(m.hand > 0) && !(m.auto > 0) && !(this.t - (m.mineT ?? -99) < M_MINE) && this.freeSlots(m) && inView(m.x, m.y, -5));
     let best = null, bs = -Infinity;
     for (const g of goals) for (let i = 0; i < f.length; i++) {
       const ca = this.counts(f[i]); if (!fits(ca, g.c)) continue;
@@ -479,8 +498,18 @@ const Mols = {
         const to = this.m.filter(m => m !== o && m.age > .5).sort((u, v) => Math.hypot(u.x - o.x, u.y - o.y) - Math.hypot(v.x - o.x, v.y - o.y))[0];
         if (to) { const [tx, ty] = W2S(to.x, to.y); if (onScreen(tx, ty, 0)) ghostSling(sx, sy, tx, ty, al); } }
     }
+    else if (G.started && !G.paused && !G.prev && this.doneAt === null && !this.tore && !this.sl.held && (this.sl.shots >= 3 || this.st.auto > 0)) this.drawTearHint(al);
     for (const fl of this.floats) { const [fx, fy] = W2S(fl.x, fl.y); labelIn(fl.txt, fx, fy - 16 - fl.t * 26, fl.sz, fl.c, clamp(1.8 - fl.t, 0, 1), 700); }
     ctx.globalAlpha = 1;
+  },
+  // ещё не рвал связей: у ближайшей связанной молекулы — «двойной клик — разорвать» и курсор, который сам дважды кликает
+  drawTearHint(al) {
+    const o = this.m.filter(m => !m.dead && m.bonds.length && !m.held && onScreen(...W2S(m.x, m.y), -40)).sort((u, v) => Math.hypot(u.x - P.x, u.y - P.y) - Math.hypot(v.x - P.x, v.y - P.y))[0];
+    if (!o) return;
+    const [i, j] = o.bonds[0], [bx, by] = W2S((o.wp[i][0] + o.wp[j][0]) / 2, (o.wp[i][1] + o.wp[j][1]) / 2), r = o.R * cam.z + 10;
+    const [sx, sy] = W2S(o.x, o.y);
+    label(isTouch() ? 'двойное касание по связи — разорвать' : 'двойной клик по связи — разорвать', sx, sy + r + 18, 13, [255, 255, 255], .8 * al, 700);
+    ghostDouble(bx, by, al);
   },
   overlay(al) {
     if (!G.started) return;
