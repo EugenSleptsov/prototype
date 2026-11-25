@@ -144,6 +144,7 @@ const VOID_TXT = ['Ничего нет. Ни частиц, ни света.', '�
 // Сила удара — ступени: чем дольше держишь пару квантов, тем выше ступень (LV_T с на ступень), каждая ступень
 // стоит 1 ⚡ — удар на k ступеней стоит k ⚡. Отпустил до первой — слабый удар, ничего не родится.
 const LV_N = 4, LV_T = .75;
+const TRY_N = 2; // промахов, после которых задание называет рецепт целиком (поколения II–III: сначала — только пара)
 const HIG_T = 6; // сколько секунд застывает поле Хиггса (пассивная фаза: короче — меньше ждать)
 // Матрица рождения: пара квантов × ступень. Ступень — поколение (тяжелее — дольше держать):
 //   γ + γ — фотон чувствует только заряд: лептоны e, μ, τ; 4 ⚡ — три струи (u ū + глюон; так глюон открыли на
@@ -239,7 +240,7 @@ const Particles = {
     this.learn = {}; this.coach = { idle: 0, t: 0, kind: null }; this.en = 0; this.enFx = 0; this.shotCd = 0; this.shotFx = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.bannerFor = -1; this.banner = 99; this.epT = 0;
-    this.pairs = 0; this.decSeen = new Set(); this._pk = null; this.hot = []; this.hotCd = 3; this.stock = 0; this.stockQ = []; this.udRes = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
+    this.pairs = 0; this.tries = {}; this.decSeen = new Set(); this._pk = null; this.hot = []; this.hotCd = 3; this.stock = 0; this.stockQ = []; this.udRes = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
     Codex.run = new Set(); Codex.dirty = true;
     // цели этого забега: что открыть в эпохе 1 и чьи распады снять в эпохе 3
     this.need0 = [...NEED0];
@@ -694,7 +695,7 @@ const Particles = {
       const t = a.dx; a.dx = b.dx; b.dx = t; const u = a.dy; a.dy = b.dy; b.dy = u;
       a.flung = b.flung = 0; a.v = b.v = undefined;
       if (spont && k > 0 && this.pickCell(kinds, k, rs, false).c && onScreen(...W2S(x, y), 0)) fxRing(x, y, .05, [255, 240, 200], .35, .3); // искра: могло бы родить, но не исследовано
-      if (!spont) { fxRing(x, y, .1, [255, 160, 140], .6, .4); this.float(x, y, r.why || 'мало энергии', [255, 160, 140], 12); Sfx.play('fizzle'); if (this.tut) this.tut.weak++; }
+      if (!spont) { fxRing(x, y, .1, [255, 160, 140], .6, .4); this.float(x, y, r.why || 'мало энергии', [255, 160, 140], 12); Sfx.play('fizzle'); if (this.tut) this.tut.weak++; this.tried([]); }
       return;
     }
     const c = r.c;
@@ -713,7 +714,7 @@ const Particles = {
     }
     fxFlash(x, y, .7, [255, 250, 220], .35);
     for (let i = 0; i < 8; i++) { const an = i * TAU / 8; fxRing(x + Math.cos(an) * .25, y + Math.sin(an) * .25, .02, [255, 240, 200], .06, .35); }
-    if (!spont) { this.pairs++; this.st.pairs++; for (const o of made) o.mine = 5; } // твоё — несколько секунд на виду
+    if (!spont) { this.pairs++; this.st.pairs++; for (const o of made) o.mine = 5; this.tried(made); } // твоё — несколько секунд на виду
     Sfx.play(spont ? 'pop' : 'collide');
     this.event(made, x, y, undefined, this.rx([a, b], made, r.k));
     return true;
@@ -1483,7 +1484,7 @@ const Particles = {
         return { t: `Сними, как распадается ${sym(sp)}`, h: pre ? `сначала ${this.howTo(pre).toLowerCase()} — поколения открываются по порядку`
           : Codex.auto.has(sp) ? `Вселенная родит ${sym(sp)} у горячей точки — ${tap} по золотой вершине, где он распадётся`
           : `${this.howTo(sp)} — и ${tap} по золотой вершине, где он распадётся. Или научи Вселенную: ${this.rs.coll ? '' : '«Столкновения», потом '}«Рождение ${sym(sp)}»`,
-          s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? sp : null, rx: mk ? this.rxOf(mk) : undefined };
+          s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? sp : null, rx: mk ? this.taskRx(mk) : undefined };
       });
       default: {
         const t = baryonTrios(this.stockQ);
@@ -1504,11 +1505,34 @@ const Particles = {
   // Рецепт частицы по матрице: «γ + g · 3 ⚡»
   /** @param {string} sp */
   recipe(sp) { const c = this.cellOf(sp); return c ? `${PAIR_N[c[0]]} · ${c[1]} ⚡` : ''; },
-  // Рецепт словами: «Столкни свет и глюон посильнее — родится c-кварк»
+  // Рецепт словами: «Столкни свет и глюон посильнее — родится c-кварк».
+  // Поколения II–III — наполовину: пара названа, силу удара игрок находит сам (ступень = поколение — это и есть открытие).
+  // Целиком — после TRY_N промахов или если частица уже открыта в прошлых забегах.
   /** @param {string} sp */
   howTo(sp) {
     const c = this.cellOf(sp); if (!c) return `Открой ${SM[sp].sym}`;
-    return `Столкни ${PAIR_W[c[0]]} ${LV_W[c[1]]} — родится ${SM[sp].name.replace(/ \(.*\)$/, '')}`;
+    const nm = SM[sp].name.replace(/ \(.*\)$/, '');
+    return this.half(sp) ? `Столкни ${PAIR_W[c[0]]} — подбери силу удара, чтобы родился ${nm}` : `Столкни ${PAIR_W[c[0]]} ${LV_W[c[1]]} — родится ${nm}`;
+  },
+  /** @param {string} sp */
+  half(sp) { return (SM[sp].gen ?? 0) > 1 && !!this.cellOf(sp) && (this.tries[sp] || 0) < TRY_N && !Codex.known.has(sp); },
+  // рецепт значками для задания: наполовину — сила удара «?»
+  /** @param {string} sp @returns {Rx | undefined} */
+  taskRx(sp) { const rx = this.rxOf(sp); return rx && this.half(sp) ? { ...rx, k: -1 } : rx; },
+  // что сейчас нужно родить по заданию (эпоха 3: частица или её лёгкое поколение)
+  /** @returns {string | null} */
+  goalSp() {
+    if (this.ep !== 2) return null;
+    const sp = this.need2.find(s => !this.decSeen.has(s)); if (!sp) return null;
+    const mk = genOpen(sp) ? (Codex.auto.has(sp) ? null : sp) : genNeed(sp)[0];
+    return mk && !Codex.has(mk) ? mk : null;
+  },
+  // столкновение руками: не родило то, что просит задание, — промах; после TRY_N рецепт открывается целиком
+  /** @param {Q[]} made */
+  tried(made) {
+    const sp = this.goalSp(); if (!sp || !this.half(sp) || made.some(o => o.sp === sp)) return;
+    this.tries[sp] = (this.tries[sp] || 0) + 1;
+    if (!this.half(sp)) this.float(P.x, P.y - this.hr() - .5, `подсказка: ${this.recipe(sp)} — смотри задание`, [255, 215, 110], 14);
   },
   // ---------- обучение ----------
   startTut() { this.enter(); this.inVoid = false; this.cheated = true; this.tut = { i: 0, t: 0, abs: 0, weak: 0, lep: 0, q: 0, end: -1 }; },

@@ -285,9 +285,9 @@ function drawRecipe(rx, x, y, a, draw) {
   /** @param {string} t */
   const sign = t => { if (draw) label(t, x + 6, y + h / 2, 14, [220, 225, 240], .7 * a, 600); x += 17; };
   rx.l.forEach((c, i) => { if (i) sign('+'); chip(c); });
-  if (rx.k) { // сила удара — ступени, как на кольце детектора
+  if (rx.k) { // сила удара — ступени, как на кольце детектора; −1 — не названа: подбери сам
     for (let k = 1; k <= 4; k++) { if (draw) { ctx.fillStyle = k <= rx.k ? rgb([255, 210, 122], .95 * a) : rgb([255, 255, 255], .16 * a); ctx.beginPath(); ctx.roundRect(x, y + 4, 6, h - 8, 2); ctx.fill(); } x += 9; }
-    if (draw) labelL(`${rx.k}⚡`, x + 1, y + h / 2 + .5, 12, [255, 210, 122], .95 * a, 800);
+    if (draw) labelL(rx.k > 0 ? `${rx.k}⚡` : '?⚡', x + 1, y + h / 2 + .5, 12, [255, 210, 122], .95 * a, 800);
     x += 26;
   }
   sign('→'); rx.r.forEach(chip);

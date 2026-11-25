@@ -240,7 +240,7 @@ const SCENE_T = 4.8, SCENE_SLOW = 1.3;
 // Схема реакции значками: «γ + γ ▮▯▯▯ → e⁻ e⁺»; me — символ, который только что открыт (подсвечен)
 function rxHtml(rx, me) {
   const ic = ([t, kind]) => `<span class="cs ${kind}${me && t.startsWith(me) ? ' me' : ''}">${t}</span>`;
-  const lv = rx.k ? `<span class="lv" title="сила удара">${[1, 2, 3, 4].map(i => `<b class="${i <= rx.k ? 'on' : ''}"></b>`).join('')}<small>${rx.k} ⚡</small></span>` : '';
+  const lv = rx.k ? `<span class="lv" title="сила удара">${[1, 2, 3, 4].map(i => `<b class="${i <= rx.k ? 'on' : ''}"></b>`).join('')}<small>${rx.k > 0 ? rx.k : '?'} ⚡</small></span>` : '';
   return `<div class="rx">${rx.l.map(ic).join('<i>+</i>')}${lv}<i>→</i>${rx.r.map(ic).join(' ')}</div>`;
 }
 // Сцена: крупно в нижней трети, игру не останавливает; slow — секунды замедления времени

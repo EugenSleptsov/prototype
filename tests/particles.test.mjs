@@ -174,3 +174,23 @@ test('обучение: такт → снимок → сбор → три уда
   assert.equal(g.store.get('proto.tut'), '1');
   assert.equal(g.ev('G.stage.tut'), null);
 });
+
+test('рецепт в задании: поколение II — только пара, сила «?»; после двух промахов — целиком; открытое раньше — сразу целиком', () => {
+  const setup = g => g.ev(`['e', 'u', 'd', 'g', 'H', 'W', 'Z'].forEach(k => Codex.see(k)); const S = G.stage; S.rs.coll = 1; S.ep = 2; S.hig = 1; S.T = 40; S.epT = 50; S.need2 = ['mu', 'c', 'ta']; S.epDone = false;`);
+  const step = g => json(g, `(s => ({ h: s.h, k: s.rx && s.rx.k }))(G.stage.steps()[0])`);
+  const g = toField();
+  setup(g);
+  let s = step(g);
+  assert.equal(s.k, -1, 'сила не названа');
+  assert.match(s.h, /два фотона — подбери силу удара/);
+  g.ev(`__hit('ph', 'ph', 1)`); // родился e, а не μ — промах
+  assert.equal(step(g).k, -1, 'один промах — рецепт ещё наполовину');
+  g.ev(`__hit('ph', 'ph', 1)`);
+  s = step(g);
+  assert.equal(s.k, 2, 'два промаха — рецепт целиком');
+  assert.match(s.h, /два фотона посильнее/);
+
+  const g2 = toField({ storage: { protoCodex: JSON.stringify(['ph', 'mu']) } });
+  setup(g2);
+  assert.equal(step(g2).k, 2, 'μ уже открыт в прошлом забеге — рецепт сразу целиком');
+});

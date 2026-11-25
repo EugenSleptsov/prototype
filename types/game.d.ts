@@ -105,6 +105,7 @@ interface Q {
   rx?: Rx;
 }
 /** Схема реакции: что вошло → что вышло ([символ, вид]), k — сила удара (0 — без удара) */
+/** k — ступень удара 1–4, 0 — без удара, −1 — сила не названа (игрок подбирает сам) */
 interface Rx { l: [string, string][]; r: [string, string][]; k: number }
 /** То, что нужно для цвета и подписи: частица или её описание в следе */
 interface Look { sp: string; anti: boolean; col: number; col2?: number }
@@ -210,7 +211,7 @@ interface ParticlesState {
   ejected: number;
   /** эпоха 0…3 */
   ep: number; epDone: boolean; epGap: number; bannerFor: number; banner: number; epT: number;
-  pairs: number; decSeen: Set<string>;
+  pairs: number; decSeen: Set<string>; tries: Record<string, number>;
   hot: Hot[]; hotCd: number;
   /** эпоха 4: запас кварков в детекторе */
   stock: number; stockQ: Stored[]; soupCd: number;
