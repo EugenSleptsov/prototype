@@ -40,7 +40,7 @@ const Nuclei = {
 
   enter(prev) {
     this.o = []; this.g = []; this.el = []; this.floats = []; this.t = 0; this.clock = 0; this.doneAt = null; this.endCd = -1;
-    this.kn = 0; this.spent = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.autoCd = 1;
+    this.kn = 0; this.uni = []; this.spent = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.autoCd = 1;
     this.advanced = false; this.cheated = false; this.gT = 0; this.spCd = 0; this.seen = new Set(); this.tk = {};
     this.st = { decayed: 0, broken: 0, bounce: 0, shat: 0 }; this.he = { hand: 0, auto: 0 };
     this.hr = prev && prev.hr != null ? (typeof prev.hr === 'function' ? prev.hr() : prev.hr) : 1.4;
@@ -189,7 +189,7 @@ const Nuclei = {
       const o = this.mk(Z, N, x + Math.cos(an) * off, y + Math.sin(an) * off, vx + Math.cos(an) * sp, vy + Math.sin(an) * sp);
       o.age = 1; o.nb = .8; o.mine = true; if (Z === 0) o.life = Math.min(a.life, b.life, rnd(50, 70));
       if (Z === 2 && N === 2) { if (src === 'hand') this.he.hand++; else this.he.auto++; }
-      this.made(o, i);
+      this.made(o, i, src);
     });
     fxFlash(x, y, 1.2, [255, 240, 200], .45);
     fxRing(x, y, .3, [255, 220, 150], 2.2, .6);
@@ -199,7 +199,7 @@ const Nuclei = {
     return true;
   },
   // родилось ядро: новое — +10 ✦, гелий — +5, литий и бериллий — +15
-  made(o, i) {
+  made(o, i, src) {
     const k = nkey(o), nm = NUC_NAME[k];
     if (!nm || o.Z + o.N < 2) return;
     Codex.note('n:' + k);
@@ -207,7 +207,7 @@ const Nuclei = {
     if (!this.seen.has(k)) { this.seen.add(k); pts += 10; txt = `НОВОЕ ${nm[0]} ${nm[1]}`; }
     if (k === '2,2') pts += 5; else if (o.Z >= 3) pts += 15;
     if (!pts) return;
-    this.kn += pts;
+    if (src === 'auto') Uni.pay(this, 'syn', pts); else this.kn += pts; // ядра Вселенной — в сводку
     this.float(o.x, o.y - .3 * i, `${txt || nm[0]} +${pts} ✦`, txt ? [255, 215, 110] : [140, 220, 255], txt ? 16 : 14);
   },
   // хрупкое ядро разлетается на части (γ или слишком сильный удар)
@@ -359,7 +359,7 @@ const Nuclei = {
     const it = this.shopItems()[i];
     if (!it || !G.started || G.paused) return;
     if (this.bal() < it.c) { this.float(P.x, P.y - 1.5, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
-    this.spent += it.c; this.rs.syn = 1; this.autoCd = .5; Sfx.play('upgrade');
+    this.spent += it.c; this.rs.syn = 1; this.autoCd = .5; Sfx.play('upgrade'); Uni.learn(this, 'syn', '☀', 'Нуклеосинтез', UNI_LVL);
     fxRing(P.x, P.y, 1, GOLD, viewRadius() * .8, 1.4);
     this.float(P.x, P.y - 1.5, '☀ Нуклеосинтез', GOLD, 16);
   },

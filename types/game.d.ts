@@ -27,6 +27,10 @@ interface Fx { x: number; y: number; r0: number; r1: number; t: number; dur: num
 type Chip = [string, [RGB, number], RGB, boolean?];
 /** Состояние панели задания у этапа (hudTask): прошлые галочки шагов и ★, вспышка «✓ …», когда закрыт шаг */
 interface TaskPanel { ds?: boolean[]; ss?: number[]; fl?: { txt: string; c: RGB; at: number }; doneAt?: number }
+/** Строка сводки «Вселенная сама»: научено (lv раз), ровный доход rate ✦/мин (acc — накоплено до 1 ✦),
+ *  сколько принесла ✦ и ⚡, событий n, когда научено t0, последняя выплата fl, выплаты [время, ✦] за минуту */
+interface UniRow { k: string; ic: string; name: string; lv: number; rate: number; acc: number; kn: number; en: number; n: number; t0: number; fl: number; log: [number, number][] }
+
 /** Итоги уровня (tally): строки [подпись, значение, класс], доля Вселенной [сама, всего] */
 interface TallyData { name: string; rows: [string, string | number, string?][]; auto?: [number, number] | null; stars?: Star[] }
 
@@ -41,6 +45,10 @@ interface Stage {
   scoreAt?: number;
   /** ✦ уровня — main.js превращает прирост в очки */
   kn?: number;
+  /** «Вселенная сама» (core.js Uni): строки научённого; работает ли сейчас; где показать «+1 ✦» */
+  uni?: UniRow[];
+  uniOn?(k: string): boolean;
+  uniPop?(k: string): void;
   cheated?: boolean;
   /** время уровня, с (для таблицы рекордов) */
   clock?: number; t?: number;
@@ -193,7 +201,7 @@ interface ParticlesState {
   caught: number[]; caughtFx: number; caughtAt: number;
   phSeen: Set<number>;
   /** ✦ добыто и потрачено */
-  kn: number; spent: number;
+  kn: number; spent: number; uni: UniRow[];
   epClock: number; epKn0: number; doneAt: number | null; lvlTotal: number;
   /** была отладка — без рекордов */
   cheated: boolean;

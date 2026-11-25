@@ -45,7 +45,7 @@ const Mols = {
 
   enter(prev) {
     this.m = []; this.t = 0; this.clock = 0; this.hints = []; this.lowEMsgT = 0; this.floats = []; this.tk = {}; this.banner = -1.5;
-    this.kn = 0; this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
+    this.kn = 0; this.uni = []; this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
     this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0 };
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     // атомы с прошлого уровня — на своих местах: мир растягивается в M_U раз, камера — во столько же отъезжает
@@ -175,7 +175,7 @@ const Mols = {
     if (this.freeSlots(host)) return;
     const cp = COMP_BY[ckey(this.counts(host))];
     if (!cp) return;
-    if (src === 'auto') this.st.auto++; else if (src === 'hand') this.st.hand++;
+    if (src === 'auto') { this.st.auto++; Uni.pay(this, this.res.has(cp.f) ? cp.f : [...this.res][0], 2); } else if (src === 'hand') this.st.hand++;
     if (src === 'auto' || (src === 'hand' && this.res.size)) this.st.soup++; // Вселенная учится — бульон варит она и ты вместе
     Codex.note('m:' + cp.f);
     if (!this.found.includes(cp.f)) {
@@ -395,13 +395,15 @@ const Mols = {
 
   // ---------- исследование ----------
   bal() { return Math.floor(this.kn - this.spent); },
-  shopItems() { return this.doneAt !== null ? [] : COMP.filter(x => this.found.includes(x.f) && !this.res.has(x.f)).slice(0, 4).map(x => ({ ic: x.f, name: 'Синтез', about: x.n, c: M_COST, f: x.f })); },
+  shopItems() { return this.doneAt !== null ? [] : COMP.filter(x => this.found.includes(x.f) && !this.res.has(x.f)).slice(0, 4).map(x => ({ ic: x.f, name: 'Синтез', about: x.n, c: this.mCost(), f: x.f })); },
+  // каждый следующий «Синтез» дороже на четверть: научённое приносит ✦ само
+  mCost() { return Math.round(M_COST * (1 + .25 * this.res.size) / 5) * 5; },
   keyOf() { return this.shopItems().length ? 1 : null; },
   buy(i) {
     const it = this.shopItems()[i];
     if (!it || !G.started || G.paused) return;
     if (this.bal() < it.c) { this.float(P.x, P.y - 10, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
-    this.spent += it.c; this.res.add(it.f); this.autoCd = .3; Sfx.play('upgrade');
+    this.spent += it.c; this.res.add(it.f); this.autoCd = .3; Sfx.play('upgrade'); Uni.learn(this, it.f, it.f, it.about, UNI_LVL);
     this.float(P.x, P.y - 10, `Синтез ${it.f}: Вселенная учится`, GOLD, 16);
   },
   renderShop(el) {

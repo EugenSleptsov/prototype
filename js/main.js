@@ -180,6 +180,7 @@ function update(dt) {
   Tally.tick(dt); Hint.tick(dt);
   if (G.stage.sling) tickPan(dt);
   G.stage.update(dt, true);
+  if (G.started) Uni.tick(G.stage, dt); // чему научил — приносит ✦ само
   if (G.prev) {
     G.trans += dt / TRANS_DUR;
     G.prev.update(dt, false);
@@ -277,6 +278,7 @@ function hud() {
   const shop = document.getElementById('shop');
   if (G.stage.renderShop) G.stage.renderShop(shop); else shop.style.display = 'none';
   if (shop.style.display !== 'none' && isTouch()) document.getElementById('controls').style.display = 'none'; // лавка внизу — подсказку управления не накладываем
+  Uni.render(byId('uni')); // после лавки: встаёт над ней
   h.laws.forEach(([, w], i) => { const el = document.getElementById('law' + i); if (el) el.style.width = (clamp(w, 0, 1) * 100).toFixed(0) + '%'; });
 }
 

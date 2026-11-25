@@ -67,7 +67,13 @@ const PH_CLS = [
   { n: 'сверхжёсткий', r: 'легендарный', x: 8, e: 4, k: 20, kn: 10, c: [210, 170, 255] },
 ];
 // Цены исследований: новое в мире (новый вид частиц) — дорого, автоматизация уже имеющегося — дешевле
-const RES_COST = { ph: [10, 30, 60], g: [40], coll: [60], cp: [60] }, resNew = (/** @type {number} */ v) => 40 + 15 * v;
+// Цены «Научить». «Рождение X»: тяжелее X — дороже; каждое следующее «Рождение» — ещё на RES_UP дороже (их много,
+// а научённое приносит ✦ само — без роста цен Вселенная к концу эпохи 3 покупала бы себя сама).
+const RES_COST = { ph: [10, 30, 60], g: [40], coll: [60], cp: [60] }, RES_UP = .2;
+const resNew = (/** @type {number} */ v, n = 0) => Math.round((40 + 15 * v) * (1 + RES_UP * n) / 5) * 5;
+// Доход от научённого, ✦/мин (сводка «Вселенная сама»): свет — по уровню, «Рождение X» — 2 + ценность X
+/** @type {Record<string, number>} */
+const UNI_RATE = { g: 3, coll: 4, cp: 4 }, UNI_PH = [0, 2, 4, 6];
 const LB_KEY = 'proto.lb.v1', LB_TOP = 5;
 // Таблица рекордов — в браузере игрока (localStorage)
 const LB = {
@@ -234,7 +240,7 @@ const Particles = {
     this.advanced = false;
     this.gOn = false; this.full = false; this.spCd = 0; // эволюция эпохи 1: сперва пустота, потом свет, потом глюоны
     this.lit = false; this.litT = 0; this.rs = { ph: 0, g: 0, coll: 0, cp: 0 }; this.safe = []; this.saveCd = 0; this.autoT = 0; Codex.auto = new Set(); this.inf = this.mkInf(); this.heatBest = LB.best('heat'); this.heatRes = null; this.heatWorld = null; Online.top('heat', 1).then(l => { if (l && l[0]) this.heatWorld = l[0]; }); this.T0 = T_START; this.heat = 1; this.upPts = 0; this.caught = [0, 0, 0, 0]; this.caughtFx = -1; this.caughtAt = -9; this.phSeen = new Set();
-    this.kn = 0; this.spent = 0; this.epClock = 0; this.epKn0 = 0; this.doneAt = null; this.lvlTotal = 0; this.cheated = false;
+    this.kn = 0; this.uni = []; this.spent = 0; this.epClock = 0; this.epKn0 = 0; this.doneAt = null; this.lvlTotal = 0; this.cheated = false;
     this.tut = null; this.inVoid = true; this.voidT = 0;
     this.lvl = { r: 0, sh: 0, pow: 0, fr: 0 }; this.focus = null; this.holding = false; this.hold = 0; this.shield = 1;
     this.learn = {}; this.coach = { idle: 0, t: 0, kind: null }; this.en = 0; this.enFx = 0; this.shotCd = 0; this.shotFx = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
@@ -771,9 +777,9 @@ const Particles = {
   // вспышка e⁺e⁻ → γγ: +1 ✦ всегда (свет Вселенной копит знание и за кадром); на виду — ещё и +1 ⚡
   /** @param {number} x @param {number} y */
   eFlash(x, y) {
-    this.kn += 1;
-    if (!onScreen(...W2S(x, y), 0)) return;
+    if (!onScreen(...W2S(x, y), 0)) { Uni.pay(this, 'e', 1); return; }
     const en = this.enOn(); if (en) this.en = Math.min(E_CAP, this.en + 1);
+    Uni.pay(this, 'e', 1, en ? 1 : 0);
     this.float(x, y - .3, en ? 'e⁺e⁻ → γγ +1 ✦ +1 ⚡' : 'e⁺e⁻ → γγ +1 ✦', PH_C, 12);
     fxRing(x, y, .1, PH_C, .9, .5);
   },
@@ -823,7 +829,7 @@ const Particles = {
     fxRing(o.x, o.y, .1, this.dcol(o), .5, .5);
     if (onScreen(...W2S(o.x, o.y), 0)) Sfx.play('decay');
     if (o.sp === 't' && o.uni && Codex.auto.has('t') && this.enOn() && this.t - this.tAt >= T_CD && onScreen(...W2S(o.x, o.y), 0)) { // 173 ГэВ на виду
-      this.en = E_CAP; this.full = true; this.tAt = this.t;
+      Uni.pay(this, 't', 0, E_CAP - this.en); this.en = E_CAP; this.full = true; this.tAt = this.t;
       fxRing(P.x, P.y, this.hr(), PH_C, this.hr() * 1.8, .8);
       this.float(P.x, P.y + this.hr() + .3, 't → ⚡ полный заряд', PH_C, 15, -.3);
     }
@@ -873,7 +879,7 @@ const Particles = {
           this.float(tr.x, tr.y + .4, `${SM[tr.parent].sym}→ ✓ +5`, [255, 215, 110], 15, -.3);
           fxRing(tr.x, tr.y, .2, GOLD, .9, .6);
         } else if (this.paidDec(tr.parent)) {
-          const v = this.decPay(tr.parent); this.kn += v; refund = true;
+          const v = this.decPay(tr.parent); Uni.pay(this, tr.parent, v); refund = true;
           this.float(tr.x, tr.y + .4, `${SM[tr.parent].sym}→ +${v} ✦`, [140, 220, 255], 14, -.3);
         }
       }
@@ -929,8 +935,9 @@ const Particles = {
     if (this.rs.ph && this.ep === 0) L.push(ph);
     const need = this.ep === 2 ? this.need2 : this.ep === 0 ? this.need0 : ['H', 'Z', 'W'];
     const all = [...Codex.run].filter(sp => sp === 'H' || this.rs.coll > 0 && ((FERMIONS.includes(sp) && SM[sp].kind !== 'nu') || sp === 'W' || sp === 'Z'));
+    const nb = this.births();
     for (const sp of [...all.filter(sp => need.includes(sp)), ...all.filter(sp => !need.includes(sp))])
-      L.push({ k: sp, ic: SM[sp].sym, name: `Рождение ${SM[sp].sym}`, cost: [resNew(this.value(sp))], about: () => this.role(sp) });
+      L.push({ k: sp, ic: SM[sp].sym, name: `Рождение ${SM[sp].sym}`, cost: [resNew(this.value(sp), nb)], about: () => this.role(sp) });
     return L;
   },
   // что даёт «Рождение X»: у каждого семейства своя польза
@@ -945,6 +952,24 @@ const Particles = {
   },
   /** @param {string} k */
   rLvl(k) { return this.rs[k] || 0; },
+  // сколько «Рождений» уже научено (каждое следующее дороже)
+  births() { return Object.keys(this.rs).filter(k => this.rs[k] > 0 && !(k in RES_COST)).length; },
+  // ровный доход от научённого, ✦/мин, на уровне l
+  /** @param {string} k @param {number} l */
+  uniRate(k, l) { return k === 'ph' ? UNI_PH[Math.min(l, UNI_PH.length - 1)] : UNI_RATE[k] ?? 2 + this.value(k); },
+  // сколько ✦/мин прибавит следующее «Научить» (для лавки)
+  /** @param {string} k */
+  uniGain(k) { const l = this.rLvl(k); return this.uniRate(k, l + 1) - (l ? this.uniRate(k, l) : 0); },
+  // работает ли сейчас научённое: в эпоху 4 Вселенная частиц не рождает — только свет, глюоны и асимметрия
+  /** @param {string} k */
+  uniOn(k) { return this.ep !== 3 || k === 'ph' || k === 'g' || k === 'cp'; },
+  // доход капнул: «+1 ✦» над частицей Вселенной этого вида на виду (нет на виду — только в сводке)
+  /** @param {string} k */
+  uniPop(k) {
+    if (k === 'coll' || k === 'cp') return;
+    const o = this.p.find(o => o.sp === k && !o.dead && !(o.fade >= 0) && (o.uni || this.isQ(o)) && onScreen(...W2S(o.x, o.y), -30));
+    if (o) this.float(o.x, o.y - .25, '+1 ✦', UNI_C, 11);
+  },
   // исследование, которое просит текущий шаг задания (крупно и первым в лавке)
   // (кэш раз в кадр в renderShop: шаги сами спрашивают у лавки номер клавиши)
   /** @returns {string | null | undefined} */
@@ -985,6 +1010,7 @@ const Particles = {
     else if (k === 'cp') this.saveCd = .8;
     else if (k !== 'ph' && k !== 'coll') Codex.auto.add(k);
     Codex.dirty = true;
+    const pm = this.uniGain(k) || this.uniRate(k, l); Uni.learn(this, k, r.ic, r.name, this.uniRate(k, l));
     fxRing(P.x, P.y, this.hr(), GOLD, this.hr() * 1.8, .7);
     // сцена: теперь это делает Вселенная — без тебя (первая покупка — с замедлением, это шаг обучения)
     const what = k === 'ph' ? (l > 1 ? `света во Вселенной больше: ${Math.round(PH_DENS[l] * 100)} %` : 'Вселенная сама светит твоим светом — лови его: это ⚡ и ✦')
@@ -993,9 +1019,10 @@ const Particles = {
     const first = !this.learn.taught; this.learn.taught = true;
     const html = `<div class="ck">Вселенная научилась</div><div class="rx"><span class="cs res">${r.ic}</span></div><div class="cn">${r.name}</div>` +
       `<div class="cp">Теперь — без тебя: ${what}</div>`;
+    const pay = `<div class="cg">и это приносит +${fmtPm(pm)} ✦ в минуту — справа видно, что Вселенная делает сама</div>`;
     // первое «Научить» — важное знание (так устроена вся игра): кадр-пауза; дальше — сцена над лавкой
-    if (first) Cine.show(html + '<div class="cg">Знания ✦ копятся дальше — следующее «Научить» уже ждёт</div>', 6, .8);
-    else showScene(html, 3.4);
+    if (first) Cine.show(html + `<div class="cg">И платит за это: +${fmtPm(pm)} ✦ в минуту, пока ты занят своим. Справа — всё, что Вселенная делает сама</div>`, 6, .8);
+    else showScene(html + pay, 3.4);
   },
   /** @param {HTMLElement & { _h?: string }} el */
   renderShop(el) {
@@ -1009,9 +1036,9 @@ const Particles = {
         const u = x.up, l = this.lvl[u.key];
         return `<button data-i="${k}" class="det sec ok" title="${u.name}: ${u.fmt(u.val[l])} → ${u.fmt(u.val[l + 1])} · ${u.about}"><span class="k">${k + 1}</span><span class="ic">${u.ic}</span><b>${u.name}</b></button>`;
       }
-      const { r, c } = x, sec = !x.pri && (anyPri || k > 0 && items.length > 2);
-      return `<button data-i="${k}" class="res ${b >= c ? 'ok' : 'no'}${x.pri ? ' pri' : sec ? ' sec' : ''}" title="${r.name}: ${r.about(this.rLvl(r.k))}">${x.pri ? '<u>для задания</u>' : ''}<span class="k">${k + 1}</span>` +
-        `<span class="ic">${r.ic}</span><b>${r.name}</b><i>${r.about(this.rLvl(r.k))}</i><em>${x.pri ? 'Научить · ' : ''}${c} ✦</em></button>`;
+      const { r, c } = x, sec = !x.pri && (anyPri || k > 0 && items.length > 2), ab = `${r.about(this.rLvl(r.k))} · +${fmtPm(this.uniGain(r.k))} ✦/мин`;
+      return `<button data-i="${k}" class="res ${b >= c ? 'ok' : 'no'}${x.pri ? ' pri' : sec ? ' sec' : ''}" title="${r.name}: ${ab}">${x.pri ? '<u>для задания</u>' : ''}<span class="k">${k + 1}</span>` +
+        `<span class="ic">${r.ic}</span><b>${r.name}</b><i>${ab}</i><em>${x.pri ? 'Научить · ' : ''}${c} ✦</em></button>`;
     }).join('') + (this.upPts > 0 ? `<div class="sh-h">детектор · ★ ${this.upPts}</div>` : '');
     if (el._h !== html) { el._h = html; el.innerHTML = html; }
     el.classList.toggle('nokeys', !this.learn.buy);
@@ -1048,7 +1075,7 @@ const Particles = {
     if (this.ep >= 3 || !this.rs.coll || !fl.length || this.udRes.length >= UD_MAX || (this.udT += dt) < UD_EVERY) return;
     this.udT = 0;
     const nu = this.udRes.filter(f => f === 'u').length, f = fl.length === 1 ? fl[0] : nu * 2 <= this.udRes.length ? 'u' : 'd';
-    this.udRes.push(f);
+    this.udRes.push(f); Uni.pay(this, f, 0); // в сводке — вспышка строки: Вселенная сделала своё
     this.float(P.x, P.y + this.hr() + .3, `+${f} в запас · ${this.udRes.length}/${UD_MAX} ◉`, [140, 235, 170], 11);
   },
   // точка в кадре, не у самого детектора

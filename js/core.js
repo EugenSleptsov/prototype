@@ -381,8 +381,11 @@ const Tally = {
     /** @type {number | null} */
     let place = null;
     if (!st.cheated) place = LB.add('run.' + st.key, { n: LB.name(), s: lvl, t: Math.floor(st.clock ?? st.t ?? 0), d: Date.now() }).place;
+    const uk = Math.floor(Uni.total(st));
     /** @type {TallyData['rows']} */
-    const rows = [...d.rows, ['уровень пройден', '+' + LVL_BONUS, 'tb']];
+    const rows = [...d.rows];
+    if (uk > 0) rows.push(['✦ от Вселенной', uk]);
+    rows.push(['уровень пройден', '+' + LVL_BONUS, 'tb']);
     if (auto !== null) rows.push(['отдано Вселенной', '+' + Math.round(AUTO_BONUS * auto), 'tb']);
     rows.push(['очки за уровень', fmtScore(lvl), 'tl'], ['всего', fmtScore(G.score), 'tt']);
     this.note(`УРОВЕНЬ ${G.stageI + 1} · ПРОЙДЕН`, d.name, rows, d.stars || [], place, '', auto);
@@ -412,6 +415,73 @@ const Tally = {
     } else el.style.top = '';
   },
 };
+
+// ---------- Вселенная сама: чему научил — работает без тебя и понемногу приносит ✦ ----------
+// Строка на каждое «Научить» уровня: ровный доход rate (✦/мин, выплачивается по 1 ✦) и всё, что принесла.
+// События, за которые Вселенная платит и так (её барионы, вспышки e⁺e⁻, снятые распады…), идут через pay() —
+// в ту же строку. Сводка — справа (#uni); в итогах уровня — «✦ от Вселенной».
+// Уровень может дать uniOn(k) — работает ли это сейчас — и uniPop(k) — где показать «+1 ✦».
+const UNI_WIN = 60, UNI_LVL = 3; // UNI_LVL — ✦/мин от «Научить» на уровнях после частиц (их события платят ещё)
+/** @type {RGB} */
+const UNI_C = [140, 235, 170];
+const Uni = {
+  /** научено (повторно — уровень выше, rate — новый общий доход строки, ✦/мин)
+   * @param {Stage} S @param {string} k @param {string} ic @param {string} name @param {number} [rate] @returns {UniRow} */
+  learn(S, k, ic, name, rate = 0) {
+    const L = S.uni || (S.uni = []);
+    let r = L.find(x => x.k === k);
+    if (!r) L.push(r = { k, ic, name, lv: 0, rate: 0, acc: 0, kn: 0, en: 0, n: 0, t0: G.T, fl: G.T, log: [] });
+    r.lv++; r.rate = rate; r.fl = G.T; return r;
+  },
+  /** Вселенная сработала сама: +v ✦ уровню (en — ⚡, только для сводки)
+   * @param {Stage} S @param {string} k @param {number} v @param {number} [en] */
+  pay(S, k, v, en = 0) {
+    S.kn = (S.kn || 0) + v;
+    const r = S.uni && S.uni.find(x => x.k === k); if (!r) return;
+    r.kn += v; r.en += en; r.n++; r.fl = G.T;
+    if (v) r.log.push([G.T, v]);
+  },
+  /** @param {Stage} S @param {string} k */
+  on(S, k) { return !S.uniOn || S.uniOn(k); },
+  /** ровный доход: копится и выплачивается по 1 ✦ @param {Stage} S @param {number} dt */
+  tick(S, dt) {
+    for (const r of S.uni || []) {
+      if (!r.rate || !this.on(S, r.k) || (r.acc += r.rate / 60 * dt) < 1) continue;
+      r.acc -= 1; this.pay(S, r.k, 1);
+      if (S.uniPop) S.uniPop(r.k);
+    }
+  },
+  /** всего принесла Вселенная на уровне @param {Stage} S */
+  total(S) { return (S.uni || []).reduce((s, r) => s + r.kn, 0); },
+  /** ✦/мин строки: не меньше ровного дохода; события — за последнюю минуту @param {Stage} S @param {UniRow} r */
+  perMin(S, r) {
+    if (!this.on(S, r.k)) return 0;
+    const t0 = G.T - UNI_WIN; while (r.log.length && r.log[0][0] < t0) r.log.shift();
+    const win = clamp(G.T - r.t0, 20, UNI_WIN), ev = r.log.reduce((s, e) => s + (e[0] >= G.T - win ? e[1] : 0), 0) * 60 / win;
+    return Math.max(r.rate, ev);
+  },
+  /** @param {HTMLElement & { _h?: string }} el */
+  render(el) {
+    const S = G.stage, L = (S && S.uni) || [];
+    if (!G.started || G.ended || !L.length) { el.style.display = 'none'; return; }
+    let tot = 0;
+    const rows = L.map(r => {
+      const pm = this.perMin(S, r); tot += pm;
+      const got = `+${Math.floor(r.kn)} ✦` + (r.en >= 1 ? ` <s>+${Math.round(r.en)} ⚡</s>` : '');
+      return `<div class="ur${G.T - r.fl < .6 ? ' fl' : ''}${pm ? '' : ' off'}" title="${r.name}: ${pm ? `${fmtPm(pm)} ✦ в минуту` : 'в эту эпоху не работает'} · принесла ${Math.floor(r.kn)} ✦">` +
+        `<span class="ic">${r.ic}</span><b>${r.name}${r.lv > 1 ? ` <small>×${r.lv}</small>` : ''}</b><em>${got}</em><i>${pm ? fmtPm(pm) + '/мин' : 'в эту эпоху — нет'}</i></div>`;
+    }).join('');
+    const html = `<div class="uh"><span>Вселенная сама</span><em>+${fmtPm(tot)} ✦/мин</em></div>` + rows;
+    if (el._h !== html) { el._h = html; el.innerHTML = html; }
+    // над лавкой (она бывает в два ряда) и не налезая на сетку кодекса сверху
+    const sh = byId('shop'), cx = byId('codex');
+    const bot = Math.max(G.W <= 700 ? 96 : 110, sh.style.display === 'none' ? 0 : G.H - sh.getBoundingClientRect().top + 10);
+    const cb = cx.style.display === 'none' ? 0 : cx.getBoundingClientRect().bottom;
+    el.style.bottom = bot + 'px'; el.style.maxHeight = Math.max(60, G.H - cb - 10 - bot) + 'px';
+    el.style.display = '';
+  },
+};
+const fmtPm = (/** @type {number} */ v) => v >= 10 || v === Math.round(v) ? String(Math.round(v)) : v.toFixed(1).replace('.', ',');
 
 let msgT = 0, lastMsg = '';
 /** @param {string} t @param {number} [dur] */

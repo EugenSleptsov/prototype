@@ -29,7 +29,7 @@ const Atoms = {
 
   enter(prev) {
     this.t = 0; this.clock = 0; this.Ta = 1; this.ions = []; this.el = []; this.ph = []; this.tr = []; this.floats = [];
-    this.kn = 0; this.spent = 0; this.rs = { rec: 0 }; this.banner = -1.5; this.tk = {}; this.doneAt = null; this.endCd = -1;
+    this.kn = 0; this.uni = []; this.spent = 0; this.rs = { rec: 0 }; this.banner = -1.5; this.tk = {}; this.doneAt = null; this.endCd = -1;
     this.advanced = false; this.cheated = false; this.seenN = new Set(); this.phT = 0; this.was = false; this.stroke = 0;
     this.st = { brakes: 0, ionized: 0, best: 0 }; this.caps = { hand: 0, auto: 0 };
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
@@ -195,7 +195,7 @@ const Atoms = {
       const s = atSym(io.Z);
       let pts = 2, txt = s; Codex.note('a:' + io.Z);
       if (!this.seenN.has(io.Z)) { this.seenN.add(io.Z); pts += 10; txt = `НОВЫЙ АТОМ ${s} · ${elemOf(io.Z)[1].toLowerCase()}`; Sfx.play('fresh'); }
-      this.kn += pts;
+      if (e.by === 'auto') Uni.pay(this, 'rec', pts); else this.kn += pts; // атом собрала Вселенная — в сводку
       fxFlash(io.x, io.y, 1.4, c, .6);
       this.float(io.x, io.y - .8, `${txt} +${pts} ✦`, pts > 2 ? [255, 215, 110] : [140, 220, 255], pts > 2 ? 16 : 13);
     }
@@ -216,7 +216,7 @@ const Atoms = {
     const it = this.shopItems()[i];
     if (!it || !G.started || G.paused) return;
     if (this.bal() < it.c) { this.float(P.x, P.y - 1, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
-    this.spent += it.c; this.rs.rec = 1; Sfx.play('upgrade');
+    this.spent += it.c; this.rs.rec = 1; Sfx.play('upgrade'); Uni.learn(this, 'rec', '◎', 'Рекомбинация', UNI_LVL);
     fxRing(P.x, P.y, 1, GOLD, viewRadius() * .8, 1.4); this.float(P.x, P.y - 1, '◎ Рекомбинация', GOLD, 16);
   },
   renderShop: Nuclei.renderShop,

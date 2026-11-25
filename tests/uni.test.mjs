@@ -1,0 +1,65 @@
+// «Вселенная сама»: чему научил — работает без тебя и понемногу приносит ✦; сводка справа и строка в итогах.
+// Цена каждого следующего «Рождения» растёт: научённое окупается само.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { loadGame, PREP } from './harness.mjs';
+
+const lit = () => {
+  const g = loadGame({ seed: 3 });
+  g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.light);
+  g.ev(`Cine.clear(); Cine.tick(99); ['e', 'u', 'd', 'g'].forEach(k => Codex.see(k)); G.stage.pairs = 1; G.stage.kn += 2000; Cine.clear(); Cine.tick(99)`);
+  return g;
+};
+const buy = (g, k) => g.ev(`(() => { const S = G.stage, it = S.shopItems(), i = it.findIndex(x => x.r && x.r.k === '${k}'); const c = i >= 0 ? it[i].c : null; S.buy(i); Cine.clear(); Cine.tick(99); return c; })()`);
+
+test('вселенная сама: «Научить» — строка в сводке; ровный доход капает в ✦ уровня', () => {
+  const g = lit();
+  assert.equal(g.ev(`G.stage.uni.map(r => r.k).join()`), 'ph', 'свет научен в PREP.light');
+  buy(g, 'coll');
+  assert.equal(g.ev(`G.stage.uni.find(r => r.k === 'coll').rate`), 4);
+  const k0 = g.ev('G.stage.kn'), u0 = g.ev('Uni.total(G.stage)');
+  g.step(60 * 65);
+  const got = g.ev('Uni.total(G.stage)') - u0;
+  assert.ok(got >= 5, `за минуту свет + столкновения принесли ${got} ✦`);
+  assert.ok(g.ev('G.stage.kn') - k0 >= got, 'доход Вселенной — в те же ✦ уровня');
+  assert.ok(g.ev(`G.stage.uni.find(r => r.k === 'coll').kn`) >= 3);
+});
+
+test('вселенная сама: лавка говорит, сколько ✦/мин принесёт «Научить»; каждое следующее «Рождение» дороже', () => {
+  const g = lit();
+  g.ev('G.stage.renderShop(document.getElementById("shop"))');
+  assert.match(g.ev('document.getElementById("shop").innerHTML'), /\+\d+ ✦\/мин/);
+  buy(g, 'coll'); // вещество Вселенная рождает из столкновений
+  const e = buy(g, 'e'), u = buy(g, 'u'), d = buy(g, 'd');
+  assert.equal(e, 55); assert.equal(u, 65); assert.equal(d, 75);
+  assert.equal(g.ev(`G.stage.uni.find(r => r.k === 'e').rate`), 3, 'Рождение e: 2 + ценность e');
+});
+
+test('вселенная сама: в эпоху 4 частиц Вселенная не рождает — их строки стоят, свет капает дальше', () => {
+  const g = lit();
+  buy(g, 'coll'); buy(g, 'e');
+  g.ev('G.stage.ep = 3');
+  assert.equal(g.ev(`Uni.perMin(G.stage, G.stage.uni.find(r => r.k === 'e'))`), 0);
+  assert.ok(g.ev(`Uni.perMin(G.stage, G.stage.uni.find(r => r.k === 'ph'))`) > 0);
+  const e0 = g.ev(`G.stage.uni.find(r => r.k === 'e').kn`);
+  g.ev(`Uni.tick(G.stage, 120)`);
+  assert.equal(g.ev(`G.stage.uni.find(r => r.k === 'e').kn`), e0);
+});
+
+test('вселенная сама: сводка на экране, в итогах уровня — «✦ от Вселенной»; новый уровень — с чистой сводки', () => {
+  const g = lit();
+  buy(g, 'coll'); g.step(60 * 30);
+  g.ev(`Uni.render(document.getElementById('uni'))`);
+  const html = g.ev(`document.getElementById('uni').innerHTML`);
+  assert.match(html, /Вселенная сама/); assert.match(html, /Столкновения/); assert.match(html, /✦\/мин/);
+  g.ev(`Tally.show(G.stage)`);
+  assert.match(g.ev(`document.getElementById('tally').innerHTML`), /✦ от Вселенной/);
+  g.ev('advance(); G.trans = 99');
+  assert.equal(g.ev('G.stage.key'), 'quarks');
+  assert.equal(g.ev('G.stage.uni.length'), 0);
+  // адроны: «Конфайнмент» — строка; барионы Вселенной платят в неё
+  g.ev(`(() => { const S = G.stage; S.handN = HAND_Q; S.kn += 100; S.buy(0); })()`);
+  assert.equal(g.ev(`G.stage.uni.map(r => r.k).join()`), 'conf');
+  g.ev(`Uni.pay(G.stage, 'conf', 4)`);
+  assert.equal(g.ev(`G.stage.uni[0].kn`), 4);
+});

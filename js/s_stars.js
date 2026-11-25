@@ -30,7 +30,7 @@ const Stars = {
 
   enter(prev) {
     this.o = []; this.floats = []; this.t = 0; this.clock = 0; this.doneAt = null; this.endCd = -1; this.advanced = false; this.cheated = false;
-    this.kn = 0; this.spent = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.seen = new Set(); this.tk = {};
+    this.kn = 0; this.uni = []; this.spent = 0; this.rs = { syn: 0 }; this.banner = -1.5; this.learn = {}; this.seen = new Set(); this.tk = {};
     this.st = { bounce: 0, shat: 0 }; this.made = { hand: 0, auto: 0 }; this.phase = 'gas'; this.igT = 0; this.ignAt = null;
     this.hT = 0; this.beT = 2; this.flowT = 0; this.autoCd = 1; this.boom = 0; this.well = null;
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
@@ -80,20 +80,20 @@ const Stars = {
     if (Z === 4) o.life = BE_LIFE;
     const k = nkey(o);
     if (ST_NEED[k] || k === '6,7') { if (hand) this.made.hand++; else this.made.auto++; }
-    this.gain(o);
+    this.gain(o, src);
     fxFlash(x, y, 1.3, [255, 240, 200], .45); fxRing(x, y, .3, [255, 210, 140], 2.4, .6);
     if (j.r.why2) this.float(x, y + .7, j.r.why2, [255, 210, 160], 12);
     if (hand) Sfx.play('segment');
     return true;
   },
   // новое ядро +10 ✦; C, N, O — ещё +5
-  gain(o) {
+  gain(o, src) {
     const k = nkey(o), nm = NUC_NAME[k]; let pts = 0, txt = '';
     Codex.note('n:' + k);
     if (!this.seen.has(k)) { this.seen.add(k); pts += 10; txt = `НОВОЕ ${nm[0]} ${nm[1]}`; }
     if (ST_NEED[k]) pts += 5;
     if (!pts) return;
-    this.kn += pts;
+    if (src === 'auto') Uni.pay(this, 'syn', pts); else this.kn += pts; // звезда куёт сама — в сводку
     this.float(o.x, o.y - .4, `${txt || nm[0]} +${pts} ✦`, txt ? [255, 215, 110] : [140, 220, 255], txt ? 16 : 14);
   },
   beSplit(o, txt) {
@@ -296,7 +296,7 @@ const Stars = {
     const it = this.shopItems()[i];
     if (!it || !G.started || G.paused) return;
     if (this.bal() < it.c) { this.float(P.x, P.y - 1.5, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
-    this.spent += it.c; this.rs.syn = 1; this.autoCd = .4; Sfx.play('upgrade');
+    this.spent += it.c; this.rs.syn = 1; this.autoCd = .4; Sfx.play('upgrade'); Uni.learn(this, 'syn', '✺', 'Звёздный синтез', UNI_LVL);
     fxRing(P.x, P.y, 1, GOLD, viewRadius() * .8, 1.4); this.float(P.x, P.y - 1.5, '✺ Звёздный синтез', GOLD, 16);
   },
   renderShop: Nuclei.renderShop,

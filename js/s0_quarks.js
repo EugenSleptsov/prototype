@@ -33,7 +33,7 @@ const Quarks = {
     this.q = []; this.groups = new Map(); this.gid = 1; this.t = 0;
     this.temp = Q_T0; this.conf = 0; this.advanced = false; this.res = null; this.cheated = false;
     this.focus = null; this.holding = false; this.hold = 0; this.learn = {}; this.floats = [];
-    this.kn = 0; this.clock = 0; this.doneAt = null; this.endCd = -1; this.banner = -1.5; this.made = { p: 0, n: 0 }; this.mine = 0;
+    this.kn = 0; this.uni = []; this.clock = 0; this.doneAt = null; this.endCd = -1; this.banner = -1.5; this.made = { p: 0, n: 0 }; this.mine = 0;
     this.st = { passive: 0, delta: 0 }; this.tk = {};
     this.spent = 0; this.rs = { conf: 0 }; this.handN = 0; this.autoN = 0; this.flowCd = 1; this.asm = null; this.asmCd = 0; this.pairCd = 2;
     this.st.exo = 0; this.hover = null;
@@ -94,7 +94,8 @@ const Quarks = {
     const pts = hand ? 10 : 4; if (!hand) this.st.passive++;
     if (hand) this.handN++;
     if (this.rs.conf) this.autoN++; // после исследования в шаг «по всей Вселенной» идут все барионы — и твои тоже
-    this.kn += pts; this.made[grp.kind]++;
+    if (!hand && this.rs.conf) Uni.pay(this, 'conf', pts); else this.kn += pts; // барионы Вселенной — в сводку «Вселенная сама»
+    this.made[grp.kind]++;
     if (!this.mine && hand) this.mine = grp.id;
     for (const x of grp.m) { x.cap = false; x.hand = 0; }
     fxRing(c.x, c.y, .4, [255, 255, 255], 2.5, .9);
@@ -507,7 +508,7 @@ const Quarks = {
     const it = this.shopItems()[i];
     if (!it || !G.started || G.paused || this.doneAt !== null) return;
     if (this.bal() < it.c) { this.float(P.x, P.y - this.hr - .2, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
-    this.spent += it.c; this.rs.conf = 1; this.asmCd = .6; Sfx.play('upgrade');
+    this.spent += it.c; this.rs.conf = 1; this.asmCd = .6; Sfx.play('upgrade'); Uni.learn(this, 'conf', '◬', 'Конфайнмент', UNI_LVL);
     fxRing(P.x, P.y, this.hr, GOLD, viewRadius() * .8, 1.4);
     this.float(P.x, P.y - this.hr - .3, '◬ Конфайнмент', GOLD, 16);
   },
