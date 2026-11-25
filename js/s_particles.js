@@ -907,11 +907,11 @@ const Particles = {
     if (!this.rs.ph) L.push(ph);
     if (Codex.has('g')) L.push({ k: 'g', ic: 'g', name: 'Глюоны', cost: RES_COST.g, about: () => 'Вселенная рождает g' });
     if (this.pairs > 0) L.push({ k: 'coll', ic: '✸', name: 'Столкновения', cost: RES_COST.coll, about: () => 'кванты сталкиваются сами — рождают исследованное' });
+    if (this.rs.ph && this.ep === 0) L.push(ph);
     const need = this.ep === 2 ? this.need2 : this.ep === 0 ? this.need0 : ['H', 'Z', 'W'];
     const all = [...Codex.run].filter(sp => sp === 'H' || this.rs.coll > 0 && ((FERMIONS.includes(sp) && SM[sp].kind !== 'nu') || sp === 'W' || sp === 'Z'));
     for (const sp of [...all.filter(sp => need.includes(sp)), ...all.filter(sp => !need.includes(sp))])
       L.push({ k: sp, ic: SM[sp].sym, name: `Рождение ${SM[sp].sym}`, cost: [resNew(this.value(sp))], about: () => this.role(sp) });
-    if (this.rs.ph && this.ep === 0) L.push(ph);
     return L;
   },
   // что даёт «Рождение X»: у каждого семейства своя польза
@@ -934,8 +934,9 @@ const Particles = {
   shopItems() {
     // ✦ — исследования мира; ★ (за эпохи и испытания) — улучшения детектора
     const pk = this._pk;
-    const res = this.resList().filter(r => this.rLvl(r.k) < r.cost.length).slice(0, RES_MAX).map(r => ({ r, c: r.cost[this.rLvl(r.k)], pri: r.k === pk }));
-    res.sort((a, b) => +b.pri - +a.pri);
+    const all = this.resList().filter(r => this.rLvl(r.k) < r.cost.length).map(r => ({ r, c: r.cost[this.rLvl(r.k)], pri: r.k === pk }));
+    all.sort((a, b) => +b.pri - +a.pri); // сначала — нужное для задания, потом режем: его не вытеснит
+    const res = all.slice(0, RES_MAX);
     const up = this.upPts > 0 ? UPG.filter(u => !this.maxed(u) && this.avail(u)).map(u => ({ up: u, c: 1 })) : [];
     return [...res, ...up];
   },
@@ -1040,8 +1041,11 @@ const Particles = {
       .slice(0, extra).forEach(o => o.fade = 1);
   },
 
+  // ×4 (Enter / кнопка) — вся игра уровня вчетверо быстрее: и частицы, и остывание, и часы эпохи
   /** @param {number} dt0 @param {boolean} act */
-  update(dt0, act) {
+  update(dt0, act) { const n = act && G.started && this.ff > 1 ? this.ff : 1; for (let i = 0; i < n; i++) this.tick(dt0, act); },
+  /** @param {number} dt0 @param {boolean} act */
+  tick(dt0, act) {
     const prevT = this.T, dt = dt0;
     // до старта (под заставкой) мир просто живёт: без остывания и ввода
     const live = act && G.started;
@@ -1051,11 +1055,11 @@ const Particles = {
       if (this.doneAt === null && (this.lit || this.ep)) this.epClock += dt0; // часы эпохи идут до выполнения целей (пролог не в счёт)
       const E = EPOCHS[this.ep], nx = EPOCHS[this.ep + 1];
       const floor = this.epDone ? (nx ? Math.min(nx.startT, this.T) * .999 : 0) : E.floor;
-      const rate = this.epDone ? (nx ? 12 : 4) : this.ff; // последняя эпоха выполнена — догорает быстро
+      const rate = this.epDone ? (nx ? 12 : 4) : 1; // последняя эпоха выполнена — догорает быстро
       if (this.lit || this.ep) this.T = Math.max(floor, this.T * Math.exp(-dt * rate / E.tau)); // в прологе не остывает
       if (this.epDone && nx && (this.epGap -= dt) <= 0 && this.T <= nx.startT) this.startEpoch(this.ep + 1);
       this.tickHot(dt);
-      if (this.ep === 3 && !this.advanced) { this.soup(dt); this.tickWave(dt); if (this.rs.cp && this.safe.length < AUTO_TRIO + 4 && (this.saveCd -= dt * this.ff) <= 0) { this.saveCd = SAVE_CD; this.addSafe(); } }
+      if (this.ep === 3 && !this.advanced) { this.soup(dt); this.tickWave(dt); if (this.rs.cp && this.safe.length < AUTO_TRIO + 4 && (this.saveCd -= dt) <= 0) { this.saveCd = SAVE_CD; this.addSafe(); } }
     }
     if (this.higT >= 0) { this.higT += dt; this.hig = smooth(0, 9, this.higT); }
     this.tickRipples(dt, live);
@@ -1327,7 +1331,7 @@ const Particles = {
       return;
     }
     if (W.dir == null) W.dir = Math.random() * TAU;
-    if ((W.cd -= dt * this.ff) > 0) return;
+    if ((W.cd -= dt) > 0) return;
     W.n++;
     const N = Math.min(8, 3 + W.n), list = [];
     for (let k = 0; k < N; k++) {
@@ -1444,7 +1448,7 @@ const Particles = {
       ];
       case 2: return this.need2.map(sp => ({ t: `Сними распад ${sym(sp)}`, h: !genOpen(sp) ? `сначала открой ${genNeed(sp).map(k => `${sym(k)} (${this.recipe(k)})`).join(' и ')} — поколения открываются по порядку: столкни и сними`
         : Codex.auto.has(sp) ? `жди вспышку и ${tap} по золотой вершине следа`
-        : `сделай ${sym(sp)} (${this.recipe(sp)}) и ${tap} по вершине распада — или исследуй «Рождение ${sym(sp)}»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? sp : null }));
+        : `сделай ${sym(sp)} (${this.recipe(sp)}) и ${tap} по вершине распада — или исследуй ${this.rs.coll ? '' : '«Столкновения», потом '}«Рождение ${sym(sp)}»`, s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? sp : null }));
       default: {
         const t = baryonTrios(this.stockQ);
         const a = this.safe.length;

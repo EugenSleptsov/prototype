@@ -45,7 +45,7 @@ const Mols = {
   enter(prev) {
     this.m = []; this.t = 0; this.clock = 0; this.hints = []; this.lowEMsgT = 0; this.floats = []; this.tk = {}; this.banner = -1.5;
     this.kn = 0; this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
-    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0 };
+    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0 };
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     // атомы с прошлого уровня — на своих местах: мир растягивается в M_U раз, камера — во столько же отъезжает
     if (prev && prev.ions) {
@@ -175,6 +175,7 @@ const Mols = {
     const cp = COMP_BY[ckey(this.counts(host))];
     if (!cp) return;
     if (src === 'auto') this.st.auto++; else if (src === 'hand') this.st.hand++;
+    if (src === 'auto' || (src === 'hand' && this.res.size)) this.st.soup++; // Вселенная учится — бульон варит она и ты вместе
     Codex.note('m:' + cp.f);
     if (!this.found.includes(cp.f)) {
       this.found.push(cp.f); this.kn += 15; Sfx.play('fresh');
@@ -421,7 +422,7 @@ const Mols = {
       { t: 'Собери воду', h: 'кислороду нужны два водорода', s: 'вода H₂O', d: fd.includes('H₂O') },
       { t: 'Открой 4 соединения', h: 'аммиак NH₃, метан CH₄, перекись H₂O₂…', items: fd.slice(0, 6).map(f => [f, true]), p: [Math.min(fd.length, 4), 4], s: '4 соединения', d: fd.length >= 4 },
       { t: 'Научи Вселенную', h: `${touch ? 'в лавке' : 'клавиши 1–4'}: «Синтез …»`, p: [Math.min(this.res.size, 2), 2], s: 'Вселенная учится', d: this.res.size >= 2 },
-      { t: 'Первичный бульон', h: 'Вселенная собирает открытое — помогай рогаткой', p: [Math.min(this.st.auto, 10), 10], s: 'бульон готов', d: this.st.auto >= 10 },
+      { t: 'Первичный бульон', h: 'Вселенная собирает открытое — помогай рогаткой', p: [Math.min(this.st.soup, 10), 10], s: 'бульон готов', d: this.st.soup >= 10 },
     ];
   },
   starPool() {
@@ -434,7 +435,7 @@ const Mols = {
   },
   tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 10, '★ +10 ✦', [255, 215, 110], 17); }); },
   tally() { return { name: 'Молекулы', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['соединений открыто', this.found.length], ['собрано рогаткой', this.st.hand], ['собрано Вселенной', this.st.auto]], auto: [this.st.auto, this.st.auto + this.st.hand], stars: this.stars }; },
-  cheat() { this.cheated = true; for (const x of COMP.slice(0, 4)) if (!this.found.includes(x.f)) this.found.push(x.f); this.st.bonds++; this.res.add('H₂O'); this.res.add('H₂'); this.st.auto = 10; },
+  cheat() { this.cheated = true; for (const x of COMP.slice(0, 4)) if (!this.found.includes(x.f)) this.found.push(x.f); this.st.bonds++; this.res.add('H₂O'); this.res.add('H₂'); this.st.auto = this.st.soup = 10; },
 
   // ---------- рисование ----------
   draw(al) {

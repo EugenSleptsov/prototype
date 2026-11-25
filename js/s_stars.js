@@ -219,8 +219,9 @@ const Stars = {
     this.autoCd = 1.4;
     const need = k => (ST_NEED[k] || 0) - this.cnt(k);
     const want = [];
-    if (need('8,8') > 0 && this.cnt('6,6') > Math.max(0, need('6,6'))) want.push(['6,6', '2,2', 3]);
-    if (need('7,7') > 0) { want.push(['6,7', '1,0', 4]); if (this.cnt('6,6') > Math.max(0, need('6,6'))) want.push(['6,6', '1,0', 2]); }
+    const spareC = this.cnt('6,6') > ST_NEED['6,6']; // ¹²C в O и N — только лишний: собранные к сверхновой не трогаем
+    if (need('8,8') > 0 && spareC) want.push(['6,6', '2,2', 3]);
+    if (need('7,7') > 0) { want.push(['6,7', '1,0', 4]); if (spareC) want.push(['6,6', '1,0', 2]); }
     want.push(['4,4', '2,2', 5]);
     const f = this.o.filter(o => this.free(o) && o.age > .8 && inView(o.x, o.y, -1));
     let best = null, bs = -Infinity;
