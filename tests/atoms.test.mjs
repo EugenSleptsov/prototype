@@ -112,3 +112,37 @@ test('атомы: «Красное смещение» — после перво�
   assert.equal(g.ev(`G.stage.uni.find(r => r.k === 'red').kn`), 1);
   assert.equal(g.ev('G.stage.st.cut'), 1, 'это не перехват игрока');
 });
+
+test('атомы: зажал на ионе — держишь его: электроны рядом тормозят и садятся, дрожащий осаживается, атом идёт за пальцем', () => {
+  const g = atoms();
+  g.ev(ionAt('__c', 6, 0, 0));
+  // быстрый электрон рядом с ионом
+  g.ev(`G.stage.el.push({ x: __c.x + 1.5, y: __c.y, vx: 0, vy: 9, k: 1, slow: 0, brk: 0, by: null, age: 1 })`);
+  g.ev(`(() => { const [x, y] = W2S(__c.x + .3, __c.y); mouse.x = x; mouse.y = y; mouse.down = true; })()`);
+  g.ev('G.stage.update(1 / 60, true)');
+  assert.equal(g.ev('G.stage.hold === __c'), true, 'нажал на атом — держишь его, а не ведёшь след');
+  assert.equal(g.ev('G.stage.tr.length'), 0);
+  assert.equal(g.ev('G.stage.st.brakes'), 1, 'электрон рядом затормозил');
+  for (let i = 0; i < 120 && g.ev('__c.ne') === 0; i++) g.ev('G.stage.update(1 / 60, true)');
+  assert.equal(g.ev('__c.ne'), 1, 'и сел на атом');
+  for (let i = 0; i < 40; i++) g.ev('G.stage.update(1 / 60, true)');
+  assert.equal(g.ev('__c.ex'), 0, 'дрожащий электрон осажен, пока держишь');
+  assert.equal(g.ev('G.stage.st.relaxed'), 1);
+  // тащишь: атом идёт за пальцем
+  const x0 = g.ev('__c.x');
+  g.ev(`(() => { const [x, y] = W2S(__c.x + 3, __c.y); mouse.x = x; mouse.y = y; })()`);
+  for (let i = 0; i < 60; i++) g.ev('G.stage.update(1 / 60, true)');
+  assert.ok(g.ev('__c.x') - x0 > 2, `атом протащен: ${g.ev('__c.x') - x0}`);
+  assert.equal(g.ev('G.stage.st.best'), 0, '«один росчерк — 3 электрона» — только следом');
+  g.ev('mouse.down = false; G.stage.update(1 / 60, true)');
+  assert.equal(g.ev('G.stage.hold'), null, 'отпустил');
+});
+
+test('атомы: нажал мимо атомов — обычный след', () => {
+  const g = atoms();
+  g.ev(ionAt('__c', 6, 0, 0));
+  g.ev(`(() => { const [x, y] = W2S(__c.x + 3, __c.y); mouse.x = x; mouse.y = y; mouse.down = true; })()`);
+  g.ev('G.stage.update(1 / 60, true)');
+  assert.equal(g.ev('G.stage.hold'), null);
+  assert.equal(g.ev('G.stage.tr.length'), 1);
+});
