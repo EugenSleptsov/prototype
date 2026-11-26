@@ -150,7 +150,7 @@ const Atoms = {
     const live = act && G.started;
     this.t += dt; this.Ta = Math.max(.1, 1 - this.t / 120);
     if (live) { this.banner += dt; if (this.doneAt === null) this.clock += dt; P.vx = P.vy = 0; }
-    if (live && this.eForge && this.clock > 1.5) this.once('forge', `Кузница частиц: +${this.eForge} холодных e⁻ — из распадов μ и τ, которым ты научил Вселенную`);
+    if (live && this.eForge && this.clock > 1.5) this.once('forge', `Кузница частиц: +${this.eForge} холодных e⁻ — из распадов μ и τ по твоим законам «Генерация»`);
     if (live && this.gift && this.clock > 4) this.once('gift', `${this.gift} — не из твоих звёзд: их принесло от чужих сверхновых. Своё тяжёлое вещество дороже вдвое`);
     for (const f of this.floats) f.t += dt;
     this.floats = this.floats.filter(f => f.t < 1.6);

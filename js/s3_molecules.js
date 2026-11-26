@@ -441,7 +441,7 @@ const Mols = {
     if (!it || !G.started || G.paused) return;
     if (this.bal() < it.c) { this.float(P.x, P.y - 10, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
     this.spent += it.c; this.res.add(it.f); this.autoCd = .3; Sfx.play('upgrade'); Uni.learn(this, it.f, it.f, it.about, UNI_LVL);
-    this.float(P.x, P.y - 10, `Синтез ${it.f}: Вселенная учится`, GOLD, 16);
+    this.float(P.x, P.y - 10, `Синтез ${it.f}: теперь это закон Вселенной`, GOLD, 16);
   },
   renderShop(el) {
     const items = this.shopItems();
@@ -534,7 +534,7 @@ const Mols = {
     const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : [255, 255, 255], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 6', this.steps(), this.stars, 'Первичный бульон готов');
-    hudBanner(this.banner, 'УРОВЕНЬ 6 · миллиард лет', 'Молекулы', 'собирай соединения и учи Вселенную их делать', al, 'атомы → молекулы → первые кирпичики жизни');
+    hudBanner(this.banner, 'УРОВЕНЬ 6 · миллиард лет', 'Молекулы', 'собирай соединения и создавай законы их синтеза', al, 'атомы → молекулы → первые кирпичики жизни');
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },

@@ -95,13 +95,13 @@ for (const key of ['quarks', 'nuclei', 'atoms']) test(`чит ]: ${key} — ур
   assert.notEqual(g.ev('G.stage.doneAt'), null, g.ev('G.stage.steps().map(s => +s.d).join("")'));
 });
 
-test('частицы: «Рождение» поколений — по лестнице: μ только после e, τ после μ; c, s — после u и d; цвет кнопки — поколение', () => {
+test('частицы: «Генерация» поколений — по лестнице: μ только после e, τ после μ; c, s — после u и d; цвет кнопки — поколение', () => {
   const g = toStage('particles');
   g.ev(`(() => { const S = G.stage; S.ep = 1; S.rs.coll = 1; S.kn += 9999; for (const sp of ['e', 'u', 'd', 'mu', 'ta', 's', 'c']) { Codex.see(sp); Codex.run.add(sp); } })()`);
   const list = () => g.ev(`G.stage.resList().map(r => r.k)`);
   assert.ok(list().includes('e') && !list().includes('mu') && !list().includes('ta') && !list().includes('c'), list().join());
   assert.equal(g.ev(`G.stage.buyNext('ta')`), 'e', 'к τ — сначала e');
-  assert.match(g.ev(`G.stage.ladder('ta')`), /«Рождение e», потом «Рождение μ», потом «Рождение τ»/);
+  assert.match(g.ev(`G.stage.ladder('ta')`), /«Генерация e», потом «Генерация μ», потом «Генерация τ»/);
   g.ev(`G.stage.rs.e = 1`);
   assert.ok(list().includes('mu') && !list().includes('ta'));
   g.ev(`G.stage.rs.u = 1`);
@@ -121,7 +121,7 @@ const decay = (g, sp, anti = false) => g.ev(`(() => { const S = G.stage, o = S.m
 
 test('кузница: распад научённого тяжёлого кварка — лёгкий кварк в запас; антикварк и ненаученный — нет; потолок растёт с поколениями', () => {
   const g = toStage('particles'); field(g);
-  assert.equal(decay(g, 'c'), '0,0', 'не научил «Рождение c» — кузницы нет');
+  assert.equal(decay(g, 'c'), '0,0', 'нет закона «Генерация c» — кузницы нет');
   teach(g, ['u', 'd', 'c']);
   assert.equal(decay(g, 'c'), '1,0');
   assert.equal(decay(g, 'c', true), '1,0', 'антикварк — не вещество');
@@ -147,17 +147,13 @@ test('кузница: выкованное сверх UD_MAX в детектор
   assert.ok(g.ev('G.stage.el.filter(e => e.slow > 0).length') >= 5, 'холодные электроны у ионов');
 });
 
-test('асимметрия: нарушение CP — только при трёх поколениях кварков; в эпохе 4 лавка ведёт по лестнице до b', () => {
+test('асимметрия: в эпохе 4 лестница «Генерация» до b не нужна — сразу «⚖ Асимметрия», задание без «научи»', () => {
   const g = toStage('particles'); field(g);
   g.ev(`(() => { const S = G.stage; S.startEpoch(3); S.stockQ = [0, 1, 2, 0, 1, 2].map(col => ({ fl: col ? 'u' : 'd', col })); S.kn += 9999; })()`);
-  const res = () => g.ev('G.stage.resList().map(r => r.k).join()');
-  assert.equal(res(), 'u', 'сначала первое поколение');
-  assert.match(g.ev('G.stage.steps()[1].h'), /трёх поколениях кварков/);
-  teach(g, ['u', 'd', 'c', 's']);
-  assert.equal(res(), 'b');
-  assert.equal(g.ev('G.stage.steps()[1].res'), 'b', 'задание подсвечивает нужную ступень');
-  teach(g, ['b']);
-  assert.equal(res(), 'cp', 'три поколения — асимметрия возможна');
+  assert.equal(g.ev('G.stage.resList().map(r => r.k).join()'), 'cp', 'ни одной «Генерации» не куплено — всё равно сразу асимметрия');
+  assert.equal(g.ev('G.stage.steps()[1].res'), 'cp');
+  assert.doesNotMatch(g.ev('G.stage.steps()[1].h'), /[Нн]ауч|учи/);
+  assert.match(g.ev(`G.stage.resList()[0].about(0)`), /три поколения/);
 });
 
 test('эпоха 3: цепочка b — в задании всегда', () => {

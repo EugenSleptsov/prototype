@@ -72,11 +72,11 @@ const PH_CLS = [
   { n: 'сверхжёсткий', r: 'легендарный', x: 8, e: 4, k: 20, kn: 10, c: [210, 170, 255] },
 ];
 // Цены исследований: новое в мире (новый вид частиц) — дорого, автоматизация уже имеющегося — дешевле
-// Цены «Сформировать закон». «Рождение X»: тяжелее X — дороже; каждое следующее «Рождение» — ещё на RES_UP дороже (их много,
+// Цены «Сформировать закон». «Генерация X»: тяжелее X — дороже; каждое следующее «Генерация» — ещё на RES_UP дороже (их много,
 // а научённое приносит ✦ само — без роста цен Вселенная к концу эпохи 3 покупала бы себя сама).
 const RES_COST = { ph: [10, 30, 60], g: [40], coll: [60], cp: [40] }, RES_UP = .2;
 const resNew = (/** @type {number} */ v, n = 0) => Math.round((40 + 15 * v) * (1 + RES_UP * n) / 5) * 5;
-// Доход от научённого, ✦/мин (сводка «Законы Вселенной»): свет — по уровню, «Рождение X» — 2 + ценность X
+// Доход от научённого, ✦/мин (сводка «Законы Вселенной»): свет — по уровню, «Генерация X» — 2 + ценность X
 /** @type {Record<string, number>} */
 const UNI_RATE = { g: 3, coll: 4, cp: 4 }, UNI_PH = [0, 2, 4, 6];
 const LB_KEY = 'proto.lb.v1', LB_TOP = 5;
@@ -125,14 +125,14 @@ const EPOCHS = [
   { name: 'Аннигиляция', floor: .5, tau: 36, startT: 3, when: '10⁻⁷ с', line: 'Битва: антивещество идёт волнами — сбереги вещество' },
 ];
 const CHAINS = [['t', 'b', 'c'], ['ta', 'mu']]; // чьи распады нужно снять в эпохе 3
-// Роль семейства: зачем отдавать Вселенной рождение частицы (исследование «Рождение X»)
+// Роль семейства: зачем отдавать Вселенной рождение частицы (исследование «Генерация X»)
 //  e      — e⁻ и e⁺ притягиваются и гаснут в γγ: каждая вспышка +1 ✦, на виду — ещё и +1 ⚡
 //  u, d   — Вселенная откладывает по кварку раз в UD_EVERY с (до UD_MAX, поровну u и d);
 //           в эпохе 4 запас сразу ложится в детектор готовыми тройками — фора к барионам
 //  c s b μ τ — каждый снятый распад платит ✦ (вдвое против массы) и возвращает ⚡ снимка; такие частицы не уходят в фон
 //  t      — t, рожденный Вселенной, распадается в кадре: ⚡ до полного (не чаще раза в T_CD с; твой t — не в счёт)
 const E_PULL = 2.5, UD_MAX = 6, UD_EVERY = 8, T_CD = 20, DEC_PAY = ['c', 's', 'b', 'mu', 'ta'];
-// Кузница: тяжёлое распадается в лёгкое. Научил «Рождение X» тяжёлого — распад X вещества (эпохи 2–3) кладёт
+// Кузница: тяжёлое распадается в лёгкое. Научил «Генерация X» тяжёлого — распад X вещества (эпохи 2–3) кладёт
 // лёгкий кварк в запас к эпохе 4 (каждое научённое тяжёлое поколение — потолок запаса выше на UD_STEP),
 // распады μ и τ куют электроны в «Атомы» (до E_FORGE). Асимметрия (нарушение CP) — только при трёх поколениях кварков.
 const FORGE_Q = ['s', 'c', 'b', 't'], FORGE_L = ['mu', 'ta'], UD_STEP = 6, E_FORGE = 12;
@@ -824,7 +824,7 @@ const Particles = {
       if (a.sp === 'e' && Codex.auto.has('e') && made[0].sp === 'ph') this.eFlash((a.x + b.x) / 2, (a.y + b.y) / 2);
     }
   },
-  // «Рождение e» исследовано: e⁻ и e⁺ (разноимённые заряды) поворачивают друг к другу — встретятся и погаснут в γγ.
+  // «Генерация e» исследовано: e⁻ и e⁺ (разноимённые заряды) поворачивают друг к другу — встретятся и погаснут в γγ.
   // Свежие твои и брошенные не трогаем: их ведёшь ты.
   /** @param {number} dt */
   attractE(dt) {
@@ -849,7 +849,7 @@ const Particles = {
     this.float(x, y - .3, en ? 'e⁺e⁻ → γγ +1 ✦ +1 ⚡' : 'e⁺e⁻ → γγ +1 ✦', PH_C, 12);
     fxRing(x, y, .1, PH_C, .9, .5);
   },
-  // распад этого вида оплачивается («Рождение X» для c s b μ τ) и сколько он платит
+  // распад этого вида оплачивается («Генерация X» для c s b μ τ) и сколько он платит
   /** @param {string} sp */
   paidDec(sp) { return DEC_PAY.includes(sp) && Codex.auto.has(sp); },
   /** @param {string} sp */
@@ -919,8 +919,6 @@ const Particles = {
   // потолок запаса u/d: каждое научённое тяжёлое поколение кварков — ещё UD_STEP
   /** @param {string} [k] посчитать, будто научен и k (для подсказки лавки) */
   udCap(k) { const has = (/** @type {string} */ s) => this.rs[s] > 0 || s === k; return UD_MAX + (has('c') || has('s') ? UD_STEP : 0) + (has('b') || has('t') ? UD_STEP : 0); },
-  // нарушение CP — только при трёх поколениях кварков: научено «Рождение b» или «Рождение t» (третье не открыто вовсе — не требуем)
-  cpOk() { return this.rs.b > 0 || this.rs.t > 0 || (!Codex.has('b') && !Codex.has('t')); },
   // Событие оставляет СЛЕД: вершину с лучами осколков. Пока след не погас, его можно заснять.
   /** @param {Q[]} made @param {number} x @param {number} y @param {Q} [parent] @param {Rx} [rx] */
   event(made, x, y, parent, rx) {
@@ -1013,11 +1011,7 @@ const Particles = {
   /** @returns {Research[]} */
   resList() {
     if (!this.lit) return [];
-    if (this.ep === 3 && !this.rs.cp && !this.cpOk()) { // асимметрии нужно третье поколение кварков — лестница до b прямо здесь
-      const k = this.buyNext('b');
-      return Codex.has(k) ? [{ k, ic: SM[k].sym, name: `Рождение ${SM[k].sym}`, cost: [resNew(this.value(k), this.births())], about: () => k === 'b' ? 'третье поколение — нарушение CP возможно' : 'ступень к третьему поколению кварков' }] : [];
-    }
-    if (this.ep === 3) return baryonTrios(this.stockQ) >= HAND_CP || this.rs.cp ? [{ k: 'cp', ic: '⚖', name: 'Асимметрия', cost: RES_COST.cp, about: () => 'вещества чуть больше, чем антивещества' }] : [];
+    if (this.ep === 3) return baryonTrios(this.stockQ) >= HAND_CP || this.rs.cp ? [{ k: 'cp', ic: '⚖', name: 'Асимметрия', cost: RES_COST.cp, about: () => 'вещества чуть больше, чем антивещества — нарушение CP дают три поколения кварков' }] : [];
     const ph = { k: 'ph', ic: 'γ', name: 'Свет', cost: RES_COST.ph, about: (/** @type {number} */ l) => l >= 2 ? `горячих областей вдвое больше: ${HZ_N} → ${HZ_N * 2} — свет рождается в них` : l ? `света в мире: ~${this.phN(l)} γ → ~${this.phN(l + 1)} γ` : `Вселенная светит сама: ~${this.phN(1)} γ в мире` };
     const L = [];
     if (!this.rs.ph) L.push(ph);
@@ -1028,10 +1022,10 @@ const Particles = {
     const all = [...Codex.run].filter(sp => sp === 'H' || this.rs.coll > 0 && ((FERMIONS.includes(sp) && SM[sp].kind !== 'nu') || sp === 'W' || sp === 'Z')).filter(sp => this.genBuyOk(sp)); // поколения — по лестнице
     const nb = this.births();
     for (const sp of [...all.filter(sp => need.includes(sp)), ...all.filter(sp => !need.includes(sp))])
-      L.push({ k: sp, ic: SM[sp].sym, name: `Рождение ${SM[sp].sym}`, cost: [resNew(this.value(sp), nb)], about: () => this.role(sp) });
+      L.push({ k: sp, ic: SM[sp].sym, name: `Генерация ${SM[sp].sym}`, cost: [resNew(this.value(sp), nb)], about: () => this.role(sp) });
     return L;
   },
-  // что даёт «Рождение X»: у каждого семейства своя польза
+  // что даёт «Генерация X»: у каждого семейства своя польза
   /** @param {string} sp */
   role(sp) {
     if (sp === 'H') return 'всплески поля рождают H';
@@ -1044,25 +1038,25 @@ const Particles = {
   },
   /** @param {string} k */
   rLvl(k) { return this.rs[k] || 0; },
-  // «Рождение» поколения — только после предыдущего: e → μ → τ, u и d → c, s → t, b (как и открытие, GEN_PREV)
+  // «Генерация» поколения — только после предыдущего: e → μ → τ, u и d → c, s → t, b (как и открытие, GEN_PREV)
   /** @param {string} sp */
   genBuyOk(sp) { return (GEN_PREV[sp] || []).every(k => this.rs[k] > 0); },
-  // что купить первым, чтобы дойти до «Рождения sp»
+  // что купить первым, чтобы дойти до «Генерации sp»
   /** @param {string} sp @returns {string} */
   buyNext(sp) { const k = this.genBuyOk(sp) ? null : (GEN_PREV[sp] || []).find(k => !(this.rs[k] > 0)); return k ? this.buyNext(k) : sp; },
-  // лестница словами: «Рождение e», потом «Рождение μ»
+  // лестница словами: «Генерация e», потом «Генерация μ»
   /** @param {string} sp */
   ladder(sp) {
     /** @type {Set<string>} */
     const need = new Set();
     const walk = (/** @type {string} */ s) => { for (const k of GEN_PREV[s] || []) if (!(this.rs[k] > 0)) { walk(k); need.add(k); } };
     walk(sp);
-    return [...need, sp].map(k => `«Рождение ${SM[k].sym}»`).join(', потом ');
+    return [...need, sp].map(k => `«Генерация ${SM[k].sym}»`).join(', потом ');
   },
   // сколько квантов света держит в мире закон «Свет» уровня l (как в qCap, когда разгорелся)
   /** @param {number} l */
   phN(l) { return Math.round(this.nQ() * PH_DENS[Math.min(l, PH_DENS.length - 1)]); },
-  // сколько «Рождений» уже научено (каждое следующее дороже)
+  // сколько «Генераций» уже научено (каждое следующее дороже)
   births() { return Object.keys(this.rs).filter(k => this.rs[k] > 0 && !(k in RES_COST)).length; },
   // ровный доход от научённого, ✦/мин, на уровне l
   /** @param {string} k @param {number} l */
@@ -1073,7 +1067,7 @@ const Particles = {
   // работает ли сейчас научённое: в эпоху 4 Вселенная частиц не рождает — только свет, глюоны и асимметрия
   /** @param {string} k */
   uniOn(k) { return this.ep !== 3 || k === 'ph' || k === 'g' || k === 'cp'; },
-  // тумблер закона: «Рождение X» и глюоны — это Codex.auto (что Вселенная рождает сама); свет, столкновения, асимметрия смотрят Uni.off
+  // тумблер закона: «Генерация X» и глюоны — это Codex.auto (что Вселенная рождает сама); свет, столкновения, асимметрия смотрят Uni.off
   /** @param {string} k @param {boolean} on */
   uniSet(k, on) {
     if (k === 'coll' || k === 'cp') return;
@@ -1199,7 +1193,7 @@ const Particles = {
     const nq = (cnt.ph || 0) + (cnt.g || 0), capQ = Math.ceil((this.ep === 3 ? this.qCap() : this.nQ() * this.qShare()) * 1.1);
     if (nq > capQ) this.thin(o => this.isQ(o) && !o.cap, nq - capQ);
   },
-  // «Рождение u/d»: Вселенная откладывает кварк в запас к эпохе 4 — поровну u и d, чтобы сложились тройки
+  // «Генерация u/d»: Вселенная откладывает кварк в запас к эпохе 4 — поровну u и d, чтобы сложились тройки
   /** @param {number} dt */
   reserve(dt) {
     const fl = ['u', 'd'].filter(f => Codex.auto.has(f));
@@ -1738,7 +1732,7 @@ const Particles = {
         const pre = genOpen(sp) ? null : genNeed(sp)[0], mk = pre || (Codex.auto.has(sp) ? null : sp);
         return { t: `Сними, как распадается ${sym(sp)}`, h: pre ? `сначала ${this.howTo(pre).toLowerCase()} — поколения открываются по порядку`
           : Codex.auto.has(sp) ? `Вселенная родит ${sym(sp)} у горячей точки — ${tap} по золотой вершине, где он распадётся`
-          : `${this.howTo(sp)} — и ${tap} по золотой вершине, где он распадётся. Или ${this.rs[sp] ? `включи закон «Рождение ${sym(sp)}» справа` : `сформируй закон: ${this.rs.coll ? '' : '«Столкновения», потом '}${this.ladder(sp)}`}`,
+          : `${this.howTo(sp)} — и ${tap} по золотой вершине, где он распадётся. Или ${this.rs[sp] ? `включи закон «Генерация ${sym(sp)}» справа` : `сформируй закон: ${this.rs.coll ? '' : '«Столкновения», потом '}${this.ladder(sp)}`}`,
           s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? this.buyNext(sp) : null, rx: mk ? this.taskRx(mk) : undefined };
       });
       default: {
@@ -1747,8 +1741,8 @@ const Particles = {
         return [{ t: `Собери ${TRIO_GOAL} ${TRIO_W} R·G·B`, h: 'лови кварки недостающего цвета; глюон в золотом кольце перекрасит лишний — зажми рядом, щит его втянет', p: [Math.min(t, TRIO_GOAL), TRIO_GOAL], s: `${TRIO_GOAL} ${TRIO_W}`, d: t >= TRIO_GOAL },
           { t: 'Сформируй закон сбережения вещества', h: this.rs.cp ? 'Вселенная сберегает тройки — они зелёные, вокруг детектора'
             : t < HAND_CP ? `сначала ${HAND_CP} тройки руками — потом исследуй «⚖ Асимметрия»`
-            : !this.cpOk() ? `нарушение CP — только при трёх поколениях кварков: научи Вселенную ${this.ladder('b')}, потом «⚖ Асимметрия»` : `исследуй «⚖ Асимметрия» ${buy('cp')}`,
-            p: [Math.min(a, AUTO_TRIO), AUTO_TRIO], s: 'вещество сбережено', d: a >= AUTO_TRIO, res: this.rs.cp || this.cpOk() ? 'cp' : this.buyNext('b') }];
+            : `сформируй закон «⚖ Асимметрия» ${buy('cp')}`,
+            p: [Math.min(a, AUTO_TRIO), AUTO_TRIO], s: 'вещество сбережено', d: a >= AUTO_TRIO, res: 'cp' }];
       }
     }
   },
@@ -1895,7 +1889,7 @@ const Particles = {
   reveal() {
     if (!G.started || this.inVoid) return;
     if (this.lit && Codex.has('ph')) {
-      Hint.once('kn', 'знания ✦ — за открытия и снимки; на них учишь Вселенную', () => [G.W / 2 - 4, 40, 1]);
+      Hint.once('kn', 'знания ✦ — за открытия и снимки; на них создаёшь законы Вселенной', () => [G.W / 2 - 4, 40, 1]);
       Hint.once('en', 'энергия ⚡ — на снимки и удары; её даёт пойманный свет', () => { const [sx, sy] = W2S(P.x, P.y); return [sx, sy + this.hr() * cam.z + 26, 1]; });
       Hint.once('codex', 'кодекс: всё, что ты открыл · C', () => hintAtEl('codex', 1) || hintAtEl('t-cx', -1));
       Hint.once('ladder', 'путь Вселенной — от частиц к жизни. Ты здесь', () => [lerp(24, G.W - 24, (G.ladP ?? 0) / (LADDER.length - 1)), G.H - 40, -1]);

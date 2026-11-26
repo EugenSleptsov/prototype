@@ -1,5 +1,5 @@
 // «Законы Вселенной»: чему научил — работает без тебя и понемногу приносит ✦; сводка справа и строка в итогах.
-// Цена каждого следующего «Рождения» растёт: научённое окупается само.
+// Цена каждого следующего «Генерации» растёт: научённое окупается само.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadGame, PREP } from './harness.mjs';
@@ -25,14 +25,14 @@ test('законы Вселенной: каждый закон — строка 
   assert.ok(g.ev(`G.stage.uni.find(r => r.k === 'coll').kn`) >= 3);
 });
 
-test('законы Вселенной: лавка говорит, сколько ✦/мин принесёт закон; каждое следующее «Рождение» дороже', () => {
+test('законы Вселенной: лавка говорит, сколько ✦/мин принесёт закон; каждая следующая «Генерация» дороже', () => {
   const g = lit();
   g.ev('G.stage.renderShop(document.getElementById("shop"))');
   assert.match(g.ev('document.getElementById("shop").innerHTML'), /\+\d+ ✦\/мин/);
   buy(g, 'coll'); // вещество Вселенная рождает из столкновений
   const e = buy(g, 'e'), u = buy(g, 'u'), d = buy(g, 'd');
   assert.equal(e, 55); assert.equal(u, 65); assert.equal(d, 75);
-  assert.equal(g.ev(`G.stage.uni.find(r => r.k === 'e').rate`), 3, 'Рождение e: 2 + ценность e');
+  assert.equal(g.ev(`G.stage.uni.find(r => r.k === 'e').rate`), 3, 'Генерация e: 2 + ценность e');
 });
 
 test('законы Вселенной: в эпоху 4 частиц Вселенная не рождает — их строки стоят, свет капает дальше', () => {
