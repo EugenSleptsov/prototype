@@ -27,6 +27,8 @@ const DELTA_T = 1.6, MESON_T = 2.6; // жизнь Δ и пиона
 const SQ_T = .5, SQ_K = .3, SQ_RAD = .3;
 // бильярд: готовый нуклон — шар; упругость удара (масса — число кварков), сбитое быстрее полной резинки не летит
 const Q_REST = .8;
+// «Приток плазмы» — повторяемое в лавке: по GEN_PER кварков каждого цвета из соседнего объёма; цена растёт с каждым разом
+const GEN_PER = 5, GEN_C0 = 8, GEN_DC = 3;
 // цель, своих нуклонов в цели, нейтронов в цели, барионов рогаткой до закона, цена закона, как часто бросает Вселенная
 const GOAL_N = 12, OWN_N = 5, GOAL_NN = 2, HAND_Q = 2, CONF_COST = 25, AUTO_CD = 1.6;
 // «Адронный зоопарк» — ключи кодекса 'h:…'
@@ -75,7 +77,7 @@ const Quarks = {
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.failed = false; this.rs = { conf: 0 }; this.banner = -1.5; this.learn = {};
     this.advanced = false; this.cheated = false; this.res = null; this.autoCd = 1; this.stuckT = 0; this.tk = {}; this.msgs = new Set();
     this.made = { p: 0, n: 0 }; this.handN = 0; this.autoN = 0; this.goneWhite = 0;
-    this.st = { frozen: 0, frozenMine: 0, mesons: 0, delta: 0, hyp: 0, hypN: 0, bCasc: 0, pairThrow: 0, bounce: 0, miss: 0, strikes: 0, carom: 0, saved: 0, bank: 0 };
+    this.st = { frozen: 0, frozenMine: 0, mesons: 0, delta: 0, hyp: 0, hypN: 0, bCasc: 0, pairThrow: 0, bounce: 0, miss: 0, strikes: 0, carom: 0, saved: 0, bank: 0, gen: 0 };
     const pr = prev && prev.rs || {};
     this.gen2 = pr.q2 > 0 || pr.q3 > 0; this.gen3 = pr.q3 > 0;
     this.hr = prev && prev.hr ? (typeof prev.hr === 'function' ? prev.hr() : prev.hr) : 1.4;
@@ -110,10 +112,10 @@ const Quarks = {
     this.sl = new Sling(this);
   },
   // точка в горячем диске (доля радиуса), подальше от уже лежащих
-  inDisk(k) {
+  inDisk(k, R0 = Q_R0) {
     let best = [this.C.x, this.C.y], bd = -1;
     for (let i = 0; i < 8; i++) {
-      const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * Q_R0 * k, x = this.C.x + Math.cos(a) * r, y = this.C.y + Math.sin(a) * r;
+      const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * R0 * k, x = this.C.x + Math.cos(a) * r, y = this.C.y + Math.sin(a) * r;
       let d = Infinity; for (const o of this.o) d = Math.min(d, Math.hypot(o.x - x, o.y - y));
       if (d > bd) { bd = d; best = [x, y]; }
     }
@@ -515,6 +517,7 @@ const Quarks = {
   },
   // нуклоны больше не из чего собрать: и всё цветное (без антикварков), сложенное по три, не дотянет до цели
   stuck() {
+    if (this.shopItems().some(x => x.k === 'gen' && this.bal() >= x.c)) return false; // хватает ✦ на приток плазмы
     const { p, n } = this.liveNP(), pend = this.o.filter(o => o.kind === 'delta' || o.kind === 'hyp').length;
     const col = this.o.filter(o => !isWhite(o)).reduce((s, o) => s + o.m.filter(q => !q.anti).length, 0);
     return p + n + pend + Math.floor(col / 3) < GOAL_N;
@@ -527,22 +530,46 @@ const Quarks = {
 
   // ---------- закон — в лавке ✦ ----------
   bal() { return Math.floor(this.kn - this.spent); },
-  shopItems() { return this.doneAt === null && !this.rs.conf && (this.handN >= HAND_Q || this.steps0()) ? [{ k: 'conf', ic: '◬', name: 'Конфайнмент', about: 'Вселенная сама собирает белое', c: CONF_COST }] : []; },
+  // закон (для задания) и повторяемый «Приток плазмы» — после первого бариона
+  shopItems() {
+    if (this.doneAt !== null) return [];
+    const it = [];
+    if (!this.rs.conf && (this.handN >= HAND_Q || this.steps0())) it.push({ k: 'conf', ic: '◬', name: 'Конфайнмент', about: 'Вселенная сама собирает белое', c: CONF_COST });
+    if (this.handN >= 1) it.push({ k: 'gen', ic: '≋', name: 'Приток плазмы', about: `+${GEN_PER} кварков каждого цвета`, c: this.genCost(), opt: true });
+    return it;
+  },
+  genCost() { return GEN_C0 + GEN_DC * this.st.gen; },
   keyOf(k) { const i = this.shopItems().findIndex(x => x.k === k); return i < 0 ? null : i + 1; },
   buy(i) {
     const it = this.shopItems()[i];
     if (!it || !G.started || G.paused || this.doneAt !== null) return;
     if (this.bal() < it.c) { this.float(this.C.x, this.C.y - 1.5, `нужно ${it.c} ✦`, Q_NO, 13); Sfx.play('fizzle'); return; }
+    if (it.k === 'gen') { this.spent += it.c; this.gen(); return; }
     this.spent += it.c; this.rs[it.k] = 1; this.autoCd = .5; Sfx.play('upgrade'); Uni.learn(this, it.k, it.ic, it.name, UNI_LVL);
     fxRing(this.C.x, this.C.y, 1, GOLD, Q_R0, 1.4);
     this.float(this.C.x, this.C.y - 1.5, `${it.ic} ${it.name}`, GOLD, 16);
     msg('Конфайнмент: в холоде цветное не живёт — Вселенная сама сводит соседние цвета в белое');
   },
+  // приток плазмы: по GEN_PER кварков каждого цвета вспыхивают по горячему диску (не хватает нейтронов — среди них d)
+  gen() {
+    const R = this.hotR(), N = GEN_PER * 3;
+    for (let k = 0; k < N; k++) {
+      const c = k % 3, [x, y] = this.inDisk(.85, R);
+      // первым в каждом цвете — d, если нейтронов не хватает
+      const fl = k < 3 && this.liveNP().n < GOAL_NN + 1 ? 'd' : Math.random() < U_SHARE ? 'u' : 'd';
+      this.mk([{ col: c, fl, anti: false }], x, y, randn() * .3, randn() * .3);
+      fxFlash(x, y, .5, QCOL[c], .4);
+    }
+    this.Q0 += N; this.st.gen++;
+    fxRing(this.C.x, this.C.y, .5, [255, 230, 200], R, 1); Sfx.play('fresh');
+    this.float(this.C.x, this.C.y - 1.5, `≋ приток плазмы: +${N} кварков`, [255, 225, 190], 15);
+    this.once('gen', `Приток плазмы: из соседнего объёма горячей плазмы пришли ещё ${N} кварков — по ${GEN_PER} каждого цвета`);
+  },
   renderShop(el) {
     const items = this.shopItems();
     if (!G.started || this.advanced || !items.length) { el.style.display = 'none'; return; }
     const b = this.bal();
-    const html = items.map((r, k) => `<button data-i="${k}" class="res pri ${b >= r.c ? 'ok' : 'no'}"><u>для задания</u><span class="k">${k + 1}</span>` +
+    const html = items.map((r, k) => `<button data-i="${k}" class="res ${r.opt ? 'sec' : 'pri'} ${b >= r.c ? 'ok' : 'no'}" title="${r.name}: ${r.about}">${r.opt ? '' : '<u>для задания</u>'}<span class="k">${k + 1}</span>` +
       `<span class="ic">${r.ic}</span><b>${r.name}</b><i>${r.about}</i><em>${r.c} ✦</em></button>`).join('');
     if (el._h !== html) { el._h = html; el.innerHTML = html; }
     if (!el.onclick) el.onclick = e => { const bt = e.target.closest('button'); if (bt && G.stage.buy) G.stage.buy(+bt.dataset.i); };
@@ -552,7 +579,7 @@ const Quarks = {
     const np = this.liveNP();
     return {
       name: 'Адроны', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['к ядрам: p⁺ · n⁰', `${np.p} · ${np.n}`], ['белое', Math.round(this.white() * 100) + ' %'],
-        ['нуклоны рогаткой', this.handN], ['нуклоны Вселенной', this.autoN], ['мезоны', this.st.mesons], ['вымерзло кварков', this.st.frozen], ...(this.gen2 ? [['гипероны рогаткой', this.st.hyp]] : [])],
+        ['нуклоны рогаткой', this.handN], ['нуклоны Вселенной', this.autoN], ['мезоны', this.st.mesons], ['вымерзло кварков', this.st.frozen], ...(this.st.gen ? [['приток плазмы', this.st.gen + ' × ' + GEN_PER * 3 + ' кварков']] : []), ...(this.gen2 ? [['гипероны рогаткой', this.st.hyp]] : [])],
       auto: [this.autoN, this.handN + this.autoN], stars: this.stars || [],
     };
   },
