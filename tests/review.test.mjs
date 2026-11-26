@@ -80,12 +80,25 @@ test('адроны: антибарионов нет; повтор экзотик
   assert.equal(g.ev('EXO_REP') >= 1, true);
 });
 
-test('атомы: «Рекомбинация» сама прозрачности не даёт — после ~65 % доводишь ты', () => {
+test('атомы: «Рекомбинация» сама прозрачности не даёт — после ~65 % электроны тормозит след игрока; в задании нет «дальше ты»', () => {
   const g = toStage('atoms');
   g.ev(`(() => { const S = G.stage; S.st.brakes = 1; S.st.relaxed = 1; for (const Z of AT_NEED) S.seenN.add(Z); S.rs.rec = 1; Uni.learn(S, 'rec', '◎', 'Рекомбинация', UNI_LVL); })()`);
   g.step(60 * 50);
   assert.equal(g.ev('G.stage.doneAt'), null, `нейтральных ${Math.round(g.ev('G.stage.neutral()') * 100)} %`);
   assert.ok(g.ev('G.stage.neutral()') < g.ev('A_GOAL'));
+  assert.doesNotMatch(g.ev('G.stage.steps().map(s => s.h).join()'), /дальше ты|сама —/);
+});
+
+test('атомы: подпись гелия — над его оболочкой и на тёмной плашке (на светлом свечении не теряется)', () => {
+  const g = toStage('atoms');
+  const r = g.ev(`(() => { const S = G.stage, io = S.ion(2, P.x, P.y, 1); io.ne = 2; io.age = 9; S.ions = [io]; S.el = [];
+    const L = [], t0 = tag; tag = (t, x, y) => L.push([t, y]); try { S.draw(1); } finally { tag = t0; }
+    const [, sy] = W2S(io.x, io.y), z = cam.z, rr = (.3 + .06 * 2) * z;
+    return { L, edge: sy - (.55 * z + rr) };
+  })()`);
+  const he = r.L.find(t => t[0] === 'He');
+  assert.ok(he, JSON.stringify(r.L));
+  assert.ok(he[1] < r.edge - 6, `подпись ${he[1]} выше кольца оболочки ${r.edge}`);
 });
 
 for (const key of ['quarks', 'nuclei', 'atoms']) test(`чит ]: ${key} — уровень и правда доходит до конца`, () => {
@@ -95,19 +108,19 @@ for (const key of ['quarks', 'nuclei', 'atoms']) test(`чит ]: ${key} — ур
   assert.notEqual(g.ev('G.stage.doneAt'), null, g.ev('G.stage.steps().map(s => +s.d).join("")'));
 });
 
-test('частицы: «Генерация» поколений — по лестнице: μ только после e, τ после μ; c, s — после u и d; цвет кнопки — поколение', () => {
+test('частицы: «Генерация» лептонов — по лестнице (μ после e, τ после μ); кварки — законы поколений «Кварки I → II → III»; цвет кнопки — поколение', () => {
   const g = toStage('particles');
   g.ev(`(() => { const S = G.stage; S.ep = 1; S.rs.coll = 1; S.kn += 9999; for (const sp of ['e', 'u', 'd', 'mu', 'ta', 's', 'c']) { Codex.see(sp); Codex.run.add(sp); } })()`);
   const list = () => g.ev(`G.stage.resList().map(r => r.k)`);
-  assert.ok(list().includes('e') && !list().includes('mu') && !list().includes('ta') && !list().includes('c'), list().join());
+  assert.ok(list().includes('e') && !list().includes('mu') && !list().includes('ta') && list().includes('q1') && !list().includes('q2'), list().join());
+  assert.ok(!list().some(k => ['u', 'd', 'c', 's'].includes(k)), 'кварки — не по одному');
+  assert.equal(g.ev("G.stage.buyNext('s')"), 'q1'); assert.equal(g.ev("G.stage.ladder('s')"), '«Кварки I», потом «Кварки II»');
   assert.equal(g.ev(`G.stage.buyNext('ta')`), 'e', 'к τ — сначала e');
   assert.match(g.ev(`G.stage.ladder('ta')`), /«Генерация e», потом «Генерация μ», потом «Генерация τ»/);
   g.ev(`G.stage.rs.e = 1`);
   assert.ok(list().includes('mu') && !list().includes('ta'));
-  g.ev(`G.stage.rs.u = 1`);
-  assert.ok(!list().includes('c'), 'c — после u и d');
-  g.ev(`G.stage.rs.d = 1; G.stage.rs.mu = 1`);
-  assert.ok(list().includes('c') && list().includes('s') && list().includes('ta'));
+  g.ev(`G.stage.rs.q1 = 1; G.stage.rs.mu = 1`);
+  assert.ok(list().includes('q2') && !list().includes('q3') && list().includes('ta'), list().join());
   const html = g.ev(`(() => { const el = document.getElementById('shop'); G.started = true; el._h = ''; G.stage._pk = null; G.stage.renderShop(el); return el.innerHTML; })()`);
   assert.match(html, /class="res[^"]* g2"/, 'второе поколение — жёлтое');
 });

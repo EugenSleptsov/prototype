@@ -41,25 +41,29 @@ const byId = (/** @type {string} */ id) => { const el = document.getElementById(
 const cv = /** @type {HTMLCanvasElement} */ (byId('c'));
 const ctx = /** @type {CanvasRenderingContext2D} */ (cv.getContext('2d'));
 
-// Кварк: аромат — форма, цвет — заливка. Верхние (u, c, t — заряд +⅔) — круг, нижние (d, s, b — −⅓) — ромб.
+// Кварк: аромат — форма, цвет — заливка. u ● круг, d ◆ ромб, s ▲ треугольник, c ■ квадрат, b ⬢ шестиугольник, t — круг.
 // Антикварк — полый, той же формы и того же цвета (антицвет: «красный» + «полый красный» = бесцветный мезон).
-/** @param {number} x @param {number} y @param {number} r @param {boolean} down */
-function qPath(x, y, r, down) {
+/** @type {Record<string, string>} */
+const Q_SHAPE = { d: 'dia', s: 'tri', c: 'sq', b: 'hex' };
+/** @param {number} x @param {number} y @param {number} r @param {boolean | string} sh true / 'dia' — ромб; 'tri', 'sq', 'hex'; иначе круг */
+function qPath(x, y, r, sh) {
   ctx.beginPath();
-  if (down) { const k = r * 1.2; ctx.moveTo(x, y - k); ctx.lineTo(x + k, y); ctx.lineTo(x, y + k); ctx.lineTo(x - k, y); ctx.closePath(); }
+  const k = r * 1.2, poly = (/** @type {number} */ n, /** @type {number} */ R, /** @type {number} */ a0) => { for (let i = 0; i < n; i++) { const a = a0 + i * TAU / n; if (i) ctx.lineTo(x + Math.cos(a) * R, y + Math.sin(a) * R); else ctx.moveTo(x + Math.cos(a) * R, y + Math.sin(a) * R); } ctx.closePath(); };
+  if (sh === true || sh === 'dia') { ctx.moveTo(x, y - k); ctx.lineTo(x + k, y); ctx.lineTo(x, y + k); ctx.lineTo(x - k, y); ctx.closePath(); }
+  else if (sh === 'tri') poly(3, r * 1.3, -Math.PI / 2);
+  else if (sh === 'sq') poly(4, r * 1.2, Math.PI / 4);
+  else if (sh === 'hex') poly(6, r * 1.15, 0);
   else ctx.arc(x, y, r, 0, TAU);
 }
-/** нижний аромат (заряд −⅓) @param {string} fl */
-const qDown = fl => fl === 'd' || fl === 's' || fl === 'b';
 /** @param {number} x @param {number} y @param {number} r @param {RGB} c @param {string} fl @param {boolean} anti @param {number} [a] */
 function quark(x, y, r, c, fl, anti, a = 1) {
   if (!(r > 0)) return;
-  const down = qDown(fl);
-  if (anti) { ctx.strokeStyle = rgb(c, a); ctx.lineWidth = Math.max(1.5, r * .32); qPath(x, y, r * .82, down); ctx.stroke(); return; }
-  if (!down) { ball(x, y, r, c, a); return; }
+  const sh = Q_SHAPE[fl];
+  if (anti) { ctx.strokeStyle = rgb(c, a); ctx.lineWidth = Math.max(1.5, r * .32); qPath(x, y, r * .82, sh); ctx.stroke(); return; }
+  if (!sh) { ball(x, y, r, c, a); return; }
   const g = ctx.createRadialGradient(x - r * .35, y - r * .4, r * .05, x, y, r * 1.2);
   g.addColorStop(0, rgb(mixc(c, [255, 255, 255], .6), a)); g.addColorStop(.6, rgb(c, a)); g.addColorStop(1, rgb(mixc(c, [0, 0, 0], .5), a));
-  ctx.fillStyle = g; qPath(x, y, r, true); ctx.fill();
+  ctx.fillStyle = g; qPath(x, y, r, sh); ctx.fill();
 }
 function ball(x, y, r, c, a = 1) {
   if (!(r > 0)) return;
@@ -89,6 +93,13 @@ function line(x1, y1, x2, y2, c, a, lw = 1) {
 function label(t, x, y, px, c = [255, 255, 255], a = 1, weight = 600) {
   ctx.fillStyle = rgb(c, a); ctx.font = `${weight} ${Math.max(8, px) | 0}px system-ui,sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y);
+}
+// подпись на тёмной плашке: читается поверх светлого свечения (гелий, нуклоны)
+function tag(t, x, y, px, c = [255, 255, 255], a = 1, weight = 700) {
+  ctx.font = `${weight} ${Math.max(8, px) | 0}px system-ui,sans-serif`;
+  const w = ctx.measureText(t).width + px * .9, h = px * 1.45;
+  ctx.fillStyle = `rgba(10,10,22,${(.62 * a).toFixed(3)})`; ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, h / 2); ctx.fill();
+  label(t, x, y, px, c, a, weight);
 }
 // всплывающая надпись: целиком в экране, даже если источник у края
 function labelIn(t, x, y, px, c, a, weight) {

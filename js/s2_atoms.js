@@ -354,7 +354,7 @@ const Atoms = {
       { t: 'Осади пойманный электрон', h: 'он дрожит на внешней орбите — проведи следом через атом', s: 'спектральная линия', d: this.st.relaxed > 0 },
       { t: 'Одень ядра электронами', h: 'гелий и закрытую K-оболочку жёсткий свет не берёт', items: AT_NEED.map(Z => [atSym(Z), this.seenN.has(Z)]), s: 'H, He, C, N, O', d: AT_NEED.every(Z => this.seenN.has(Z)) },
       { t: 'Сформируй закон «Рекомбинация»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${A_COST} ✦`, s: 'рекомбинация', d: this.rs.rec > 0, res: 'rec' },
-      { t: 'Сделай Вселенную прозрачной', h: `свет рассеивают свободные электроны — нейтрализуй 90 %${this.rs.rec ? `: «Рекомбинация» сама — до ${REC_TOP * 100} %, дальше ты` : ''}`, p: [Math.min(90, Math.round(n * 100)), 90], s: 'последнее рассеяние', d: n >= A_GOAL },
+      { t: 'Сделай Вселенную прозрачной', h: `свет рассеивают свободные электроны — нейтрализуй 90 %${this.rs.rec ? `: закон «Рекомбинация» нейтрализует до ${REC_TOP * 100} % — последние электроны тормози следом` : ''}`, p: [Math.min(90, Math.round(n * 100)), 90], s: 'последнее рассеяние', d: n >= A_GOAL },
     ];
   },
   starPool() {
@@ -412,7 +412,9 @@ const Atoms = {
         arc(sx, sy, Rx + 4, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(io.exT / EX_T, 0, 1), sc, .7 * a, 2);
         for (let k = 0; k < ex; k++) { const an = -io.rot * 1.7 + k / ex * TAU, ex2 = sx + Math.cos(an) * Rx, ey2 = sy + Math.sin(an) * Rx; glow(ex2, ey2, Math.max(4, .3 * z), sc, .7 * a); ball(ex2, ey2, Math.max(1.6, .1 * z), [255, 255, 255], a); }
       }
-      label(ionSym(io.Z, io.ne) + (ex ? '*' : ''), sx, sy - r - (ex ? 1.8 : io.ne > 2 ? 1.2 : .8) * z, 12, ex ? atSpec(io.Z) : Q > 0 ? [210, 215, 235] : [255, 255, 255], .85 * a, 700);
+      // подпись — над внешней орбитой и на плашке: у гелия свечение почти белое, белые буквы на нём терялись
+      const top = ex ? 1.45 * z + r + 4 : gn > 2 ? .95 * z + r : gn > 0 ? .55 * z + r : r;
+      tag(ionSym(io.Z, io.ne) + (ex ? '*' : ''), sx, sy - top - 13, 12, ex ? atSpec(io.Z) : Q > 0 ? [210, 215, 235] : [255, 255, 255], .9 * a, 700);
     }
     for (const e of this.el) {
       const [sx, sy] = W2S(e.x, e.y); if (!onScreen(sx, sy, 20)) continue;

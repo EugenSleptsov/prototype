@@ -181,7 +181,7 @@ interface Learn {
 /** Статистика эпохи для испытаний */
 interface EpochStat { pairs: number; thr: number; empty: number; kinds: number; dry: number; eaten: number; recol: number; waves: number; ann?: number }
 /** Исследование в лавке ✦ */
-interface Research { k: string; ic: string; name: string; cost: number[]; about: (l: number) => string }
+interface Research { k: string; ic: string; name: string; cost: number[]; about: (l: number) => string; /** нужно для задания эпохи (порядок в лавке) */ nd?: boolean }
 /** Строка лавки: исследование (r) или улучшение детектора за ★ (up); c — цена, pri — нужно для задания */
 type ShopItem = { r: Research; c: number; pri: boolean };
 

@@ -30,8 +30,9 @@ test('законы Вселенной: лавка говорит, сколько
   g.ev('G.stage.renderShop(document.getElementById("shop"))');
   assert.match(g.ev('document.getElementById("shop").innerHTML'), /\+\d+ ✦\/мин/);
   buy(g, 'coll'); // вещество Вселенная рождает из столкновений
-  const e = buy(g, 'e'), u = buy(g, 'u'), d = buy(g, 'd');
-  assert.equal(e, 55); assert.equal(u, 65); assert.equal(d, 75);
+  const e = buy(g, 'e'), q1 = buy(g, 'q1');
+  assert.equal(e, 55); assert.equal(q1, 65, 'кварки — один закон на поколение: «Кварки I» вместо u и d');
+  assert.ok(g.ev("Codex.auto.has('u') && Codex.auto.has('d')"), '«Кварки I» — Вселенная рождает и u, и d');
   assert.equal(g.ev(`G.stage.uni.find(r => r.k === 'e').rate`), 3, 'Генерация e: 2 + ценность e');
 });
 
