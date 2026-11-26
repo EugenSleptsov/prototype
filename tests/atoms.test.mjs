@@ -74,14 +74,19 @@ test('атомы: след поперёк луча УФ — рассеян (+1 �
   assert.equal(g.ev('__h.ne'), 1, 'водород цел');
 });
 
-test('атомы: каскад — фотон линии осаживает такой же возбуждённый атом', () => {
+test('атомы: каскад — фотон линии осаживает такой же возбуждённый атом и летит дальше с копией (вынужденное излучение: два фотона)', () => {
   const g = atoms();
   g.ev(ionAt('__a', 1, 0, 1)); g.ev(ionAt('__b', 1, 3, 1));
   g.ev(`__a.ex = __b.ex = 1; __a.exT = __b.exT = 3; __a.by = __b.by = 'hand'; G.stage.relax(__a, 'hand');
     const p = G.stage.ph.find(p => p.res === 1); p.x = __a.x + .5; p.y = __a.y; p.vx = 14; p.vy = 0;`);
+  g.ev('globalThis.__p0 = G.stage.ph.find(p => p.res === 1)');
   g.step(20);
   assert.equal(g.ev('__b.ex'), 0);
   assert.equal(g.ev('G.stage.st.cascade'), 1);
+  assert.equal(g.ev('G.stage.ph.includes(__p0) && !__p0.dead'), true, 'налетевший фотон не поглощён');
+  const pair = JSON.parse(g.ev(`JSON.stringify(G.stage.ph.filter(p => p.res === 1).map(p => [p.vx, p.vy, p.hand]))`));
+  assert.equal(pair.length, 2, 'от __b — два фотона линии H');
+  for (const [vx, vy, hand] of pair) { assert.ok(Math.abs(vx - 14) < 1e-6 && Math.abs(vy) < 1e-6, `тот же курс: ${vx}, ${vy}`); assert.equal(hand, true); }
   // цепочку начала Вселенная (спрыгнул сам) — не твой каскад
   g.ev(`__a.ne = __b.ne = 1; __a.ex = __b.ex = 1; __a.exT = 3; __b.exT = 3; __a.by = __b.by = 'auto'; G.stage.ph = []; G.stage.relax(__a, 'self'); { const q = G.stage.ph.find(p => p.res === 1); q.x = __a.x + .5; q.y = __a.y; q.vx = 14; q.vy = 0; }`);
   g.step(20);
@@ -99,7 +104,7 @@ test('атомы: туман — по доле нейтральных, а не �
   assert.equal(fog(), 0, 'все нейтральны — прозрачно');
 });
 
-test('атомы: «Красное смещение» — после первого перечёркнутого луча, необязательный; часть УФ слабеет сама (✦ — Вселенной)', () => {
+test('атомы: «Разлёт туманности» — после первого перечёркнутого луча, необязательный; часть УФ уходит мимо атомов (✦ — Вселенной)', () => {
   const g = atoms();
   assert.equal(g.ev(`G.stage.shopItems().some(it => it.k === 'red')`), false, 'пока не перечёркивал — нет');
   g.ev('G.stage.st.cut = 1; G.stage.kn += 100');
@@ -108,7 +113,9 @@ test('атомы: «Красное смещение» — после перво�
   assert.equal(g.ev('G.stage.rs.red'), 1);
   g.ev(`G.stage.ph.push(globalThis.__p = { x: P.x + 5, y: P.y + 5, vx: 13, vy: 0, t: 0, hard: true, E: 20, life: 3.4, red: .5 })`);
   g.step(40);
-  assert.equal(g.ev('__p.hard'), false, 'растянулся в видимый');
+  assert.equal(g.ev('__p.hard'), false, 'ушёл из туманности — безвреден');
+  assert.equal(g.ev('__p.esc'), true);
+  assert.equal(g.ev(`G.stage.uni.find(r => r.k === 'red').name`), 'Разлёт туманности');
   assert.equal(g.ev(`G.stage.uni.find(r => r.k === 'red').kn`), 1);
   assert.equal(g.ev('G.stage.st.cut'), 1, 'это не перехват игрока');
 });

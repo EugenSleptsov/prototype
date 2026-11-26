@@ -85,7 +85,7 @@ test('адроны: антикварк в свой цвет — мезон: бе
   assert.equal(g.ev('G.stage.goneWhite'), 2, 'но его кварки — в счёт белого');
 });
 
-test('адроны: цветное за краем плазмы вымерзает через миг; белое — нет', () => {
+test('адроны: цветное за краем плазмы вымерзает (u уходит в π⁺ — пара из вакуума); белое — нет', () => {
   const g = hadrons(); empty(g);
   const far = 'G.stage.hotR() + 1.5';
   g.ev(`${B('__q', [[0, 'u']])}; __q.x = G.stage.C.x + ${far}`);
@@ -93,9 +93,10 @@ test('адроны: цветное за краем плазмы вымерзае
   g.ev('G.stage.passive = () => {}');
   g.step(30);
   assert.ok(g.ev('__q.cold') > 0 && !g.ev('__q.dead'), 'ещё держится');
-  g.step(90);
+  g.step(150);
   assert.equal(g.ev('__q.dead'), true);
   assert.equal(g.ev('G.stage.st.frozen'), 1);
+  assert.ok(g.ev("G.stage.pi.some(p => p.pk === 'pi+')"), 'u с антикварком из вакуума — π⁺');
   assert.equal(g.ev('__p.dead'), false, 'белому холод не страшен');
 });
 
@@ -279,4 +280,46 @@ test('приток плазмы: после первого бариона — в
   const n2 = g.ev('G.stage.o.length');
   g.ev(`G.stage.buy(G.stage.shopItems().findIndex(x => x.k === 'gen'))`);
   assert.equal(g.ev('G.stage.o.length'), n2, 'без ✦ не покупается');
+});
+
+test('адроны после разбора: Δ не выгоднее чистого нуклона; брошенное мимо уходит в холод', () => {
+  const g = hadrons(); empty(g);
+  g.ev(B('__a', [[0, 'u'], [1, 'u']], 0)); g.ev(B('__b', [[2, 'u']], -2));
+  let kn = g.ev('G.stage.kn');
+  g.ev('G.stage.launch(__b, 8, 0)'); g.step(150);
+  const dGain = g.ev('G.stage.kn') - kn;
+  g.ev('G.stage.o = []'); g.ev(B('__c', [[0, 'u'], [1, 'u']], 0)); g.ev(B('__d', [[2, 'd']], -2));
+  kn = g.ev('G.stage.kn');
+  g.ev('G.stage.launch(__d, 8, 0)'); g.step(30);
+  const pGain = g.ev('G.stage.kn') - kn;
+  assert.ok(dGain < pGain, `Δ → p⁺ даёт ${dGain}, чистый p⁺ — ${pGain}`);
+  empty(g);
+  const R = g.ev('G.stage.hotR()');
+  g.ev(`${B('__e', [[0, 'u']])}; __e.x = G.stage.C.x + ${R} - .5; __e.vx = 5; globalThis.randn = () => 0`);
+  let far = 0; for (let i = 0; i < 6; i++) { g.step(10); far = Math.max(far, g.ev('__e.x - G.stage.C.x') - R); }
+  assert.ok(far > .3, `брошенный наружу кварк уходит за край (на ${far.toFixed(2)})`);
+  g.ev(`__e.x = G.stage.C.x + G.stage.hotR() - .1; __e.vx = 0; __e.vy = 0`); g.step(5);
+  assert.ok(g.ev('__e.vx') < 0, 'от теплового дрейфа у края — слабая тяга внутрь');
+});
+
+test('адроны после разбора: антикварков не осталось, мезона нет — вакуум рождает пару; тупик — по самому редкому цвету', () => {
+  const g = hadrons(); empty(g);
+  g.ev(B('__q', [[0, 'u']], 2));
+  g.step(60 * 5);
+  assert.ok(g.ev('G.stage.st.vac') >= 1);
+  assert.ok(g.ev('G.stage.o.some(o => o.kind === "aq")'), 'антикварк есть — шаг «погасить» выполним');
+  const h = hadrons(); // свой stuck (empty() его глушит)
+  h.ev('G.stage.st.mesons = 1; G.stage.o = []; G.stage.pi = []');
+  for (let i = 0; i < 30; i++) h.ev(B('__r' + i, [[0, i % 2 ? 'u' : 'd']], (i % 6) - 3, (i / 6 | 0) - 2));
+  h.ev('G.stage.kn = G.stage.spent');
+  assert.equal(h.ev('G.stage.stuck()'), true, '30 красных — ни одного бариона');
+});
+
+test('бильярд после разбора: быстрый удар нуклона разбивает пару, прицел говорит заранее', () => {
+  const g = hadrons(); empty(g);
+  g.ev(B('__n', [[0, 'u'], [1, 'd'], [2, 'd']], -3)); g.ev(B('__p', [[0, 'u'], [1, 'd']], 0));
+  assert.equal(g.ev('G.stage.predict(__n, 11, 0).label'), 'разобьёт пару');
+  g.ev('G.stage.launch(__n, 11, 0)'); g.step(30);
+  assert.equal(kinds(g), 'n,q,q');
+  assert.equal(g.ev('G.stage.st.split'), 1);
 });

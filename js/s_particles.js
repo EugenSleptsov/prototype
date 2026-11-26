@@ -183,16 +183,17 @@ const LV_N = 4, LV_T = .75;
 // Живут ~HZ_L с и остывают; новые вспыхивают в другом месте — есть зачем ехать по карте.
 /** @type {RGB} */
 const HZ_C = [255, 150, 80];
-// Холодные области — после закона «Глюоны»: синеватые пятна, где рождаются глюоны (свет — в горячих, глюоны — в холодных)
+// Цветные вихри — после закона «Глюоны»: сгустки, где глюонное поле плотнее и рождаются глюоны (свет — в горячих
+// областях, глюоны — в вихрях). Глюоны безмассовые: и в вихре летят со скоростью света, не вязнут.
 /** @type {RGB} */
 const CZ_C = [120, 175, 255];
-const CZ_N = 2, CZ_RATE = 2.5, CZ_SLOW = .75; // сколько холодных областей; глюонов в секунду из области
+const CZ_N = 2, CZ_RATE = 2.5; // сколько цветных вихрей; глюонов в секунду из вихря
 const HZ_N = 2, HZ_R = 2.6, HZ_L = 40, HZ_IN = 2.5, HZ_RATE = 1.5, HZ_P = 1.7; // HZ_RATE — квантов в секунду из области
-// Свет рождается чаще в горячих областях: пока область горит, PH_SRC пополнения света — оттуда (глюоны — G_SRC из холодных),
+// Свет рождается чаще в горячих областях: пока область горит, PH_SRC пополнения света — оттуда (глюоны — G_SRC из вихрей),
 // а квант вне области за ~Q_LIFE с остывает и растворяется в фоне. Свет гуще у источников, редеет вдали — за ним едешь.
 // В кадре квант не остывает (Q_VIEW = 0): за улетающим можно погнаться и поймать — на глазах ничего не пропадает.
 // Мир полон (кванты ≥ qCap · Q_FULL) — области не испускают: кипят, но не заваливают поле.
-// Где рождается пополнение: свет — с повышенным шансом в горячих (PH_SRC), глюоны — почти всегда в холодных (G_SRC),
+// Где рождается пополнение: свет — с повышенным шансом в горячих (PH_SRC), глюоны — почти всегда в цветных вихрях (G_SRC),
 // всё остальное (вещество, W, Z, H) — равномерно по миру.
 const PH_SRC = .5, G_SRC = .95, Q_LIFE = 10, Q_VIEW = 0, Q_FULL = 1.1;
 // Выбор второго кванта: поле берёт ближайший к центру детектора (любого вида), но не сразу — PICK_T с подсветкой,
@@ -201,8 +202,8 @@ const PICK_T = .35, PICK_HYS = .7;
 const TRY_N = 2; // промахов, после которых задание называет рецепт целиком (поколения II–III: сначала — только пара)
 const HIG_T = 6; // сколько секунд застывает поле Хиггса (пассивная фаза: короче — меньше ждать)
 // Матрица рождения: пара квантов × ступень. Ступень — поколение (тяжелее — дольше держать):
-//   γ + γ — фотон чувствует только заряд: лептоны e, μ, τ; 4 ⚡ — три струи (u ū + глюон; так глюон открыли на
-//           PETRA в 1979), после перехода Хиггса — W⁺W⁻;
+//   γ + γ — фотон чувствует только заряд: лептоны e, μ, τ; 4 ⚡ — три струи (u ū + глюон; три струи увидели
+//           на PETRA в 1979, но там сталкивались e⁺ и e⁻ — в игре условность: γ + γ), после перехода Хиггса — W⁺W⁻;
 //   γ + g — заряд и цвет: up-кварки u, c, t (заряд 2/3 — фотон рождает их вчетверо охотнее down); 4 ⚡ — t t̄ + глюон;
 //   g + g — только цвет: down-кварки d, s, b (в природе g + g к аромату безразличен — в игре закреплено ради ясности);
 //           4 ⚡ — после перехода Хиггса бозон H.
@@ -472,7 +473,7 @@ const Particles = {
     return Math.round((this.ep > 0 ? n : n * PH_DENS[this.rs.ph] * Math.min(1, .3 + this.autoT / 10)) * this.qShare());
   },
   /** @param {boolean} any @param {[number, number] | null} [hp] точка в области: квант оттуда @param {boolean} [hard] жёстче (горячая область)
-   *  @param {string | null} [want] только этот вид (горячая область — свет, холодная — глюоны) @param {boolean} [fromZone] пополнение: из области своего вида */
+   *  @param {string | null} [want] только этот вид (горячая область — свет, цветной вихрь — глюоны) @param {boolean} [fromZone] пополнение: из области своего вида */
   spawnQuantum(any, hp = null, hard = !!hp, want = null, fromZone = false) {
     // вакуум только что закипел: возмущения вспыхивают прямо в кадре, пары фотонов
     const K = this.qKinds(); if (!K.length) return; // оба закона выключены — Вселенная квантов не рождает
@@ -483,7 +484,7 @@ const Particles = {
     if (!K.includes('ph') && !gOk) return;
     if (want && !(want === 'g' ? gOk : K.includes('ph'))) return;
     const sp = want || (!K.includes('ph') ? 'g' : !gOk ? 'ph' : this.ep === 3 ? (Math.random() < .3 ? 'g' : 'ph') : (any ? Math.random() < .5 : ng < nph) ? 'g' : 'ph');
-    if (fromZone && Math.random() < (sp === 'g' ? G_SRC : PH_SRC)) hp = sp === 'g' ? this.czPos() : this.hzPos(); // свет — чаще в горячих, глюоны — почти всегда в холодных
+    if (fromZone && Math.random() < (sp === 'g' ? G_SRC : PH_SRC)) hp = sp === 'g' ? this.czPos() : this.hzPos(); // свет — чаще в горячих, глюоны — почти всегда в цветных вихрях
     const [x, y] = hp || this.randPos(!any);
     const o = this.mk(sp, false, x, y, Math.random() * TAU, 0);
     o.p = o.sp === 'ph' ? this.phP() : this.thermalP(this.T);
@@ -1281,7 +1282,7 @@ const Particles = {
     /** @type {Record<string, number>} */
     const cnt = {};
     for (const o of this.p) if (!o.dead && !(o.fade >= 0)) cnt[o.sp] = (cnt[o.sp] || 0) + 1; // гаснущие уже ушли — иначе thin гасит лишнее каждый кадр
-    if ((cnt.ph || 0) + (cnt.g || 0) < this.qCap() && Math.random() < dt * 40) this.spawnQuantum(false, null, false, null, true); // пополнение — из областей: свет из горячих, глюоны из холодных
+    if ((cnt.ph || 0) + (cnt.g || 0) < this.qCap() && Math.random() < dt * 40) this.spawnQuantum(false, null, false, null, true); // пополнение — из областей: свет из горячих, глюоны из цветных вихрей
     // Вселенная рождает сама только исследованное; остальное — из столкновений (твоих или случайных)
     // лишнее (осколки распадов) уходит у всех видов — исследованные или нет
     for (const sp of this.ep === 3 ? [] : this.ep === 0 ? FERMIONS.filter(sp => Codex.auto.has(sp)) : [...FERMIONS, 'W', 'Z', 'H']) {
@@ -1370,7 +1371,7 @@ const Particles = {
       this.tracks = this.tracks.filter(tr => this.t - tr.t < tr.life);
       this.tickFocus(dt0);
     }
-    // есть источник — квант вне него остывает: свет — вне горячих областей, глюон — вне холодных
+    // есть источник — квант вне него остывает: свет — вне горячих областей, глюон — вне цветных вихрей
     const WR = this.wr(), ep4 = act && this.ep === 3, phLife = act && this.hzOn() && this.hz.some(z => this.hzK(z) > .5), gLife = act && this.czOn() && this.cz.some(z => this.hzK(z) > .5);
     for (const o of this.p) {
       if (o.dead) continue;
@@ -1389,8 +1390,7 @@ const Particles = {
           const w = .5 * q * (o.anti ? -1 : 1) * dt, c = Math.cos(w), s = Math.sin(w), x = o.dx;
           o.dx = x * c - o.dy * s; o.dy = x * s + o.dy * c;
         }
-        // в холодной области глюон вязнет (до ×(1 − CZ_SLOW) в центре) — их там много, есть что ловить
-        const v = this.speed(o) * (o.sp === 'g' && gLife && !(o.flung > 0) ? 1 - CZ_SLOW * this.czAt(o.x, o.y) : 1);
+        const v = this.speed(o); // глюон безмассовый — и в вихре не вязнет
         o.x += o.dx * v * dt; o.y += o.dy * v * dt;
       }
       if (o.trail) {
@@ -1650,13 +1650,13 @@ const Particles = {
     return [z.x + Math.cos(a) * d, z.y + Math.sin(a) * d];
   },
   czOn() { return !this.tut && this.ep < 3 && this.rs.g > 0 && !Uni.off(this, 'g'); },
-  // Холодные области: зеркало горячих — живут и остывают так же, но испускают глюоны
+  // Цветные вихри: зеркало горячих — живут и остывают так же, но испускают глюоны
   /** @param {number} dt */
   tickCz(dt) {
     if (!this.czOn()) { this.cz = []; return; }
     for (const z of this.cz) z.t += dt;
     this.cz = this.cz.filter(z => z.t < z.L && Math.hypot(z.x - P.x, z.y - P.y) < this.wr() * 1.6);
-    if (this.cz.some(z => this.hzK(z) > .5 && onScreen(...W2S(z.x, z.y), 0))) Hint.once('cz', 'холодно: здесь генерируются глюоны', () => {
+    if (this.cz.some(z => this.hzK(z) > .5 && onScreen(...W2S(z.x, z.y), 0))) Hint.once('cz', 'цветной вихрь: глюонное поле плотнее — здесь рождаются глюоны', () => {
       const z = this.cz.find(q => onScreen(...W2S(q.x, q.y), 0)); if (!z) return null;
       const [x, y] = W2S(z.x, z.y); return [x, y + z.r * cam.z * .6, 1];
     });
@@ -2133,10 +2133,10 @@ const Particles = {
   rad(o) { const m = SM[o.sp].m, big = m > 60 ? .21 : m > 1 ? .17 : .135; return .135 + (big - .135) * this.hig; },
   // Горячая область: тёплое марево, пунктир края и дрожащие дуги жара
   /** @param {number} alpha */
-  // холодная — то же в синем: дуги ползут медленно и в другую сторону
+  // цветной вихрь — то же, дуги трёх цветов заряда крутятся в другую сторону
   drawHz(alpha) {
     /** @type {[HotZone[], RGB, string, number][]} */
-    const Z = [[this.hz, HZ_C, 'горячо', .7], [this.cz, CZ_C, 'холодно', -.25]];
+    const Z = [[this.hz, HZ_C, 'горячо', .7], [this.cz, CZ_C, 'цветной вихрь', -.6]];
     for (const [L, C, txt, w] of Z) for (const z of L) {
       const [sx, sy] = W2S(z.x, z.y), R = z.r * cam.z, k = this.hzK(z) * alpha;
       if (!onScreen(sx, sy, R) || k <= 0) continue;
@@ -2144,7 +2144,7 @@ const Particles = {
       g.addColorStop(0, rgb(C, .17 * k)); g.addColorStop(.7, rgb(C, .07 * k)); g.addColorStop(1, rgb(C, 0));
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, R, 0, TAU); ctx.fill();
       ring(sx, sy, R * .97, C, .25 * k, 1.2, [3, 7]);
-      for (let i = 0; i < 3; i++) { const s = (i % 2 ? 1 : -1) * (G.T * w + z.x) + i * 2; arc(sx, sy, R * (.3 + .2 * i), s, s + 1.1, C, .14 * k, 1.6); }
+      for (let i = 0; i < 3; i++) { const s = (i % 2 ? 1 : -1) * (G.T * w + z.x) + i * 2; arc(sx, sy, R * (.3 + .2 * i), s, s + 1.1, L === this.cz ? QCOL[i] : C, (L === this.cz ? .22 : .14) * k, 1.6); }
       if (R > 40) label(txt, sx, sy - R - 8, 11, C, .6 * k, 700);
     }
   },
@@ -2687,7 +2687,7 @@ const Particles = {
     for (const o of this.p) if (!o.dead && this.wanted(o.sp, o)) pts.push([o.x, o.y, this.ep === 3 ? QCOL[o.col] : SM[o.sp].sym]);
     for (const tr of this.tracks) if (tr.parent && !tr.rec && this.wanted(tr.parent)) pts.push([tr.x, tr.y, SM[tr.parent].sym + '→']);
     for (const h of this.hot) if (!h.done) pts.push([h.x, h.y, '']);
-    if (this.enOn()) for (const o of this.p) if (!o.dead && o.sp === 'ph' && this.phClass(o) === 3) pts.push([o.x, o.y, 'γ!']);
+    if (this.enOn()) for (const o of this.p) if (!o.dead && o.sp === 'ph' && this.phClass(o) === PH_TOP) pts.push([o.x, o.y, 'γ!']);
     if (this.waveWarn()) { const d = viewRadius() * 1.2, an = /** @type {number} */ (/** @type {Wave} */ (this.wave).dir); pts.unshift([P.x + Math.cos(an) * d, P.y + Math.sin(an) * d, [255, 90, 90]]); }
     // горячие области — когда звать больше некуда
     if (pts.length < 2) for (const z of this.hz) if (this.hzK(z) > .5) pts.push([z.x, z.y, HZ_C]);

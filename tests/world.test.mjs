@@ -51,7 +51,7 @@ test('мир без края: тела не тянет обратно к мес�
 // экранные координаты тел: [sx, sy]
 const scr = (g, expr) => g.ev(`(${expr}).map(o => W2S(o.x, o.y).map(v => Math.round(v * 10) / 10))`);
 
-test('переход ядра → звёзды: газ — это твои ядра, на тех же местах', () => {
+test('переход ядра → звёзды: газ — твои ядра, теперь атомы, на тех же местах', () => {
   const g = toStage('nuclei');
   const before = scr(g, 'G.stage.o');
   g.ev('G.stage.doneAt = 0; advance()');
