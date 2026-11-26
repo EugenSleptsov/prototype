@@ -23,8 +23,8 @@ const Q_TOTAL = 54, ANTI_N = 6, U_SHARE = .6;
 // бросок: скорость полной резинки, сколько пролетает самое меньшее, сколько летит самое меньшее
 const Q_VMAX = 13, Q_REACH = 6, Q_FLY = .8;
 const DELTA_T = 1.6, MESON_T = 2.6; // жизнь Δ и пиона
-// белое схлопывается: за SQ_T кварки стягиваются к центру (до SQ_K раскладки), цвета сливаются в белый
-const SQ_T = .5, SQ_K = .4, SQ_RAD = .36;
+// белое схлопывается: за SQ_T кварки стягиваются к центру (до SQ_K раскладки: 30 %), цвета сливаются в белый
+const SQ_T = .5, SQ_K = .3, SQ_RAD = .3;
 // цель, своих нуклонов в цели, нейтронов в цели, барионов рогаткой до закона, цена закона, как часто бросает Вселенная
 const GOAL_N = 12, OWN_N = 5, GOAL_NN = 2, HAND_Q = 2, CONF_COST = 25, AUTO_CD = 1.6;
 // «Адронный зоопарк» — ключи кодекса 'h:…'
@@ -609,7 +609,7 @@ const Quarks = {
     const c = white ? (isNuc(o) ? NP_C[o.kind] : o.kind === 'meson' ? PI_C[o.pk] : o.kind === 'hyp' ? HYP_C[o.top] : [255, 200, 130]) : o.m.length === 2 ? mixc(QCOL[o.m[0].col], QCOL[o.m[1].col], .5) : QCOL[o.m[0].col];
     if (pts.length === 3) { const cx = (pts[0][0] + pts[1][0] + pts[2][0]) / 3, cy = (pts[0][1] + pts[1][1] + pts[2][1]) / 3; for (const p of pts) this.tube(cx, cy, p[0], p[1], [255, 255, 255], w, a); }
     else if (pts.length === 2) this.tube(pts[0][0], pts[0][1], pts[1][0], pts[1][1], white ? [255, 255, 255] : c, w, a * (white ? 1 : .75 + .25 * Math.sin(G.T * 5)));
-    const e = white ? smooth(0, 1, o.sq) : 0, rr = lerp(.72, .5, e);
+    const e = white ? smooth(0, 1, o.sq) : 0, rr = lerp(.72, .42, e);
     if (white) {
       glow(sx, sy, lerp(1.5, 1.1, e) * zs, [255, 255, 255], (.28 + .2 * e) * a);
       ball(sx, sy, rr * .62 * zs, [255, 255, 255], .3 * e * a); // схлопнулась — одно белое ядрышко
@@ -627,7 +627,7 @@ const Quarks = {
     }
     o.m.forEach((q, i) => {
       // в белом цвет кварка тает в белый, сам кварк сжимается
-      const [px, py] = pts[i], r = QR * zs * .9 * (1 - .4 * e), qc = mixc(QCOL[q.col], [255, 255, 255], .85 * e);
+      const [px, py] = pts[i], r = QR * zs * .9 * (1 - .5 * e), qc = mixc(QCOL[q.col], [255, 255, 255], .85 * e);
       glow(px, py, r * 2.6, qc, (white ? .2 * (1 - .6 * e) : .4) * a);
       quark(px, py, r, qc, q.fl, q.anti, a);
       if (r > 8 && !white) label(q.anti ? `${q.fl}̄` : q.fl, px, py + r * 1.9, r * .85, HEAVY[q.fl] ? HYP_C[q.fl] : [255, 255, 255], .75 * a);
