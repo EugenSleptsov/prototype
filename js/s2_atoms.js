@@ -357,8 +357,8 @@ const Atoms = {
   shopItems() {
     if (this.doneAt !== null) return [];
     const L = [];
-    if (this.seenN.size >= 2 && !this.rs.rec) L.push({ k: 'rec', ic: '◎', name: 'Рекомбинация', about: 'электроны у ионов тормозят сами', c: A_COST });
-    if (this.st.cut >= 1 && !this.rs.red) L.push({ k: 'red', ic: '∿', name: 'Красное смещение', about: 'часть УФ сама слабеет в полёте', c: A_RED, opt: true });
+    if (this.seenN.size >= 2 && !this.rs.rec) L.push({ k: 'rec', ic: '◎', name: 'Рекомбинация', about: 'электроны у ионов тормозят, излучая свет', c: A_COST });
+    if (this.st.cut >= 1 && !this.rs.red) L.push({ k: 'red', ic: '∿', name: 'Красное смещение', about: 'часть УФ слабеет в полёте', c: A_RED, opt: true });
     return L;
   },
   keyOf() { return this.shopItems().length ? 1 : null; },
@@ -368,7 +368,7 @@ const Atoms = {
     if (this.bal() < it.c) { this.float(P.x, P.y - 1, `нужно ${it.c} ✦`, [255, 150, 130], 13); Sfx.play('fizzle'); return; }
     this.spent += it.c; this.rs[it.k] = 1; Sfx.play('upgrade'); Uni.learn(this, it.k, it.ic, it.name, UNI_LVL);
     fxRing(P.x, P.y, 1, GOLD, viewRadius() * .8, 1.4); this.float(P.x, P.y - 1, `${it.ic} ${it.name}`, GOLD, 16);
-    if (it.k === 'red') msg('Вселенная расширяется: часть жёсткого света сама растягивается в видимый');
+    if (it.k === 'red') msg('Вселенная расширяется: часть жёсткого света растягивается в видимый');
   },
   renderShop: Nuclei.renderShop,
 

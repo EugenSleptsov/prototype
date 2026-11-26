@@ -966,7 +966,7 @@ const Particles = {
     if (!worth) {
       this.st.empty++; this.shotCd = .3; this.shotFx = .15;
       const ph = this.p.some(o => !o.dead && o.sp === 'ph' && this.inHand(o)), why = ph || this.st.empty <= 3;
-      this.float(P.x, P.y - R0, why ? 'снимать нечего: свет ловится кругом сам, ⚡ цела' : 'пусто', [200, 200, 210], why ? 13 : 14);
+      this.float(P.x, P.y - R0, why ? 'снимать нечего: свет ловится кругом, ⚡ цела' : 'пусто', [200, 200, 210], why ? 13 : 14);
       return;
     }
     if (paid && this.en < E_SHOT) { this.noEnergy(); this.shotCd = .25; this.float(P.x, P.y - R0, 'нет энергии ⚡', [255, 150, 130], 13); return; }
@@ -1026,11 +1026,11 @@ const Particles = {
   resList() {
     if (!this.lit) return [];
     if (this.ep === 3) return baryonTrios(this.stockQ) >= HAND_CP || this.rs.cp ? [{ k: 'cp', ic: '⚖', name: 'Асимметрия', cost: RES_COST.cp, about: () => 'вещества чуть больше, чем антивещества: нарушение CP дают три поколения кварков' }] : [];
-    const ph = { k: 'ph', ic: 'γ', name: 'Свет', cost: RES_COST.ph, about: (/** @type {number} */ l) => l >= 2 ? `горячих областей вдвое больше: ${HZ_N} → ${HZ_N * 2}, свет рождается в них` : l ? `света в мире: ~${this.phN(l)} γ → ~${this.phN(l + 1)} γ` : `Вселенная светит сама: ~${this.phN(1)} γ в мире` };
+    const ph = { k: 'ph', ic: 'γ', name: 'Свет', cost: RES_COST.ph, about: (/** @type {number} */ l) => l >= 2 ? `горячих областей вдвое больше: ${HZ_N} → ${HZ_N * 2}, свет рождается в них` : l ? `света в мире: ~${this.phN(l)} γ → ~${this.phN(l + 1)} γ` : `свет в мире: ~${this.phN(1)} γ` };
     const L = [];
     if (!this.rs.ph) L.push(ph);
     if (Codex.has('g')) L.push({ k: 'g', ic: 'g', name: 'Глюоны', cost: RES_COST.g, about: () => 'Вселенная рождает g' });
-    if (this.pairs > 0) L.push({ k: 'coll', ic: '✸', name: 'Столкновения', cost: RES_COST.coll, about: () => 'кванты сталкиваются сами и рождают исследованное' });
+    if (this.pairs > 0) L.push({ k: 'coll', ic: '✸', name: 'Столкновения', cost: RES_COST.coll, about: () => 'кванты сталкиваются и рождают исследованное' });
     if (this.rs.ph && this.ep === 0) L.push(ph);
     const need = this.ep === 2 ? this.need2 : this.ep === 0 ? this.need0 : ['H', 'Z', 'W'];
     const all = [...Codex.run].filter(sp => !QLAW[sp] && (sp === 'H' || this.rs.coll > 0 && ((FERMIONS.includes(sp) && SM[sp].kind !== 'nu') || sp === 'W' || sp === 'Z'))).filter(sp => this.genBuyOk(sp)); // поколения — по лестнице
@@ -1766,7 +1766,7 @@ const Particles = {
     switch (this.ep) {
       case 0: return [
         { t: 'Создать свет', h: 'раскачать поле: держать, пока шарик катится влево, отпускать на краю. Чем сильнее размах, тем жёстче свет. Во Вселенной будет только созданный здесь свет', items: PH_CLS.map((c, i) => [c.n, this.inf.made[i] > 0]), s: `создано классов света: ${this.madeCls().length} · ${fmtGeV(this.T0)}`, d: this.lit },
-        { t: 'Сформировать закон света', h: `накопленные знания ✦ отдать ${buy('ph')}: Вселенная будет рождать этот свет сама`, s: 'Вселенная светит', d: this.rs.ph > 0, res: 'ph' },
+        { t: 'Сформировать закон света', h: `накопленные знания ✦ отдать ${buy('ph')}: этот свет станет законом Вселенной`, s: 'Вселенная светит', d: this.rs.ph > 0, res: 'ph' },
         { t: 'Измерить свет', h: 'ловить фотоны кругом: пойманный фотон измерен. Нужен каждый созданный класс', items: this.madeCls().map(c => [PH_CLS[c].n, this.phSeen.has(c)]), s: 'свет измерен', d: this.measured() },
         { t: 'Столкнуть два фотона слабо: родится электрон', h: 'зажать у двух фотонов и отпустить: чем дольше, тем сильнее удар. Каждая ступень стоит 1 ⚡', s: 'первое столкновение', d: this.pairs > 0, rx: this.rxOf('e') },
         { t: 'Столкнуть два фотона в полную силу: родится глюон', h: `выйдут три струи: кварк, антикварк и глюон. Снимок: ${tap} по глюону`, s: 'глюон создан', d: has('g'), rx: G4 },
@@ -2580,7 +2580,7 @@ const Particles = {
       else if (this.madeCls().length < 3) t = 'сильнее размах, жёстче свет: нужны разные классы';
       else if (I.A > .8 && !I.snaps) t = 'у красной черты толчки короче';
     }
-    else if (this.ep === 0 && this.lit && !this.rs.ph) { t = this.bal() >= RES_COST.ph[0] ? '«Сформировать закон» внизу: Вселенная засветит сама' : null; g = 'shop'; }
+    else if (this.ep === 0 && this.lit && !this.rs.ph) { t = this.bal() >= RES_COST.ph[0] ? 'кнопка «Сформировать закон» внизу: свет станет законом' : null; g = 'shop'; }
     else if (!this.learn.smash && this.fieldOn() && this.t - this.missT < 5) { t = isTouch() ? 'для столкновения: держать ◉ у двух квантов, затем отпустить' : 'для столкновения: зажать у двух квантов и отпустить'; g = 'holdrel'; }
     else if (this.ep === 0 && !Codex.has('g') && this.p.some(o => !o.dead && o.sp === 'g' && onScreen(...W2S(o.x, o.y), 0)))
       [t, g] = this.canShot() ? [`глюон: навести круг и ${isTouch() ? 'нажать ◉' : 'кликнуть'} для снимка`, 'click'] : ['глюон: для снимка нужна ⚡ из фотонов', 'move'];

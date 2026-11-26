@@ -878,8 +878,8 @@ const Quarks = {
     if (this.doneAt !== null) return [];
     const L = [];
     if (!this.rs.conf && (this.handN >= HAND_Q || this.steps0())) L.push({ k: 'conf', ic: '◬', name: 'Конфайнмент', about: 'барионы собираются повсюду', c: CONF_COST });
-    if (this.rs.conf && !this.rs.np && this.st.handFlips >= 1) L.push({ k: 'np', ic: '⚖', name: 'Баланс n/p', about: 'нейтроны сами становятся протонами', c: NP_COST });
-    if (this.st.snaps >= 1 && !this.rs.frag) L.push({ k: 'frag', ic: '⚡', name: 'Фрагментация', about: 'струны рвутся сами, пары из вакуума', c: FRAG_COST, opt: true });
+    if (this.rs.conf && !this.rs.np && this.st.handFlips >= 1) L.push({ k: 'np', ic: '⚖', name: 'Баланс n/p', about: 'лишние нейтроны распадаются в протоны', c: NP_COST });
+    if (this.st.snaps >= 1 && !this.rs.frag) L.push({ k: 'frag', ic: '⚡', name: 'Фрагментация', about: 'струны рвутся, пары рождаются из вакуума', c: FRAG_COST, opt: true });
     return L;
   },
   keyOf(k) { const i = this.shopItems().findIndex(x => x.k === k); return i < 0 ? null : i + 1; },
@@ -891,8 +891,8 @@ const Quarks = {
     fxRing(P.x, P.y, this.hr, GOLD, viewRadius() * .8, 1.4);
     this.float(P.x, P.y - this.hr - .3, `${it.ic} ${it.name}`, GOLD, 16);
     if (it.k === 'conf') msg('Сильному взаимодействию аромат безразличен: Вселенная собирает протоны и нейтроны поровну');
-    if (it.k === 'np') msg('Нейтрон тяжелее протона: остывая, Вселенная сама превращает лишние нейтроны в протоны');
-    if (it.k === 'frag') msg('Струны рвутся сами: Вселенная рождает пары из вакуума и достраивает барионы');
+    if (it.k === 'np') msg('Нейтрон тяжелее протона: при остывании лишние нейтроны превращаются в протоны');
+    if (it.k === 'frag') msg('Струны рвутся: пары из вакуума достраивают барионы');
   },
   renderShop(el) {
     const items = this.shopItems();
