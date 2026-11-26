@@ -482,12 +482,12 @@ const Mols = {
     const z = cam.z;
     for (const mol of this.m) {
       const [cx, cy] = W2S(mol.x, mol.y); if (!onScreen(cx, cy, mol.R * z + 20)) continue;
-      const a = al * Math.min(1, mol.age * 2), sat = !this.freeSlots(mol) && mol.atoms.length > 1;
+      const ka = appear(mol.age), a = al * ka, sat = !this.freeSlots(mol) && mol.atoms.length > 1;
       const pts = mol.wp.map(p => W2S(p[0], p[1]));
       if (sat && COMP_BY[ckey(this.counts(mol))]) glow(cx, cy, mol.R * z * 1.4, [140, 235, 170], .12 * a); // готовое соединение
       for (const [i, j] of mol.bonds) line(pts[i][0], pts[i][1], pts[j][0], pts[j][1], [220, 230, 245], .85 * a, Math.max(1.5, 2.2 * z));
       mol.atoms.forEach((at, i) => {
-        const d = CHEM[at.el], [sx, sy] = pts[i], r = d.r * z;
+        const d = CHEM[at.el], [sx, sy] = pts[i], r = d.r * z * popIn(ka);
         glow(sx, sy, r * 1.25, [150, 190, 255], .1 * a);
         for (let k = 0; k < at.b.length; k++) {
           if (at.b[k] >= 0) continue;

@@ -435,7 +435,7 @@ const Nuclei = {
   drawNuc(o, al) {
     const [sx, sy] = W2S(o.x, o.y), z = cam.z;
     if (!onScreen(sx, sy, o.rad * z + 40)) return;
-    const a = al * clamp(o.age * 2 + (o.src ? 1 : 0), 0, 1);
+    const k = appear(o.age + (o.src ? APPEAR_T : 0)), a = al * k, zs = z * popIn(k); // новое — проявляется и подрастает
     if (a <= 0) return;
     if (o.thrown) { // след броска: золото — твой, голубой — Вселенной
       const c = o.thrown === 'hand' ? GOLD : [150, 205, 255];
@@ -443,7 +443,7 @@ const Nuclei = {
     }
     ctx.globalAlpha = a;
     const c = Math.cos(o.rot), s = Math.sin(o.rot);
-    for (const p of o.lay) drawNucleon(sx + (p.lx * c - p.ly * s) * z, sy + (p.lx * s + p.ly * c) * z, NU_R * z, p.t, G.T * .8);
+    for (const p of o.lay) drawNucleon(sx + (p.lx * c - p.ly * s) * zs, sy + (p.lx * s + p.ly * c) * zs, NU_R * zs, p.t, G.T * .8);
     ctx.globalAlpha = 1;
     if (o.Z + o.N > 1) label(nsym(nkey(o)), sx, sy - (o.rad + .3) * z, 12, [255, 255, 255], .8 * a, 700);
     // свободный нейтрон: дуга оставшейся жизни, последние 15 с — красная

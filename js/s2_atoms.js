@@ -420,7 +420,7 @@ const Atoms = {
     }
     for (const io of this.ions) {
       const [sx, sy] = W2S(io.x, io.y); if (!onScreen(sx, sy, 60)) continue;
-      const a = al * clamp(io.age * 2, 0, 1), c = atCol(io.Z), r = (.3 + .06 * io.Z) * z, Q = io.Z - io.ne;
+      const ka = appear(io.age), a = al * ka, c = atCol(io.Z), r = (.3 + .06 * io.Z) * z * popIn(ka), Q = io.Z - io.ne;
       if (io === this.hold) { // держишь: где электроны тормозят — зелёный пунктир, сам атом — в золотом кольце
         ring(sx, sy, HOLD_R * z, [170, 255, 210], (Q > 0 ? .4 : .15) * a, 1.5, [6, 6]);
         ring(sx, sy, r + 6 + 2 * Math.sin(G.T * 8), GOLD, .9 * a, 2.5);
@@ -448,7 +448,7 @@ const Atoms = {
     }
     for (const e of this.el) {
       const [sx, sy] = W2S(e.x, e.y); if (!onScreen(sx, sy, 20)) continue;
-      const a = al * clamp(e.age * 2, 0, 1);
+      const a = al * appear(e.age);
       if (e.slow > 0) { glow(sx, sy, Math.max(5, .45 * z), [170, 255, 210], .6 * a); ball(sx, sy, Math.max(1.6, .1 * z), [230, 255, 240], a); }
       else { line(sx, sy, sx - e.vx * .05 * z, sy - e.vy * .05 * z, [120, 190, 255], .4 * a, Math.max(1, .07 * z)); glow(sx, sy, Math.max(3, .3 * z), [120, 200, 255], .55 * a); ball(sx, sy, Math.max(1.2, .08 * z), [200, 235, 255], a); }
     }

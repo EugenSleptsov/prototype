@@ -102,7 +102,7 @@ interface Q {
   p: number;
   /** цвет кварка (0…2); у глюона — цвет, col2 — антицвет */
   col: number; col2?: number;
-  age: number; life: number; born: number; cd: number; dead: boolean;
+  age: number; life: number; born: number; vis?: number; cd: number; dead: boolean;
   /** фаза волны кванта */
   ph: number;
   /** размах волны кванта (у вещества 0); след вещества — только у вещества */

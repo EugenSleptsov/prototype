@@ -1073,7 +1073,7 @@ const Quarks = {
       const [sx, sy] = W2S(q.x, q.y), r = QR * z * q.sz;
       if (!onScreen(sx, sy, r * 4)) continue;
       // сбережённые кварки видны всё время смены уровня — это те же самые кварки, они не пропадают
-      const a = (q.mine ? 1 : al) * Math.min(1, q.age * 2);
+      const a = (q.mine ? 1 : al) * appear(q.age);
       const c = QCOL[q.col];
       glow(sx, sy, r * 3, c, .4 * a);
       quark(sx, sy, r, c, q.fl, q.anti, a); // аромат — форма (u — круг, d — ромб), антикварк — полый

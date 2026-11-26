@@ -357,7 +357,7 @@ const Stars = {
     }
     for (const g of this.gas) {
       const [sx, sy] = W2S(g.x, g.y); if (!onScreen(sx, sy, 10)) continue;
-      const a = al * clamp(g.age * 2, 0, 1) * (this.phase === 'core' ? .25 + .75 * clamp(g.core || 0, 0, 1) : 1), gs = g.s || 1;
+      const a = al * appear(g.age) * (this.phase === 'core' ? .25 + .75 * clamp(g.core || 0, 0, 1) : 1), gs = g.s || 1;
       glow(sx, sy, Math.max(3, .45 * gs * z), g.he ? [255, 225, 150] : [170, 200, 255], .45 * a); ball(sx, sy, Math.max(1, .12 * gs * z), g.he ? [255, 240, 200] : [220, 235, 255], .9 * a);
     }
     if (this.well) {

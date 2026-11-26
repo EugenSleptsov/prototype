@@ -1320,7 +1320,7 @@ const Particles = {
     for (const o of this.p) {
       if (o.dead) continue;
       if (!o.cap) o.p *= red;
-      o.born = Math.min(1, o.born + dt * 2); o.cd -= dt; if (o.mine > 0) o.mine -= dt;
+      o.born = Math.min(1, o.born + dt * 2); o.vis = o.vis == null ? (o.born >= .6 ? APPEAR_T : 0) : o.vis + dt; o.cd -= dt; if (o.mine > 0) o.mine -= dt;
       if (o.flung > 0 && (o.flung -= dt) <= 0) { o.v = undefined; o.mate = null; o.thrown = false; o.sib = null; if (o.p0 != null) { o.p = o.p0; o.p0 = undefined; } } // промах: заряд рассеялся
       if (o.rep > 0) o.rep -= dt;
       if (o.pull > 0 && (o.pull -= dt) <= 0) o.v = undefined;
@@ -1347,7 +1347,7 @@ const Particles = {
       const ox = o.x - P.x, oy = o.y - P.y, d = Math.hypot(ox, oy);
       if (o.rep > 0 && d > viewRadius() + .5) { o.dead = true; this.ejected++; continue; }
       if (d > WR && !o.cap) {
-        o.x = P.x - ox * .95; o.y = P.y - oy * .95; o.born = 0; if (o.trail) o.trail = [];
+        o.x = P.x - ox * .95; o.y = P.y - oy * .95; o.born = 0; o.vis = 0; if (o.trail) o.trail = [];
         const w = rnd(-.6, .6), c = Math.cos(w), s = Math.sin(w), x = o.dx; o.dx = x * c - o.dy * s; o.dy = x * s + o.dy * c; // не по той же линии
       }
       if (ep4 && !this.advanced && (o.sp === 'u' || o.sp === 'd') && d < this.coreR() * (o.anti ? .55 : .75)) this.store(o);
@@ -2179,7 +2179,7 @@ const Particles = {
     const ringPh = lowE ? new Set(this.p.filter(o => !o.dead && o.sp === 'ph' && !o.cap && o.born > .5).sort((a, b) => Math.hypot(a.x - P.x, a.y - P.y) - Math.hypot(b.x - P.x, b.y - P.y)).slice(0, 3)) : null;
     for (const o of this.p) {
       const [sx, sy] = W2S(o.x, o.y); if (!onScreen(sx, sy, 40)) continue;
-      const a = alpha * o.born, known = Codex.has(o.sp), c = this.dcol(o);
+      const k = appear(o.vis ?? APPEAR_T), a = alpha * Math.min(o.born, k), known = Codex.has(o.sp), c = this.dcol(o);
       if (this.isQ(o)) {
         // Фотон — волновой пакет: чем выше энергия, тем короче период (λ ~ 1/E). Глюон — пружинка одной формы для всех.
         const hot = clamp(o.p / (this.T * 6), 0, 1), L = 1.2 * z;
@@ -2217,7 +2217,7 @@ const Particles = {
         }
         continue;
       }
-      this.drawParticle(o, sx, sy, this.rad(o) * z, a, known, c);
+      this.drawParticle(o, sx, sy, this.rad(o) * z * popIn(k), a, known, c);
     }
   },
   // Вещество — светящийся шар с символом внутри; античастица — полое кольцо с встречной дугой;

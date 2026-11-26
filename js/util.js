@@ -5,6 +5,12 @@ const DEG = Math.PI / 180;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+// Появление нового объекта: плавно проявляется за APPEAR_T с и чуть подрастает (не возникает из ничего рывком)
+const APPEAR_T = 1;
+/** доля проявления по возрасту (0…1) @param {number} age */
+const appear = age => smooth(0, APPEAR_T, age);
+/** масштаб при проявлении: от 55 % до полного @param {number} k */
+const popIn = k => .55 + .45 * k;
 function randn() { let u = 0; while (!u) u = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * Math.random()); }
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[Math.random() * a.length | 0];
