@@ -41,7 +41,7 @@ const fits = (c, t) => Object.keys(c).every(k => (t[k] || 0) >= c[k]);
 const Mols = {
   key: 'molecules', name: 'Молекулы', bg: [6, 24, 44], sling: true,
   // взятое поворачивают Q / E или Shift + колесо (на сенсоре оно поворачивается само по ходу броска)
-  get controls() { return 'Зажми атом, оттяни, отпусти · ' + (isTouch() ? 'двойное касание связи — разорвать' : 'двойной клик по связи — разорвать · Q / E или Shift + колесо — повернуть'); },
+  get controls() { return 'Зажать атом, оттянуть, отпустить · ' + (isTouch() ? 'двойное касание связи: разорвать' : 'двойной клик по связи: разорвать · Q / E или Shift + колесо: повернуть'); },
 
   enter(prev) {
     this.m = []; this.t = 0; this.clock = 0; this.hints = []; this.lowEMsgT = 0; this.floats = []; this.tk = {}; this.banner = -1.5;
@@ -125,8 +125,8 @@ const Mols = {
           const free = this.freeSlots(T) && this.freeSlots(b);
           if (free && sa >= 0 && sb >= 0 && vn >= ea) { label = `связь ${b.atoms[ia].el}–${T.atoms[ib].el}`; c = [120, 240, 160]; }
           else if (vn > BREAK_V && (b.bonds.length || T.bonds.length)) { label = 'порвёт связь'; c = [255, 90, 80]; }
-          else if (!free) { label = 'насыщена — отскочит'; c = [170, 175, 195]; }
-          else if (sa >= 0 && sb >= 0) { label = 'слабо — оттяни сильнее'; c = [255, 200, 110]; }
+          else if (!free) { label = 'насыщена, отскочит'; c = [170, 175, 195]; }
+          else if (sa >= 0 && sb >= 0) { label = 'слабо: нужно оттянуть сильнее'; c = [255, 200, 110]; }
           else { label = 'мимо свободной связи'; c = [200, 205, 225]; }
           return { pts, x: hit[0], y: hit[1], label, c, hit: true };
         }
@@ -197,7 +197,7 @@ const Mols = {
       host.mine = true; this.st.bonds++;
       // очки — только за чистый прирост связей: «связал — разорвал (двойным кликом или ударом) — связал» не фармит
       if (this.st.bonds - this.st.cut > this.paidB) { this.paidB = this.st.bonds - this.st.cut; addScore(40); }
-      if (this.st.bonds === 1) msg('Ковалентная связь: общая пара электронов');
+      if (this.st.bonds === 1) tipMsg('mols:bond', 'Ковалентная связь: общая пара электронов');
     }
     if (this.freeSlots(host)) return;
     const cp = COMP_BY[ckey(this.counts(host))];
@@ -302,7 +302,7 @@ const Mols = {
         const src = A.hand > 0 || B.hand > 0 ? 'hand' : A.auto > 0 || B.auto > 0 ? 'auto' : null;
         // сами по себе (без броска) связи не возникают — иначе тепловая толчея лепит огромные цепи и съедает весь углерод
         if (src && imp >= EA(A.atoms[ia].el, B.atoms[ib].el)) { if (this.merge(A, ia, sa, B, ib, sb, src)) return true; }
-        else if (src === 'hand' && this.lowEMsgT <= 0) { this.lowEMsgT = 5; msg('Удар слабый — бросай сильнее'); }
+        else if (src === 'hand' && this.lowEMsgT <= 0) { this.lowEMsgT = 5; tipMsg('mols:lowE', 'Удар слабый: нужен бросок сильнее'); }
       }
       if (imp > BREAK_V && (A.bonds.length || B.bonds.length)) {
         const victim = A.bonds.length && (!B.bonds.length || Math.random() < .5) ? [A, ia] : [B, ib];
@@ -423,7 +423,7 @@ const Mols = {
       if (this.steps().every(s => s.d)) {
         this.doneAt = this.clock; this.tickStars(true);
         Tally.show(this); // как у остальных уровней: бонус уровня, доля Вселенной, рекорд
-        endGame(`Первичный бульон готов: ${this.found.join(', ')}. Дальше — органика (скоро).`);
+        endGame(`Первичный бульон готов: ${this.found.join(', ')}. Следующая ступень: органика (скоро).`);
       }
     }
   },
@@ -458,19 +458,19 @@ const Mols = {
   steps() {
     const touch = isTouch(), fd = this.found;
     return [
-      { t: 'Свяжи два атома', h: 'зажми атом, оттяни и отпусти в другой', s: 'первая связь', d: this.st.bonds > 0 },
-      { t: 'Собери воду', h: 'кислороду нужны два водорода', s: 'вода H₂O', d: fd.includes('H₂O') },
-      { t: 'Открой 4 соединения', h: 'аммиак NH₃, метан CH₄, перекись H₂O₂…', items: fd.slice(0, 6).map(f => [f, true]), p: [Math.min(fd.length, 4), 4], s: '4 соединения', d: fd.length >= 4 },
-      { t: 'Сформируй законы', h: `${touch ? 'в лавке' : 'клавиши 1–4'}: «Синтез …»`, p: [Math.min(this.res.size, 2), 2], s: 'законы сформированы', d: this.res.size >= 2 },
-      { t: 'Первичный бульон', h: 'Вселенная собирает открытое — помогай рогаткой', p: [Math.min(this.st.soup, 10), 10], s: 'бульон готов', d: this.st.soup >= 10 },
+      { t: 'Связать два атома', h: 'зажать атом, оттянуть и отпустить в другой', s: 'первая связь', d: this.st.bonds > 0 },
+      { t: 'Собрать воду', h: 'кислороду нужны два водорода', s: 'вода H₂O', d: fd.includes('H₂O') },
+      { t: 'Открыть 4 соединения', h: 'аммиак NH₃, метан CH₄, перекись H₂O₂…', items: fd.slice(0, 6).map(f => [f, true]), p: [Math.min(fd.length, 4), 4], s: '4 соединения', d: fd.length >= 4 },
+      { t: 'Сформировать законы', h: `${touch ? 'в лавке' : 'клавиши 1–4'}: «Синтез …»`, p: [Math.min(this.res.size, 2), 2], s: 'законы сформированы', d: this.res.size >= 2 },
+      { t: 'Первичный бульон', h: 'Вселенная собирает открытое, рогатка ей помогает', p: [Math.min(this.st.soup, 10), 10], s: 'бульон готов', d: this.st.soup >= 10 },
     ];
   },
   starPool() {
     return [
-      { t: 'открой метан', ok: () => this.found.includes('CH₄') },
-      { t: 'открой аммиак', ok: () => this.found.includes('NH₃') },
-      { t: 'открой 6 соединений', ok: () => this.found.length >= 6 },
-      { t: 'открой этанол', ok: () => this.found.includes('C₂H₅OH') },
+      { t: 'открыть метан', ok: () => this.found.includes('CH₄') },
+      { t: 'открыть аммиак', ok: () => this.found.includes('NH₃') },
+      { t: 'открыть 6 соединений', ok: () => this.found.length >= 6 },
+      { t: 'открыть этанол', ok: () => this.found.includes('C₂H₅OH') },
     ];
   },
   tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 10, '★ +10 ✦', [255, 215, 110], 17); }); },
@@ -511,7 +511,7 @@ const Mols = {
     this.sl.draw(al);
     if (G.started && !G.paused && !G.prev && this.doneAt === null && this.sl.shots === 0 && !this.sl.held) {
       const o = this.m.filter(m => m.atoms.length === 1 && m.atoms[0].el === 'H' && m.age > .5).sort((u, v) => Math.hypot(u.x - P.x, u.y - P.y) - Math.hypot(v.x - P.x, v.y - P.y))[0];
-      if (o) { const [sx, sy] = W2S(o.x, o.y), r = o.R * cam.z + 8 + 3 * Math.sin(G.T * 5); ring(sx, sy, r, GOLD, .8 * al, 2); label('зажми, оттяни, отпусти в другой атом', sx, sy + r + 16, 13, [255, 255, 255], .85 * al, 700);
+      if (o && Tips.ok('mols:sling')) { const [sx, sy] = W2S(o.x, o.y), r = o.R * cam.z + 8 + 3 * Math.sin(G.T * 5); ring(sx, sy, r, GOLD, .8 * al, 2); label('зажать, оттянуть, отпустить в другой атом', sx, sy + r + 16, 13, [255, 255, 255], .85 * al, 700);
         // курсор сам бросает этот атом в ближайший другой
         const to = this.m.filter(m => m !== o && m.age > .5).sort((u, v) => Math.hypot(u.x - o.x, u.y - o.y) - Math.hypot(v.x - o.x, v.y - o.y))[0];
         if (to) { const [tx, ty] = W2S(to.x, to.y); if (onScreen(tx, ty, 0)) ghostSling(sx, sy, tx, ty, al); } }
@@ -523,10 +523,10 @@ const Mols = {
   // ещё не рвал связей: у ближайшей связанной молекулы — «двойной клик — разорвать» и курсор, который сам дважды кликает
   drawTearHint(al) {
     const o = this.m.filter(m => !m.dead && m.bonds.length && !m.held && onScreen(...W2S(m.x, m.y), -40)).sort((u, v) => Math.hypot(u.x - P.x, u.y - P.y) - Math.hypot(v.x - P.x, v.y - P.y))[0];
-    if (!o) return;
+    if (!o || !Tips.ok('mols:tear')) return;
     const [i, j] = o.bonds[0], [bx, by] = W2S((o.wp[i][0] + o.wp[j][0]) / 2, (o.wp[i][1] + o.wp[j][1]) / 2), r = o.R * cam.z + 10;
     const [sx, sy] = W2S(o.x, o.y);
-    label(isTouch() ? 'двойное касание по связи — разорвать' : 'двойной клик по связи — разорвать', sx, sy + r + 18, 13, [255, 255, 255], .8 * al, 700);
+    label(isTouch() ? 'двойное касание по связи: разорвать' : 'двойной клик по связи: разорвать', sx, sy + r + 18, 13, [255, 255, 255], .8 * al, 700);
     ghostDouble(bx, by, al);
   },
   overlay(al) {
@@ -534,7 +534,7 @@ const Mols = {
     const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : [255, 255, 255], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 6', this.steps(), this.stars, 'Первичный бульон готов');
-    hudBanner(this.banner, 'УРОВЕНЬ 6 · миллиард лет', 'Молекулы', 'собирай соединения и создавай законы их синтеза', al, 'атомы → молекулы → первые кирпичики жизни');
+    hudBanner(this.banner, 'УРОВЕНЬ 6 · миллиард лет', 'Молекулы', 'собрать соединения и создать законы их синтеза', al, 'атомы → молекулы → первые кирпичики жизни');
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },

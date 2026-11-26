@@ -1,17 +1,17 @@
 "use strict";
 const STAGES = [Particles, Quarks, Nuclei, Stars, Atoms, Mols];
 const LADDER = ['Частицы', 'Адроны', 'Ядра', 'Звёзды', 'Атомы', 'Молекулы', 'Органика', 'Протоклетки', 'Клетки', 'Организмы'];
-const TRANS_DUR = 3;
-// Управление на заставке — значками жестов
-document.getElementById('gdesk').innerHTML = [[GEST.move(), 'вести'], [GEST.click(), 'снимок'], [GEST.hold(), 'зажать — притянуть кванты'],
-  [GEST.release(), 'отпустить — столкнуть'], [GEST.wheel(), 'зум'], [GEST.key('M'), 'звук']].map(([s, l]) => gestItem(s, l)).join('');
+const TRANS_DUR = 3, CTL_T = 15; // CTL_T — сколько секунд в первый визит видна строка управления
+// Управление на заставке: значок жеста и что он делает, каждый жест в своей строке
+document.getElementById('gdesk').innerHTML = [[GEST.move(), 'Мышь: вести детектор'], [GEST.click(), 'Клик: снимок'], [GEST.hold(), 'Зажать: притянуть кванты'],
+  [GEST.release(), 'Отпустить: столкнуть'], [GEST.wheel(), 'Колесо: зум'], [GEST.key('M'), 'M: звук']].map(([s, l]) => gestItem(s, l)).join('');
 // Путь Вселенной на заставке: где ты сейчас и куда идёшь (дальше «Молекул» — ещё в разработке)
 // путь Вселенной в заставке; готовые уровни можно нажать — забег начнётся с него (проверить уровень, не проходя всё заново)
 G.fromI = 0;
 function drawPath() {
   document.getElementById('path').innerHTML = LADDER.map((n, i) => (i ? `<i style="animation-delay:${i * .12}s">→</i>` : '') +
     `<span data-i="${i}" class="${i === G.fromI ? 'on ' : ''}${i < STAGES.length ? 'pick' : i === LADDER.length - 1 ? 'goal' : 'soon'}" style="animation-delay:${i * .12}s"${i < STAGES.length ? ` title="начать с уровня «${n}»"` : ''}>${n}</span>`).join('') +
-    `<span class="from">${G.fromI ? `начнёшь с уровня «${LADDER[G.fromI]}» · счёт не пойдёт в общую таблицу` : 'нажми на уровень — начать с него'}</span>`;
+    `<span class="from">${G.fromI ? `начать с уровня «${LADDER[G.fromI]}»: счёт не пойдёт в общую таблицу` : 'уровень можно выбрать: забег начнётся с него'}</span>`;
   document.getElementById('go').textContent = G.fromI ? `Начать: ${LADDER[G.fromI]}` : 'Начать';
 }
 drawPath();
@@ -137,7 +137,7 @@ function touchBar() {
   const s = G.stage, on = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
   const hold = s.key === 'particles';
   on('act', G.started && hold && !G.paused);
-  actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держи' : s.ep === 3 ? 'держи — щит' : 'тап — снимок · держи — поле') : '';
+  actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держать' : s.ep === 3 ? 'держать: щит' : 'тап: снимок · держать: поле') : '';
   on('t-ff', G.started && s.enterKey); on('t-dash', G.started && s.dash);
   on('t-cx', G.started && (!s.showCodex || s.showCodex() !== null)); on('t-rl', false); on('t-rr', false); on('t-x', false); // взятое само поворачивается по ходу броска
   document.getElementById('t-mute').textContent = Sfx.muted ? '🔇' : '🔊';
@@ -229,7 +229,7 @@ function endTut(done) {
   G.tutor = false; document.body.classList.remove('tut'); Cine.clear(); Spot.end();
   try { localStorage.setItem('proto.tut', '1'); } catch (e) { /* без хранилища */ }
   G.stage.enter(); G.score = 0; G.knOf = null; G.runT0 = Date.now(); G.fx = []; mouse.down = false;
-  msg(done ? 'Обучение пройдено — теперь по-настоящему' : 'Обучение пропущено — начинаем', 2.5);
+  msg(done ? 'Обучение пройдено. Начинается настоящий забег' : 'Обучение пропущено. Забег начинается', 2.5);
 }
 
 // ---------- цикл ----------
@@ -331,8 +331,11 @@ function hud() {
   put('title', h.title); put('sub', h.sub);
   put('lines', h.lines.map(([a, b]) => `<div class="k">${a}</div><div>${b}</div>`).join(''), true);
   put('goal', h.goal, true);
-  const S = G.stage, pan = !S.sling ? '' : isTouch() ? 'два пальца — сдвинуть карту' : 'WASD или правая кнопка — сдвинуть карту';
-  put('controls', [S.controls, pan].filter(Boolean).join(' · '));
+  const S = G.stage, pan = !S.sling ? '' : isTouch() ? 'два пальца: сдвинуть карту' : 'WASD или правая кнопка: сдвинуть карту';
+  // строка управления внизу — только при первом визите на уровень и первые CTL_T секунд (потом игрок знает сам)
+  const ctlOn = !Known.has('ctl:' + S.key) && (S.clock ?? S.t ?? 0) < CTL_T;
+  if (G.started && !ctlOn && (S.clock ?? S.t ?? 0) >= CTL_T) Known.add('ctl:' + S.key);
+  put('controls', ctlOn ? [S.controls, pan].filter(Boolean).join(' · ') : '');
   document.getElementById('laws').style.display = h.laws.length ? '' : 'none';
   document.getElementById('codex').style.top = h.laws.length ? '190px' : '12px';
   const key = G.stage.key;
@@ -355,7 +358,7 @@ function recover(err) {
   if (err && !errShown) { // первая ошибка — в консоль и на экран: игрок пришлёт скриншот
     errShown = true; console.error(err);
     const at = String(err.stack || '').split('\n').find(l => /\.js/.test(l)) || '';
-    try { msg(`Ошибка: ${err.message} ${(at.match(/(\w+\.js)[^:]*:(\d+)/) || []).slice(1).join(':')} — пришли скриншот`, 12); } catch (e) { /* без экрана */ }
+    try { msg(`Ошибка: ${err.message} ${(at.match(/(\w+\.js)[^:]*:(\d+)/) || []).slice(1).join(':')}. Скриншот поможет исправить`, 12); } catch (e) { /* без экрана */ }
   }
   if (!isFinite(P.x + P.y)) { P.x = P.y = 0; }
   if (!isFinite(P.vx + P.vy)) { P.vx = P.vy = 0; }

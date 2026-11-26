@@ -273,7 +273,7 @@ const Spot = {
   /** @type {{ x: number, y: number } | null} */ o: null,
   txt: '', sub: '',
   /** @param {{ x: number, y: number }} o — цель в мире @param {string} txt @param {string} sub @param {number} [dur] */
-  show(o, txt, sub, dur = 2.8) { this.on = true; this.t = 0; this.dur = dur; this.o = o; this.txt = txt; this.sub = sub; byId('card').style.opacity = '0'; }, // карточка открытия поверх холста — не мешает
+  show(o, txt, sub, dur = 2.8) { if (!Known.first('spot:' + txt.replace(/\d+/g, '#'))) return; this.on = true; this.t = 0; this.dur = dur; this.o = o; this.txt = txt; this.sub = sub; byId('card').style.opacity = '0'; }, // карточка открытия поверх холста — не мешает
   /** время стоит, пока true @param {number} dt */
   tick(dt) { if (!this.on) return false; if ((this.t += dt) >= this.dur) this.end(); return this.on; },
   skip() { if (this.on && this.t > .5) this.end(); },
@@ -512,7 +512,7 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   const pd = tk.ds, ps = tk.ss || [];
   if (pd) {
     const j = ds.findIndex((d, k) => d && !pd[k]);
-    if (j >= 0) { tk.fl = { txt: '✓ ' + steps[j].s, c: [140, 235, 170], at: G.T }; tk.doneAt = G.T; Sfx.play('goal'); }
+    if (j >= 0) { tk.fl = { txt: '✓ ' + steps[j].s, c: [140, 235, 170], at: G.T }; tk.doneAt = G.T; Sfx.play('goal'); Known.add('step:' + steps[j].t.replace(/\d+/g, '#')); }
     const w = ss.findIndex((v, k) => v === 1 && ps[k] !== 1);
     if (w >= 0) { tk.fl = { txt: '★ ' + stars[w].t, c: [255, 215, 110], at: G.T }; Sfx.play('star'); }
   }
@@ -532,7 +532,8 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
   // текущий — раскрыт
   const iw = W - pad * 2 - 30, tx = x0 + pad + 30;
   const title = wrapText(cur ? cur.t : after || 'Задание выполнено', 16, 800, iw);
-  let hint = cur && cur.h ? wrapText(cur.h, 13, 500, iw) : [];
+  // строка «как» — пока этот шаг ни разу не сделан: потом игрок знает сам (подсказок — к нулю)
+  let hint = cur && cur.h && !Known.has('step:' + cur.t.replace(/\d+/g, '#')) ? wrapText(cur.h, 13, 500, iw) : [];
   if (small && hint.length > 2) { hint = hint.slice(0, 2); hint[1] = hint[1].replace(/[\s,.;:—-]*\S*$/, '') + '…'; }
   /** @type {Chip[]} */
   const items = cur && cur.items ? cur.items.map(([t, d]) => [(d ? '✓ ' : '') + t, d ? [[77, 232, 155], .28] : [[255, 255, 255], .09], d ? [170, 245, 205] : [235, 235, 245]]) : [];
@@ -616,7 +617,7 @@ const Tally = {
     const row = (/** @type {TallyData['rows'][number]} */ [k, v, c = 'tx']) => `<div class="${c}"><span>${k}</span><b>${v}</b></div>`;
     const el = byId('tally');
     el.innerHTML = `<div class="tk">${kick}</div><div class="tn">${name}</div>` +
-      (auto != null ? `<div class="ta"><i style="width:${Math.round(auto * 100)}%"></i><span>Вселенная — ${Math.round(auto * 100)} %</span></div>` : '') +
+      (auto != null ? `<div class="ta"><i style="width:${Math.round(auto * 100)}%"></i><span>Вселенная: ${Math.round(auto * 100)} %</span></div>` : '') +
       rows.map(row).join('') +
       (stars && stars.length ? `<div class="ts">${stars.map(s => `<em class="${s.st === 1 ? 'y' : 'n'}">${s.st === 1 ? '★' : '✗'} ${s.t}</em>`).join('')}</div>` : '') +
       (place === 0 ? '<div class="tr">🏆 рекорд</div>' : place != null ? `<div class="tr">#${place + 1} в таблице</div>` : '') +
@@ -711,9 +712,9 @@ const Uni = {
       const pm = this.perMin(S, r), dis = this.off(S, r.k); tot += pm;
       const got = `+${Math.floor(r.kn)} ✦` + (r.en >= 1 ? ` <s>+${Math.round(r.en)} ⚡</s>` : '');
       const how = dis ? 'выключен' : pm ? `${fmtPm(pm)} ✦ в минуту` : 'в эту эпоху не работает';
-      return `<div data-k="${r.k}" class="ur${G.T - r.fl < .6 ? ' fl' : ''}${pm ? '' : ' off'}${dis ? ' dis' : ''}${fin ? '' : ' tg'}" title="${r.name}: ${how} · принесла ${Math.floor(r.kn)} ✦${fin ? '' : ` · щёлкни — ${dis ? 'включить' : 'выключить'}`}">` +
+      return `<div data-k="${r.k}" class="ur${G.T - r.fl < .6 ? ' fl' : ''}${pm ? '' : ' off'}${dis ? ' dis' : ''}${fin ? '' : ' tg'}" title="${r.name}: ${how} · принесла ${Math.floor(r.kn)} ✦${fin ? '' : ` · щелчок: ${dis ? 'включить' : 'выключить'}`}">` +
         `<span class="ic">${r.ic}</span><b>${r.name}${r.lv > 1 ? ` <small>×${r.lv}</small>` : ''}</b><em>${got}</em><u class="sw${dis ? '' : ' on'}"></u>` +
-        `<i>${dis ? 'выключен — щёлкни, чтобы включить' : pm ? fmtPm(pm) + '/мин' : 'в эту эпоху — нет'}</i></div>`;
+        `<i>${dis ? 'выключен (щелчок включает)' : pm ? fmtPm(pm) + '/мин' : 'не в эту эпоху'}</i></div>`;
     }).join('');
     const html = `<div class="uh"><span>Законы Вселенной</span><em>+${fmtPm(tot)} ✦/мин</em></div>` + rows;
     if (el._h !== html) { el._h = html; el.innerHTML = html; }
@@ -726,6 +727,38 @@ const Uni = {
   },
 };
 const fmtPm = (/** @type {number} */ v) => v >= 10 || v === Math.round(v) ? String(Math.round(v)) : v.toFixed(1).replace('.', ',');
+
+// ---------- подсказок — к нулю: что игрок уже видел, помним навсегда (между забегами и после обучения) ----------
+// Known — разовые события (сообщение-урок, стоп-кадр, строка «зачем это», шаг задания): было — больше не показываем.
+// Tips — подсказки, что рисуются, пока нужны (строка у детектора, призрачный жест): каждая живёт TIP_T секунд за всю
+// историю игрока, потом молчит. Ключ — сам текст (числа в нём не различаем).
+const TIP_T = 10;
+/** @param {string} k @param {any} def */
+const loadJ = (k, def) => { try { return JSON.parse(localStorage.getItem(k) || '') ?? def; } catch (e) { return def; } };
+/** @param {string} k @param {any} v */
+const saveJ = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* без хранилища */ } };
+const Known = {
+  s: /** @type {Set<string>} */ (new Set(loadJ('proto.known', []))),
+  /** @param {string} k */
+  has(k) { return this.s.has(k); },
+  /** @param {string} k */
+  add(k) { if (this.s.has(k)) return; this.s.add(k); saveJ('proto.known', [...this.s]); },
+  /** впервые? — и запомнить @param {string} k */
+  first(k) { if (this.s.has(k)) return false; this.add(k); return true; },
+};
+const Tips = {
+  m: /** @type {Record<string, number>} */ (loadJ('proto.tips', {})), last: /** @type {Record<string, number>} */ ({}), sv: 0,
+  /** показать ли подсказку сейчас (вызывать каждый кадр, пока она на экране) @param {string} key */
+  ok(key) {
+    const k = key.replace(/\d+/g, '#'), s = this.m[k] || 0; if (s >= TIP_T) return false;
+    const l = this.last[k]; this.last[k] = G.T;
+    this.m[k] = s + (l === undefined ? 0 : clamp(G.T - l, 0, .1));
+    if (G.T - this.sv > 1 || this.m[k] >= TIP_T) { this.sv = G.T; saveJ('proto.tips', this.m); }
+    return true;
+  },
+};
+/** сообщение-урок: только в первый раз за всю игру @param {string} key @param {string} text @param {number} [dur] */
+function tipMsg(key, text, dur) { if (Known.first('msg:' + key)) msg(text, dur); }
 
 let msgT = 0, lastMsg = '';
 /** @param {string} t @param {number} [dur] */
@@ -742,7 +775,7 @@ const HINT_T = 4.2;
 const Hint = {
   seen: /** @type {Set<string>} */ (new Set()), q: /** @type {HintItem[]} */ ([]), cur: /** @type {HintItem | null} */ (null),
   /** @param {string} key @param {string} text @param {() => [number, number, number] | null} at */
-  once(key, text, at) { if (this.seen.has(key)) return; this.seen.add(key); this.q.push({ text, at, t: 0 }); },
+  once(key, text, at) { if (this.seen.has(key) || Known.has('hint:' + key)) return; this.seen.add(key); Known.add('hint:' + key); this.q.push({ text, at, t: 0 }); },
   /** @param {number} dt */
   tick(dt) {
     if (!this.cur) this.cur = this.q.shift() || null;

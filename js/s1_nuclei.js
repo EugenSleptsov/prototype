@@ -38,7 +38,7 @@ const N_OK = [120, 240, 160], N_BAR = [255, 190, 100], N_BAD = [255, 120, 110], 
 
 const Nuclei = {
   key: 'nuclei', name: 'Ядра', bg: [22, 8, 40], sling: true,
-  controls: 'Зажми ядро, оттяни, отпусти',
+  controls: 'Зажать ядро, оттянуть, отпустить',
 
   enter(prev) {
     this.o = []; this.g = []; this.el = []; this.floats = []; this.t = 0; this.clock = 0; this.doneAt = null; this.endCd = -1;
@@ -156,10 +156,10 @@ const Nuclei = {
   judge(a, b, v, sure) {
     const r = this.outcome(a, b, sure);
     if (!r.out) return { kind: 'no', label: '✗ ' + r.why, c: N_NO, why: r.why };
-    if (v < this.vBar(a, b)) return { kind: 'bar', label: 'отскочит — барьер, сильнее', c: N_BAR };
+    if (v < this.vBar(a, b)) return { kind: 'bar', label: 'отскочит от барьера: нужно сильнее', c: N_BAR };
     if (v > this.vMax(a, b)) {
       const f = this.fragile(a, b);
-      return f ? { kind: 'shat', label: `разобьёт ${nsym(nkey(f))} — мягче`, c: N_BAD, f } : { kind: 'fast', label: 'разлетятся — мягче', c: N_BAD };
+      return f ? { kind: 'shat', label: `разобьёт ${nsym(nkey(f))}: нужно мягче`, c: N_BAD, f } : { kind: 'fast', label: 'разлетятся: нужно мягче', c: N_BAD };
     }
     const out = r.dd ? '³He + n или ³H + p' : r.out.map(([Z, N]) => nsym(Z + ',' + N)).join(' + ');
     return { kind: 'fuse', label: '→ ' + out, c: N_OK, r };
@@ -174,17 +174,17 @@ const Nuclei = {
   collide(a, b, v, src) {
     const j = this.judge(a, b, v), hand = src === 'hand';
     if (j.kind === 'bar') {
-      this.bounce(a, b, hand ? 'барьер — сильнее' : '');
-      if (hand) { this.st.bounce++; if (!this.learn.bar) { this.learn.bar = true; msg('Протоны отталкиваются — бросай сильнее'); } }
+      this.bounce(a, b, hand ? 'барьер: нужно сильнее' : '');
+      if (hand) { this.st.bounce++; if (!this.learn.bar) { this.learn.bar = true; tipMsg('nuclei:bar', 'Протоны отталкиваются: нужен бросок сильнее'); } }
       return false;
     }
     if (j.kind === 'no') { this.bounce(a, b, hand ? j.why : '', N_NO); return false; }
-    if (j.kind === 'fast') { this.bounce(a, b, hand ? 'слишком сильно — разлетелись' : '', N_BAD); return false; }
+    if (j.kind === 'fast') { this.bounce(a, b, hand ? 'слишком сильно: разлетелись' : '', N_BAD); return false; }
     if (j.kind === 'shat') {
       const other = j.f === a ? b : a, an = Math.atan2(other.y - j.f.y, other.x - j.f.x) + Math.PI / 2;
       other.vx *= -.4; other.vy *= -.4; other.fly = 0; other.thrown = null; other.nb = 1;
-      this.split(j.f, an, `${nsym(nkey(j.f))} разбился — мягче`);
-      if (hand) { this.st.shat++; if (!this.learn.shat) { this.learn.shat = true; msg('Слишком сильно — ядро разбилось'); } }
+      this.split(j.f, an, `${nsym(nkey(j.f))} разбился: нужно мягче`);
+      if (hand) { this.st.shat++; if (!this.learn.shat) { this.learn.shat = true; tipMsg('nuclei:shat', 'Слишком сильный удар: ядро разбилось'); } }
       return false;
     }
     const r = j.r, x = (a.x + b.x) / 2, y = (a.y + b.y) / 2, vx = (a.vx + b.vx) / 4, vy = (a.vy + b.vy) / 4;
@@ -233,7 +233,7 @@ const Nuclei = {
     if (!(g.E > N_BIND[k])) return false;
     this.split(o, Math.atan2(g.vy, g.vx) + Math.PI / 2, `γ разбил ${nsym(k)}`);
     this.st.broken++;
-    if (!this.learn.gam) { this.learn.gam = true; msg('Пока горячо, свет разбивает дейтерий. Гелий ему не по зубам'); }
+    if (!this.learn.gam) { this.learn.gam = true; tipMsg('nuclei:gam', 'Пока горячо, свет разбивает дейтерий. Гелий для него слишком прочен'); }
     return true;
   },
   decayN(o) {
@@ -343,7 +343,7 @@ const Nuclei = {
     if (this.doneAt === null && (goal || this.stuckT > 4 || this.clock > N_WIN)) {
       this.doneAt = this.clock; this.endCd = 2; this.sl.held = null; this.failed = !goal;
       for (const o of this.o) o.held = false;
-      if (!goal) this.float(P.x, P.y - 2, this.clock > N_WIN ? 'остыло — синтез окончен' : 'нейтронов больше нет — синтез окончен', [200, 210, 240], 16);
+      if (!goal) this.float(P.x, P.y - 2, this.clock > N_WIN ? 'Вселенная остыла, синтез окончен' : 'нейтронов больше нет, синтез окончен', [200, 210, 240], 16);
       this.tickStars(true);
     }
     if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; if (!this.failed) addScore(this.Y() * 2000); advance(); } // звёздам — твои же ядра, на тех же местах // итоги — сбоку, без паузы
@@ -394,11 +394,11 @@ const Nuclei = {
   steps() {
     const s = this.seen, touch = isTouch(), Y = Math.round(this.Y() * 100);
     return [
-      { t: 'Слей нейтрон с протоном', h: 'зажми нейтрон, оттяни и отпусти в протон', s: 'дейтерий ²H', d: s.has('1,1') },
-      { t: 'Собери гелий-4', h: 'к ²H — нейтрон, потом протон: его бросай сильнее',
+      { t: 'Слить нейтрон с протоном', h: 'зажать нейтрон, оттянуть и отпустить в протон', s: 'дейтерий ²H', d: s.has('1,1') },
+      { t: 'Собрать гелий-4', h: 'к ²H нейтрон, потом протон (протон бросать сильнее)',
         items: [['²H', s.has('1,1')], ['³H или ³He', s.has('1,2') || s.has('2,1')], ['⁴He', s.has('2,2')]], s: 'гелий-4', d: s.has('2,2') },
-      { t: 'Сформируй закон «Нуклеосинтез»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${SYN_COST} ✦`, s: 'нуклеосинтез', d: this.rs.syn > 0, res: 'syn' },
-      { t: 'Набери 25 % гелия', h: 'столько гелия в нашей Вселенной', p: [Math.min(Y, 25), 25], s: 'гелий как в нашей Вселенной', d: this.Y() >= Y_GOAL },
+      { t: 'Сформировать закон «Нуклеосинтез»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${SYN_COST} ✦`, s: 'нуклеосинтез', d: this.rs.syn > 0, res: 'syn' },
+      { t: 'Набрать 25 % гелия', h: 'столько гелия в нашей Вселенной', p: [Math.min(Y, 25), 25], s: 'гелий как в нашей Вселенной', d: this.Y() >= Y_GOAL },
     ];
   },
   starPool() {
@@ -407,9 +407,9 @@ const Nuclei = {
       { t: 'ни один нейтрон не распался', bad: () => st.decayed > 0, atEnd: true },
       { t: 'γ не разбил ни одного ядра', bad: () => st.broken > 0, atEnd: true },
       { t: 'без отскоков от барьера', bad: () => st.bounce > 0, atEnd: true },
-      { t: 'не разбей ни одного ядра', bad: () => st.shat > 0, atEnd: true },
+      { t: 'без разбитых ядер', bad: () => st.shat > 0, atEnd: true },
       { t: `быстрее ${fmtClock(N_PAR)}`, bad: () => this.clock > N_PAR, atEnd: true },
-      { t: 'сделай литий или бериллий', ok: () => ['3,3', '3,4', '4,3'].some(k => this.seen.has(k)), can: () => this.nN >= 3 },
+      { t: 'получить литий или бериллий', ok: () => ['3,3', '3,4', '4,3'].some(k => this.seen.has(k)), can: () => this.nN >= 3 },
       { t: 'гелий Y ≥ 33 % ещё до закона', ok: () => !this.rs.syn && this.Y() >= .33, bad: () => this.rs.syn > 0, can: () => this.nN * 2 / this.nB >= .4 }, // с законом уровень кончается на 25 %
     ];
   },
@@ -417,7 +417,7 @@ const Nuclei = {
 
   tally() {
     const c = this.counts(), n = this.he.hand + this.he.auto;
-    return { name: 'Ядра', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['гелий по массе', Math.round(this.Y() * 100) + ' %'], ['⁴He — рогаткой', this.he.hand], ['⁴He — Вселенная', this.he.auto], ['водород p', c.p]], auto: [this.he.auto, n], stars: this.stars };
+    return { name: 'Ядра', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['гелий по массе', Math.round(this.Y() * 100) + ' %'], ['⁴He рогаткой', this.he.hand], ['⁴He от Вселенной', this.he.auto], ['водород p', c.p]], auto: [this.he.auto, n], stars: this.stars };
   },
   cheat() {
     this.cheated = true;
@@ -477,10 +477,10 @@ const Nuclei = {
     if (!G.started || G.paused || this.doneAt !== null || G.prev || this.sl.held || this.sl.shots > 0) return;
     let best = null, bd = Infinity;
     for (const o of this.o) if (o.Z === 0 && this.free(o) && o.age > .3) { const d = Math.hypot(o.x - P.x, o.y - P.y); if (d < bd) { bd = d; best = o; } }
-    if (!best) return;
+    if (!best || !Tips.ok('nuclei:sling')) return;
     const [sx, sy] = W2S(best.x, best.y), r = best.rad * cam.z + 8 + 3 * Math.sin(G.T * 5);
     ring(sx, sy, r, GOLD, .8 * al, 2);
-    label('зажми нейтрон, оттяни, отпусти', sx, sy + r + 16, 13, [255, 255, 255], (.75 + .2 * Math.sin(G.T * 4)) * al, 700);
+    label('зажать нейтрон, оттянуть, отпустить', sx, sy + r + 16, 13, [255, 255, 255], (.75 + .2 * Math.sin(G.T * 4)) * al, 700);
     // показать, а не только написать: курсор сам делает бросок в ближайший протон
     let pr = null, pd = Infinity;
     for (const o of this.o) if (o.Z === 1 && o.N === 0 && this.free(o)) { const d = Math.hypot(o.x - best.x, o.y - best.y); if (d < pd) { pd = d; pr = o; } }
@@ -500,7 +500,7 @@ const Nuclei = {
       const shopUp = document.getElementById('shop').style.display === 'flex';
       label(`гелий ${Math.round(this.Y() * 100)} % из 25 · остынет через ${fmtClock(rest)}`, G.W / 2, G.H - (shopUp ? 118 : 52), 13, c, .85 * al, 700);
     }
-    hudBanner(this.banner, 'УРОВЕНЬ 3 · первые 3 минуты', 'Ядра', 'собери гелий, пока Вселенная горячая', al, 'протоны + нейтроны → ядра → из гелия зажгутся звёзды');
+    hudBanner(this.banner, 'УРОВЕНЬ 3 · первые 3 минуты', 'Ядра', 'собрать гелий, пока Вселенная горячая', al, 'протоны + нейтроны → ядра → из гелия зажгутся звёзды');
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },

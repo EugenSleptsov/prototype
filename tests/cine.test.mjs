@@ -72,7 +72,7 @@ test('кадр-пауза: закон глюонов — пауза с тем, �
   assert.equal(g.ev('Cine.on'), true, 'закон глюонов — важное знание');
   const h = html(g);
   assert.match(h, /Закон сформирован/);
-  assert.match(h, /Сталкивай их с фотонами и друг с другом/);
+  assert.match(h, /Их можно сталкивать с фотонами и друг с другом/);
   assert.equal((h.match(/class="rx"/g) || []).length, 3, 'значок закона и две схемы');
   assert.match(h, />γ<\/span><i>\+<\/i><span class="cs boson">g</, 'g + γ');
   assert.match(h, />g<\/span><i>\+<\/i><span class="cs boson">g</, 'g + g');
@@ -82,6 +82,6 @@ test('кадр-пауза: закон глюонов — пауза с тем, �
 test('карточка открытия глюона: дальше — закон глюонов', () => {
   const g = lit({ protoCodex: JSON.stringify(['ph']) });
   g.ev(`Codex.see('ph'); Cine.clear(); Cine.tick(99); Codex.see('g')`);
-  assert.match(html(g), /Дальше — сформируй закон глюонов/);
+  assert.match(html(g), /Дальше: закон глюонов/);
   assert.equal(g.ev(`G.stage.seeNext('e')`), '', 'у других — без этой строки');
 });

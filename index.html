@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PROTO // TYPE</title>
-<meta name="description" content="Эволюция от частиц после Большого взрыва: ты — детектор, сталкивай энергию и открывай частицы.">
+<meta name="description" content="Эволюция от частиц после Большого взрыва: детектор сталкивает энергию и открывает частицы.">
 <meta name="theme-color" content="#05030a">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
@@ -61,7 +61,9 @@
   #intro section{display:none}
   #intro.st-name #askname,#intro.st-ready #ready{display:block;animation:pathIn .5s both}
   #intro.st-line .ibox{opacity:0;pointer-events:none}
-  #intro.st-ready h1{display:none}
+  /* название — всегда на самом верху экрана, по центру (справа от него — чип с именем) */
+  #intro h1{position:fixed;top:max(14px,env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);margin:0;font-size:28px;white-space:nowrap;z-index:1}
+  @media (max-width:560px){#intro h1{left:max(16px,env(safe-area-inset-left,0px));transform:none;font-size:22px}}
   #intro label{display:block;margin:16px 0 4px;font-size:15px;opacity:.85}
   #nameform button{margin-top:0}
   #who{position:fixed;top:max(14px,env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));margin:0;padding:5px 12px;font-size:14px;border-radius:999px;background:#ffffff14;color:#e8f2ff;border:1px solid #ffffff26;display:flex;gap:8px;align-items:center;opacity:0;transform:translate(-30vw,30vh) scale(1.6);transition:opacity .4s,transform .8s cubic-bezier(.3,.8,.3,1);pointer-events:none}
@@ -92,6 +94,12 @@
   @keyframes pathIn{from{opacity:0;transform:translateY(4px)}}
   /* управление значками жестов (js/gestures.js) */
   .gests{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:8px 0 12px}
+  /* на заставке — каждый жест в своей строке, столбиком по центру */
+  #intro .gests{display:grid;justify-content:center;justify-items:start;gap:6px;text-align:left}
+  #intro .gest{display:grid;grid-template-columns:48px auto;gap:10px}
+  #intro .gest svg{justify-self:center}
+  #intro .gl{list-style:none;padding:0;margin:8px auto 12px;display:grid;justify-content:center;justify-items:start;gap:4px;text-align:left;opacity:.85}
+  body:not(.touch) #intro .gl,body.touch #intro .gests.mo{display:none}
   .gest{display:inline-flex;align-items:center;gap:6px;font-size:13px;opacity:.9}
   .gest svg{height:34px;width:auto;flex:none}
   body.touch .gests.mo{display:none}
@@ -434,49 +442,49 @@
 <!-- Заставка по шагам: имя → линия жизни Вселенной (уезжает вниз) → управление и «Начать» -->
 <div id="intro" class="overlay st-name">
   <button id="who" title="сменить имя"><span id="whon"></span><i>✎</i></button>
+  <h1>PROTO // TYPE</h1>
   <div class="ibox">
-    <h1>PROTO // TYPE</h1>
     <section id="askname">
-      <p class="why">Большой взрыв. Из этого света должна появиться жизнь.<br><b>Доведи Вселенную до неё.</b></p>
-      <label for="pname">Как тебя зовут?</label>
-      <form id="nameform" class="row"><input id="pname" maxlength="16" placeholder="Имя для рекордов" autocomplete="nickname"><button id="nameok" type="submit">Дальше</button></form>
+      <p class="why">Большой взрыв. Из этого света должна появиться жизнь.<br><b>Цель: довести Вселенную до жизни.</b></p>
+      <label for="pname">Имя для таблицы рекордов</label>
+      <form id="nameform" class="row"><input id="pname" maxlength="16" placeholder="Имя" autocomplete="nickname"><button id="nameok" type="submit">Дальше</button></form>
     </section>
     <section id="ready">
-      <p>Ты — детектор: сталкивай энергию и открывай, из чего сделан мир.</p>
-      <p class="mo gests" id="gdesk" aria-label="Мышь — вести · клик — снимок · зажать — притянуть кванты · отпустить — столкнуть · колесо — зум · M — звук"></p>
-      <p class="to" style="opacity:.75">Палец на экране — вести детектор · кнопка ◉: тап — снимок, держать — притянуть кванты, отпустить — столкнуть · два пальца — зум</p>
+      <p>Детектор сталкивает энергию и открывает, из чего сделан мир.</p>
+      <p class="mo gests" id="gdesk" aria-label="Мышь: вести детектор. Клик: снимок. Зажать: притянуть кванты. Отпустить: столкнуть. Колесо: зум. M: звук"></p>
+      <ul class="to gl"><li>Палец на экране: вести детектор</li><li>Тап по кнопке ◉: снимок</li><li>Держать ◉: притянуть кванты</li><li>Отпустить ◉: столкнуть</li><li>Два пальца: зум</li></ul>
       <div class="row">
         <button id="go">Начать</button>
         <button id="tutgo" class="alt">Обучение<small>1–2 мин</small></button>
       </div>
     </section>
   </div>
-  <div id="life"><p id="lifecap">Это вся линия жизни Вселенной — от первых частиц до живых организмов. Пройди её до конца.</p><div id="path" aria-label="путь Вселенной"></div></div>
+  <div id="life"><p id="lifecap">Линия жизни Вселенной: от первых частиц до живых организмов. Задача: пройти её до конца.</p><div id="path" aria-label="путь Вселенной"></div></div>
 </div>
 
 <div id="end" class="overlay"><div>
   <h1>Пока всё</h1>
   <p id="endtext"></p>
   <div id="endlb" class="endlb"></div>
-  <p>Следующий этап — органика: полимеры и самокопирование. Он ещё в разработке.</p>
-  <p class="mo" style="opacity:.75"><kbd>R</kbd> — начать заново</p>
+  <p>Следующий этап, органика (полимеры и самокопирование), ещё в разработке.</p>
+  <p class="mo" style="opacity:.75"><kbd>R</kbd>: начать заново</p>
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=132"></script>
-<script src="js/gestures.js?v=132"></script>
-<script src="js/audio.js?v=132"></script>
-<script src="js/core.js?v=132"></script>
-<script src="js/universe.js?v=132"></script>
-<script src="js/codex.js?v=132"></script>
-<script src="js/sling.js?v=132"></script>
-<script src="js/s0_quarks.js?v=132"></script>
-<script src="js/s_particles.js?v=132"></script>
-<script src="js/s1_nuclei.js?v=132"></script>
-<script src="js/s_stars.js?v=132"></script>
-<script src="js/s2_atoms.js?v=132"></script>
-<script src="js/s3_molecules.js?v=132"></script>
-<script src="js/online.js?v=132"></script>
-<script src="js/main.js?v=132"></script>
+<script src="js/util.js?v=133"></script>
+<script src="js/gestures.js?v=133"></script>
+<script src="js/audio.js?v=133"></script>
+<script src="js/core.js?v=133"></script>
+<script src="js/universe.js?v=133"></script>
+<script src="js/codex.js?v=133"></script>
+<script src="js/sling.js?v=133"></script>
+<script src="js/s0_quarks.js?v=133"></script>
+<script src="js/s_particles.js?v=133"></script>
+<script src="js/s1_nuclei.js?v=133"></script>
+<script src="js/s_stars.js?v=133"></script>
+<script src="js/s2_atoms.js?v=133"></script>
+<script src="js/s3_molecules.js?v=133"></script>
+<script src="js/online.js?v=133"></script>
+<script src="js/main.js?v=133"></script>
 </body>
 </html>

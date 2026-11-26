@@ -22,7 +22,7 @@ Object.assign(NUC_NAME, { '4,4': ['⁸Be', 'бериллий-8'], '6,6': ['¹²C
 
 const Stars = {
   key: 'stars', name: 'Звёзды', bg: [26, 10, 18], sling: true,
-  get controls() { return this.phase === 'core' ? 'Зажми ядро, оттяни, отпусти' : 'Зажми и веди — сгребай газ'; },
+  get controls() { return this.phase === 'core' ? 'Зажать ядро, оттянуть, отпустить' : 'Зажать и вести: гравитация сгребает газ'; },
 
   // рогатка и броски — как на уровне ядер
   mk: Nuclei.mk, float: Nuclei.float, free: Nuclei.free, grabR: Nuclei.grabR, full: Nuclei.full, vmax: Nuclei.vmax,
@@ -60,9 +60,9 @@ const Stars = {
     if (has('6,6', '2,2')) return { out: [[8, 8]] };
     if (has('6,6', '1,0')) return { out: [[6, 7]], why2: 'через ¹³N → ¹³C' };
     if (has('6,7', '1,0')) return { out: [[7, 7]] };
-    if (has('1,0', '1,0')) return { why: 'p + p — в звезде это годы' };
+    if (has('1,0', '1,0')) return { why: 'p + p: в звезде это годы' };
     if (has('2,2', '1,0')) return { why: 'ядер с массой 5 нет' };
-    if (ka === '8,8' || kb === '8,8' || ka === '7,7' || kb === '7,7') return { why: 'дальше — в следующих звёздах' };
+    if (ka === '8,8' || kb === '8,8' || ka === '7,7' || kb === '7,7') return { why: 'это уже в следующих звёздах' };
     return { why: 'такие не связываются' };
   },
   vBar(a, b) { const zz = a.Z * b.Z; return zz ? (2 + 2.5 * Math.sqrt(zz)) * .7 * N_SPD : 0; }, // в ядре звезды горячо — барьер ниже
@@ -70,10 +70,10 @@ const Stars = {
   fragile(a, b) { return nkey(a) === '4,4' ? a : nkey(b) === '4,4' ? b : null; },
   collide(a, b, v, src) {
     const j = this.judge(a, b, v), hand = src === 'hand';
-    if (j.kind === 'bar') { this.bounce(a, b, hand ? 'барьер — сильнее' : ''); if (hand) { this.st.bounce++; if (!this.learn.bar) { this.learn.bar = true; msg('Заряд больше — барьер выше: бросай сильнее'); } } return false; }
+    if (j.kind === 'bar') { this.bounce(a, b, hand ? 'барьер: нужно сильнее' : ''); if (hand) { this.st.bounce++; if (!this.learn.bar) { this.learn.bar = true; tipMsg('stars:bar', 'Заряд больше, барьер выше: нужен бросок сильнее'); } } return false; }
     if (j.kind === 'no') { this.bounce(a, b, hand ? j.why : '', N_NO); return false; }
-    if (j.kind === 'fast') { this.bounce(a, b, hand ? 'слишком сильно — разлетелись' : '', N_BAD); return false; }
-    if (j.kind === 'shat') { const be = j.f; this.bounce(a, b, ''); this.beSplit(be, '⁸Be разбился — мягче'); if (hand) this.st.shat++; return false; }
+    if (j.kind === 'fast') { this.bounce(a, b, hand ? 'слишком сильно: разлетелись' : '', N_BAD); return false; }
+    if (j.kind === 'shat') { const be = j.f; this.bounce(a, b, ''); this.beSplit(be, '⁸Be разбился: нужно мягче'); if (hand) this.st.shat++; return false; }
     const [[Z, N]] = j.r.out, x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
     a.dead = b.dead = true;
     const o = this.mk(Z, N, x, y, (a.vx + b.vx) / 4, (a.vy + b.vy) / 4); o.age = 1; o.nb = .8; o.mine = true;
@@ -210,7 +210,7 @@ const Stars = {
         let best = null, bd = 3.2;
         for (let i = 0; i < al.length; i++) for (let j = i + 1; j < al.length; j++) { const d = Math.hypot(al[i].x - al[j].x, al[i].y - al[j].y); if (d < bd) { bd = d; best = [al[i], al[j]]; } }
         // скорость — внутри окна слияния (барьер растёт вместе с N_SPD); сообщение — только если ⁸Be правда родился
-        if (best && this.collide(best[0], best[1], lerp(this.vBar(best[0], best[1]), this.vMax(best[0], best[1]), .3), null) && !this.learn.be) { this.learn.be = true; msg('⁸Be живёт миг — брось в него ещё ⁴He'); }
+        if (best && this.collide(best[0], best[1], lerp(this.vBar(best[0], best[1]), this.vMax(best[0], best[1]), .3), null) && !this.learn.be) { this.learn.be = true; tipMsg('stars:be', '⁸Be живёт миг: нужно успеть бросить в него ещё ⁴He'); }
       }
     }
     this.autoFuse(dt);
@@ -309,19 +309,19 @@ const Stars = {
     const s = this.seen, gasP = this.phase === 'gas' ? Math.min(100, Math.round((this.near || 0) / this.ignN * 100)) : 100;
     const n = k => this.cnt(k);
     return [
-      { t: 'Зажги звезду', h: 'зажми и веди — гравитация сгребает газ в комок', p: [gasP, 100], s: 'звезда горит', d: this.phase === 'core' },
-      { t: 'Сделай углерод', h: '⁴He в ⁴He → ⁸Be, он живёт миг — брось в него ещё ⁴He', items: [['⁸Be', s.has('4,4')], ['¹²C', s.has('6,6')]], s: 'углерод', d: s.has('6,6') },
-      { t: 'Сделай кислород', h: 'брось ⁴He в ¹²C', s: 'кислород', d: s.has('8,8') },
-      { t: 'Сделай азот', h: 'брось протон в ¹²C, потом ещё один', items: [['¹³C', s.has('6,7')], ['¹⁴N', s.has('7,7')]], s: 'азот', d: s.has('7,7') },
-      { t: 'Сформируй закон «Звёздный синтез»', h: `${isTouch() ? 'в лавке' : 'клавиша 1'} за ${ST_COST} ✦`, s: 'звёздный синтез', d: this.rs.syn > 0, res: 'syn' },
-      { t: 'Накопи на сверхновую', h: 'звезда взорвётся и разнесёт их по Вселенной', items: [[`¹²C ${Math.min(n('6,6'), 2)}/2`, n('6,6') >= 2], [`¹⁶O ${Math.min(n('8,8'), 2)}/2`, n('8,8') >= 2], [`¹⁴N ${Math.min(n('7,7'), 1)}/1`, n('7,7') >= 1]], s: 'сверхновая', d: Object.keys(ST_NEED).every(k => n(k) >= ST_NEED[k]) },
+      { t: 'Зажечь звезду', h: 'зажать и вести: гравитация сгребает газ в комок', p: [gasP, 100], s: 'звезда горит', d: this.phase === 'core' },
+      { t: 'Сделать углерод', h: '⁴He в ⁴He → ⁸Be (живёт миг), затем в него ещё ⁴He', items: [['⁸Be', s.has('4,4')], ['¹²C', s.has('6,6')]], s: 'углерод', d: s.has('6,6') },
+      { t: 'Сделать кислород', h: 'бросить ⁴He в ¹²C', s: 'кислород', d: s.has('8,8') },
+      { t: 'Сделать азот', h: 'бросить протон в ¹²C, потом ещё один', items: [['¹³C', s.has('6,7')], ['¹⁴N', s.has('7,7')]], s: 'азот', d: s.has('7,7') },
+      { t: 'Сформировать закон «Звёздный синтез»', h: `${isTouch() ? 'в лавке' : 'клавиша 1'} за ${ST_COST} ✦`, s: 'звёздный синтез', d: this.rs.syn > 0, res: 'syn' },
+      { t: 'Накопить на сверхновую', h: 'звезда взорвётся и разнесёт их по Вселенной', items: [[`¹²C ${Math.min(n('6,6'), 2)}/2`, n('6,6') >= 2], [`¹⁶O ${Math.min(n('8,8'), 2)}/2`, n('8,8') >= 2], [`¹⁴N ${Math.min(n('7,7'), 1)}/1`, n('7,7') >= 1]], s: 'сверхновая', d: Object.keys(ST_NEED).every(k => n(k) >= ST_NEED[k]) },
     ];
   },
   starPool() {
     return [
-      { t: 'зажги звезду за 0:15', ok: () => this.ignAt !== null && this.ignAt <= 15, bad: () => this.ignAt === null && this.clock > 15 },
+      { t: 'зажечь звезду за 0:15', ok: () => this.ignAt !== null && this.ignAt <= 15, bad: () => this.ignAt === null && this.clock > 15 },
       { t: 'без отскоков от барьера', bad: () => this.st.bounce > 0, atEnd: true },
-      { t: 'не разбей ⁸Be', bad: () => this.st.shat > 0, atEnd: true },
+      { t: 'без разбитых ⁸Be', bad: () => this.st.shat > 0, atEnd: true },
       { t: `быстрее ${fmtClock(ST_PAR)}`, bad: () => this.clock > ST_PAR, atEnd: true },
       { t: 'кислорода больше, чем углерода', ok: () => this.cnt('8,8') > this.cnt('6,6') && this.cnt('8,8') >= 2 },
     ];
@@ -376,10 +376,10 @@ const Stars = {
     ctx.globalAlpha = al;
     if (this.phase === 'core') this.sl.draw(al);
     if (G.started && !G.paused && !G.prev && this.doneAt === null) {
-      if (this.phase === 'gas' && !this.well) { label('зажми и веди — сгребай газ', G.W / 2, G.H * .62, 15, [255, 255, 255], (.75 + .2 * Math.sin(G.T * 4)) * al, 700); ghostSweep(G.W / 2, G.H * .62 - 80, al); }
+      if (this.phase === 'gas' && !this.well && Tips.ok('stars:gas')) { label('зажать и вести: газ сгребается в комок', G.W / 2, G.H * .62, 15, [255, 255, 255], (.75 + .2 * Math.sin(G.T * 4)) * al, 700); ghostSweep(G.W / 2, G.H * .62 - 80, al); }
       if (this.phase === 'core' && this.sl.shots === 0 && !this.sl.held) {
         const be = this.o.find(o => o.Z === 4) || this.o.find(o => nkey(o) === '2,2' && o.age > .3);
-        if (be) { const [sx, sy] = W2S(be.x, be.y), r = be.rad * cam.z + 8 + 3 * Math.sin(G.T * 5); ring(sx, sy, r, GOLD, .8 * al, 2); label(be.Z === 4 ? 'брось в ⁸Be ещё ⁴He' : 'зажми ⁴He, оттяни, отпусти в другой', sx, sy + r + 16, 13, [255, 255, 255], .85 * al, 700);
+        if (be && Tips.ok('stars:sling')) { const [sx, sy] = W2S(be.x, be.y), r = be.rad * cam.z + 8 + 3 * Math.sin(G.T * 5); ring(sx, sy, r, GOLD, .8 * al, 2); label(be.Z === 4 ? 'бросить в ⁸Be ещё ⁴He' : 'зажать ⁴He, оттянуть, отпустить в другой', sx, sy + r + 16, 13, [255, 255, 255], .85 * al, 700);
           // курсор сам бросает ⁴He: в ⁸Be (если он есть) или в соседний ⁴He
           const he = this.o.filter(o => o !== be && nkey(o) === '2,2' && o.age > .3).sort((u, v) => Math.hypot(u.x - be.x, u.y - be.y) - Math.hypot(v.x - be.x, v.y - be.y))[0];
           if (he) { const [hx, hy] = W2S(he.x, he.y); if (onScreen(hx, hy, 0)) { if (be.Z === 4) ghostSling(hx, hy, sx, sy, al); else ghostSling(sx, sy, hx, hy, al); } } }
@@ -393,7 +393,7 @@ const Stars = {
     const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > ST_PAR ? [190, 190, 205] : [255, 255, 255], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 4', this.steps(), this.stars, 'Сверхновая!');
-    hudBanner(this.banner, 'УРОВЕНЬ 4 · 100 млн лет', 'Звёзды', 'зажги звезду и выкуй в ней углерод, кислород и азот', al, 'в звёздах куётся углерод → без него не будет живого');
+    hudBanner(this.banner, 'УРОВЕНЬ 4 · 100 млн лет', 'Звёзды', 'зажечь звезду и выковать в ней углерод, кислород и азот', al, 'в звёздах куётся углерод → без него не будет живого');
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },

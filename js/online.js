@@ -38,14 +38,14 @@ const Online = {
 // Таблица забега на финальном экране: отправить, показать топ-10 и своё место
 async function endBoard(el, score, secs, cheated, local = '') {
   if (!Online.on()) return;
-  if (cheated) { el.innerHTML = '<div class="rk">отладка — в общую таблицу не попадает</div>'; return; }
-  el.innerHTML = '<div class="rk">общая таблица · отправляю…</div>';
+  if (cheated) { el.innerHTML = '<div class="rk">отладка: в общую таблицу не попадает</div>'; return; }
+  el.innerHTML = '<div class="rk">общая таблица · отправка…</div>';
   const ok = await Online.send('run', score, secs);
   const list = await Online.top('run', 100);
-  if (!list) { el.innerHTML = '<div class="rk">общая таблица недоступна — нет сети</div>' + local; return; }
+  if (!list) { el.innerHTML = '<div class="rk">общая таблица недоступна: нет сети</div>' + local; return; }
   const me = Online.name(), esc = x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   let place = list.findIndex(x => x.name.toLowerCase() === me.toLowerCase());
   const row = (x, k) => `<tr class="${k === place ? 'me' : ''}"><td>${k + 1}</td><td>${esc(x.name)}</td><td>${fmtScore(x.score)}</td><td>${fmtClock(x.secs)}</td></tr>`;
-  const head = !ok ? 'общая таблица · результат не принят' : place === 0 ? '🏆 первое место в мире!' : place > 0 ? `общая таблица · твоё место #${place + 1}` : 'общая таблица · ты за пределами сотни';
+  const head = !ok ? 'общая таблица · результат не принят' : place === 0 ? '🏆 первое место в мире' : place > 0 ? `общая таблица · место #${place + 1}` : 'общая таблица · место за пределами сотни';
   el.innerHTML = `<div class="rk">${head}</div><table class="lb">${list.slice(0, 10).map(row).join('')}${place >= 10 ? row(list[place], place) : ''}</table>`;
 }

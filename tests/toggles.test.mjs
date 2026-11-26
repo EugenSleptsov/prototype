@@ -32,7 +32,7 @@ test('тумблер закона: «Нуклеосинтез» выключен
   assert.equal(g.ev(`Uni.on(G.stage, 'syn')`), false);
   const html = g.ev(`(() => { const el = document.getElementById('uni'); G.started = true; Uni.render(el); return el.innerHTML; })()`);
   assert.match(html, /class="ur[^"]* dis/, 'строка — выключенная');
-  assert.match(html, /выключен — щёлкни, чтобы включить/);
+  assert.match(html, /выключен \(щелчок включает\)/);
   const kn = g.ev(`G.stage.uni[0].kn`);
   g.ev(`for (let i = 0; i < 60 * 40; i++) Uni.tick(G.stage, 1 / 60)`);
   assert.equal(g.ev(`G.stage.uni[0].kn`), kn, 'ровный доход стоит');

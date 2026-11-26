@@ -102,7 +102,7 @@ class Sling {
       if (s > .1) { const [tx, ty] = W2S(b.x + cx * .5, b.y + cy * .5); ctx.setLineDash([2, 3]); line(bx, by, tx, ty, [140, 200, 255], .7 * al, 2); ctx.setLineDash([]); }
     }
     const a = this.aim;
-    if (!a) { if (k < SLING_MIN) label('оттяни дальше', bx, by - 26, 12, [215, 220, 235], .8 * al, 700); return; }
+    if (!a) { if (k < SLING_MIN) label('оттянуть дальше', bx, by - 26, 12, [215, 220, 235], .8 * al, 700); return; }
     ctx.setLineDash([3, 5]); ctx.beginPath();
     a.pts.forEach(([x, y], i) => { const [sx, sy] = W2S(x, y); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy); });
     ctx.strokeStyle = rgb(a.c, .85 * al); ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
