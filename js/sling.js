@@ -61,7 +61,7 @@ class Sling {
     if (mouse.cancel) { this.held = null; mouse.cancel = false; this.h.launch(b, ...(this.h.carry ? this.h.carry(b) : [0, 0])); return; } // второй палец — отмена
     if (!down) {
       this.held = null;
-      if (v) { this.h.launch(b, v[0], v[1]); this.shots++; this.kickFx(b); }
+      if (v) { this.h.launch(b, v[0], v[1]); this.shots++; this.kickFx(b); Tips.did(this.h.key + ':sling'); } // подсказка броска гаснет по делу
       else {
         this.h.launch(b, ...(this.h.carry ? this.h.carry(b) : [0, 0]));
         if (G.T - this.t0 < .3) this.tap = { t: G.T, x: mouse.x, y: mouse.y }; // короткое нажатие без резинки — тап

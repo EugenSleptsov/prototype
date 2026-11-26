@@ -137,7 +137,7 @@ const Atoms = {
     if (down && !this.was) {
       const [x, y] = S2W(mouse.x, mouse.y);
       this.hold = this.ionAt(x, y); // нажал на атом — держишь его, а не ведёшь след
-      if (this.hold) this.st.held++; else { this.stroke++; this.strokeN = 0; this.tr = []; }
+      if (this.hold) { this.st.held++; Tips.did('atoms:hold'); } else { this.stroke++; this.strokeN = 0; this.tr = []; }
     }
     if (!down && this.hold) { this.hold.vx *= .3; this.hold.vy *= .3; this.hold = null; } // отпустил — атом плывёт дальше сам
     this.was = down;
@@ -170,7 +170,7 @@ const Atoms = {
     e.vx *= ns / s; e.vy *= ns / s; e.slow = 4.5; e.brk = .6; e.by = by;
     fxFlash(e.x, e.y, .5, [255, 240, 170], .3);
     if (by === 'hand') {
-      this.st.brakes++; if (!this.hold) { this.strokeN = (this.strokeN || 0) + 1; this.st.best = Math.max(this.st.best, this.strokeN); } // «росчерк» — только след
+      this.st.brakes++; Tips.did('atoms:brake'); if (!this.hold) { this.strokeN = (this.strokeN || 0) + 1; this.st.best = Math.max(this.st.best, this.strokeN); } // «росчерк» — только след
       if (this.st.brakes === 1) tipMsg('atoms:brake', 'Электрон отдал энергию фотоном и замедлился. Теперь ион его поймает');
     }
   },
@@ -313,7 +313,7 @@ const Atoms = {
     this.ph.push({ x: sx, y: sy, vx: Math.cos(a) * RES_V, vy: Math.sin(a) * RES_V, t: 0, hard: false, E: 2, res: io.Z, from: io, hand: how !== 'self', life: 1.6 });
     let pts = 0, txt = '', big = false;
     const is = ionSym(io.Z, io.ne);
-    if (how === 'hand') { this.st.relaxed++; pts += 1; txt = `${is}* → ${is}`; Sfx.play('catch', 3); }
+    if (how === 'hand') { this.st.relaxed++; Tips.did('atoms:relax'); pts += 1; txt = `${is}* → ${is}`; Sfx.play('catch', 3); }
     else if (how === 'casc') { this.st.cascade++; pts += 2; txt = `каскад ${is}`; Sfx.play('catch', 3); this.once('casc', 'Фотон той же линии осадил такой же атом и летит дальше вдвоём с копией: каскад'); }
     if (io.Z > 2 && io.ne >= 2 && !io.kDone) { io.kDone = true; if (me) { pts += 2; txt = (txt || is) + ' · K-оболочка'; } }
     if (io.ne >= io.Z) { // нейтральный атом — своими руками дороже
@@ -353,7 +353,7 @@ const Atoms = {
   cutUV(p) {
     const a = Math.atan2(p.vy, p.vx) + (Math.random() < .5 ? -1 : 1) * rnd(.6, 1.4);
     p.hard = false; p.E = rnd(1.5, 3); p.vx = Math.cos(a) * PH_V; p.vy = Math.sin(a) * PH_V; p.cut = true; p.life = p.t + 1;
-    this.st.cut++; this.kn += 1; Sfx.play('pop');
+    this.st.cut++; Tips.did('atoms:cut'); this.kn += 1; Sfx.play('pop');
     fxFlash(p.x, p.y, .7, UV_C, .35); fxRing(p.x, p.y, .2, UV_C, .9, .3);
     this.float(p.x, p.y - .4, 'УФ рассеян +1 ✦', UV_C, 12);
     this.once('cut', 'Перечёркнутый жёсткий свет рассеялся и стал безвредным');

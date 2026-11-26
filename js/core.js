@@ -9,12 +9,12 @@ const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0,
   /** низ панели задания и когда она рисовалась (заголовки встают ниже) */
   taskY: 0, taskAt: /** @type {number | undefined} */ (undefined),
   /** заводит main.js: масштаб щипком/колесом, начало забега, идёт обучение, ✦ уже обращённые в очки (у какого этапа), лестница */
-  zoom: 1, runT0: 0, tutor: false, knOf: /** @type {Stage | null} */ (null), knSeen: 0,
+  zoom: 1, runT0: 0, run: 0, ctlT: 0, tutor: false,
   ladP: /** @type {number | null} */ (null), ladT: /** @type {number | undefined} */ (undefined),
   /** единицы уходящего этапа: x_prev = x·s + ox (на переходе со сменой масштаба, см. rescale) */
   prevU: { s: 1, ox: 0, oy: 0 } };
 // Очки — только для счёта: копятся весь забег, не тратятся (✦ — валюта уровня, её тратят на исследования).
-// Каждый добытый ✦ приносит 10 очков (main.js следит за kn уровня); прочее — addScore.
+// Очки — за вехи, не за ✦ (payMilestones): шаг задания, испытание ★, пройденный уровень и вехи уровней; ✦ в очки не идут.
 /** @param {number} n */
 function addScore(n) { G.score += Math.max(0, Math.round(n)); }
 const fmtScore = (/** @type {number} */ n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -581,28 +581,32 @@ function hudTask(alpha, tk, kicker, steps, stars, after) {
 
 // ---------- итоги уровня: ненавязчиво, сбоку, игру не останавливают ----------
 // Уровень даёт tally(): { name, rows: [[подпись, значение]], auto: [сама, всего] | null, stars }.
-// Здесь же: бонус за пройденный уровень и за долю, отданную Вселенной; рекорд уровня — молча в таблицу.
-const TALLY_T = 8, LVL_BONUS = 500, AUTO_BONUS = 1000;
+// Здесь же: бонус за пройденный уровень и вехи (шаги, ★); доля Вселенной — только полоской, очков не даёт; рекорд — молча в таблицу.
+const TALLY_T = 8, LVL_BONUS = 500, STEP_PTS = 150, STAR_PTS = 300;
 // ✦ переходят на следующий уровень: остаток ÷ CARRY_DIV (у каждого уровня свои цены — копилка не переносится целиком)
 const CARRY_DIV = 10;
 /** @param {Stage} st */
 const carryOf = st => st.bal ? Math.floor(Math.max(0, st.bal()) / CARRY_DIV) : 0;
-// каждый добытый ✦ уровня — 10 очков забега (kn у уровней только растёт; траты — отдельно)
-function flushKn() {
-  const kn = G.stage.kn; if (typeof kn !== 'number') return;
-  if (G.knOf !== G.stage) { G.knOf = G.stage; G.knSeen = kn; }
-  if (kn > G.knSeen) { addScore((kn - G.knSeen) * 10); G.knSeen = kn; }
+// Очки забега — за вехи, не за ✦: ✦ — только валюта уровня, и «копить или тратить» — честный выбор (закон не печатает очки).
+// Шаг задания — STEP_PTS, испытание ★ — STAR_PTS (один раз за забег), пройденный уровень — LVL_BONUS.
+/** @param {Stage} S */
+function payMilestones(S) {
+  if (!G.started || G.ended || G.tutor || !S.steps) return;
+  if (S.paidRun !== G.run) { S.paidRun = G.run; S.paid = new Set(); S.mile = { st: 0, star: 0 }; }
+  const paid = /** @type {Set<unknown>} */ (S.paid), m = /** @type {{ st: number, star: number }} */ (S.mile);
+  for (const [i, s] of S.steps().entries()) if (s.d) { const k = (S.ep ?? '') + ':' + i + ':' + s.t.replace(/\d+/g, '#'); if (!paid.has(k)) { paid.add(k); m.st++; addScore(STEP_PTS); } }
+  for (const s of S.stars || []) if (s.st === 1 && !paid.has(s)) { paid.add(s); m.star++; addScore(STAR_PTS); }
 }
 const Tally = {
   t: 0,
   // итоги пройденного уровня (из advance)
   /** @param {Stage} st */
   show(st) {
-    flushKn(); // ✦ последнего кадра уровня — в очки до итогов
+    payMilestones(st); // вехи последнего кадра (испытания «до конца») — в очки до итогов
     /** @type {TallyData} */
     const d = st.tally ? st.tally() : { name: st.name, rows: [] };
     const won = !st.failed, auto = won && d.auto && d.auto[1] > 0 ? clamp(d.auto[0] / d.auto[1], 0, 1) : null;
-    if (won) addScore(LVL_BONUS); if (auto !== null) addScore(AUTO_BONUS * auto);
+    if (won) addScore(LVL_BONUS);
     const lvl = Math.round(G.score - (st.scoreAt || 0));
     /** @type {number | null} */
     let place = null;
@@ -613,7 +617,9 @@ const Tally = {
     if (uk > 0) rows.push(['✦ от Вселенной', uk]);
     const carry = carryOf(st); if (carry > 0) rows.push([`✦ с собой (остаток ÷ ${CARRY_DIV})`, '+' + carry, 'tb']);
     rows.push(won ? ['уровень пройден', '+' + LVL_BONUS, 'tb'] : ['цель не выполнена', 'без бонуса', 'tx']);
-    if (auto !== null) rows.push(['отдано Вселенной', '+' + Math.round(AUTO_BONUS * auto), 'tb']);
+    const m = st.paidRun === G.run && st.mile || { st: 0, star: 0 };
+    if (m.st) rows.push([`шаги задания × ${m.st}`, '+' + m.st * STEP_PTS, 'tb']);
+    if (m.star) rows.push([`испытания ★ × ${m.star}`, '+' + m.star * STAR_PTS, 'tb']);
     rows.push(['очки за уровень', fmtScore(lvl), 'tl'], ['всего', fmtScore(G.score), 'tt']);
     this.note(`УРОВЕНЬ ${G.stageI + 1} · ${won ? 'ПРОЙДЕН' : 'ВРЕМЯ ВЫШЛО'}`, d.name, rows, d.stars || [], place, '', auto);
   },
@@ -736,9 +742,10 @@ const fmtPm = (/** @type {number} */ v) => v >= 10 || v === Math.round(v) ? Stri
 
 // ---------- подсказок — к нулю: что игрок уже видел, помним навсегда (между забегами и после обучения) ----------
 // Known — разовые события (сообщение-урок, стоп-кадр, строка «зачем это», шаг задания): было — больше не показываем.
-// Tips — подсказки, что рисуются, пока нужны (строка у детектора, призрачный жест): каждая живёт TIP_T секунд за всю
-// историю игрока, потом молчит. Ключ — сам текст (числа в нём не различаем).
-const TIP_T = 10;
+// Tips — подсказки, что рисуются, пока нужны (строка у детектора, призрачный жест): гаснут по делу — когда игрок
+// TIP_DO раз сделал то, о чём подсказка (Tips.did), а запасной таймер — TIP_T секунд показа за всю историю игрока.
+// Ключ — сам текст (числа в нём не различаем). Кнопка «?» (H) возвращает подсказки текущего уровня (Tips.again).
+const TIP_T = 45, TIP_DO = 2;
 /** @param {string} k @param {any} def */
 const loadJ = (k, def) => { try { return JSON.parse(localStorage.getItem(k) || '') ?? def; } catch (e) { return def; } };
 /** @param {string} k @param {any} v */
@@ -751,16 +758,27 @@ const Known = {
   add(k) { if (this.s.has(k)) return; this.s.add(k); saveJ('proto.known', [...this.s]); },
   /** впервые? — и запомнить @param {string} k */
   first(k) { if (this.s.has(k)) return false; this.add(k); return true; },
+  /** забыть (кнопка «?») @param {string} k */
+  forget(k) { if (this.s.delete(k)) saveJ('proto.known', [...this.s]); },
 };
 const Tips = {
   m: /** @type {Record<string, number>} */ (loadJ('proto.tips', {})), last: /** @type {Record<string, number>} */ ({}), sv: 0,
+  d: /** @type {Record<string, number>} */ (loadJ('proto.tipd', {})), w: /** @type {Record<string, string>} */ (loadJ('proto.tipw', {})),
   /** показать ли подсказку сейчас (вызывать каждый кадр, пока она на экране) @param {string} key */
   ok(key) {
-    const k = key.replace(/\d+/g, '#'), s = this.m[k] || 0; if (s >= TIP_T) return false;
+    const k = key.replace(/\d+/g, '#'), s = this.m[k] || 0; if (s >= TIP_T || (this.d[k] || 0) >= TIP_DO) return false;
+    if (!this.w[k] && G.stage) { this.w[k] = G.stage.key; saveJ('proto.tipw', this.w); } // чей уровень — для «?»
     const l = this.last[k]; this.last[k] = G.T;
     this.m[k] = s + (l === undefined ? 0 : clamp(G.T - l, 0, .1));
     if (G.T - this.sv > 1 || this.m[k] >= TIP_T) { this.sv = G.T; saveJ('proto.tips', this.m); }
     return true;
+  },
+  /** игрок сделал то, о чём подсказка @param {string} key */
+  did(key) { const k = key.replace(/\d+/g, '#'); if ((this.d[k] || 0) >= TIP_DO) return; this.d[k] = (this.d[k] || 0) + 1; saveJ('proto.tipd', this.d); },
+  /** «?»: подсказки уровня — снова @param {string} stage */
+  again(stage) {
+    for (const k of Object.keys(this.w)) if (this.w[k] === stage) { delete this.m[k]; delete this.d[k]; }
+    saveJ('proto.tips', this.m); saveJ('proto.tipd', this.d);
   },
 };
 /** сообщение-урок: только в первый раз за всю игру @param {string} key @param {string} text @param {number} [dur] */

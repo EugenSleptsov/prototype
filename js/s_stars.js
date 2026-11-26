@@ -111,7 +111,7 @@ const Stars = {
     const c = this.gas.length ? centroid(this.gas) : { x: P.x, y: P.y };
     let w = null;
     if (live && mouse.down && !G.paused) { const [wx, wy] = S2W(mouse.x, mouse.y); w = { x: wx, y: wy }; this.learn.grab = true; }
-    this.well = w;
+    this.well = w; Tips.did('stars:gas');
     let near = 0;
     for (const g of this.gas) {
       g.age += dt;

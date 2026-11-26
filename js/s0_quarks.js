@@ -292,7 +292,7 @@ const Quarks = {
       b.fly = this.flyT(s); b.thrown = 'cue'; b.nb = 0; b.by = a;
       if (!isWhite(b) && Math.hypot(b.x - this.C.x, b.y - this.C.y) > this.hotR() + b.rad * .3) b.rescue = true;
     }
-    this.st.strikes++;
+    this.st.strikes++; Tips.did("quarks:cue");
     fxRing((a.x + b.x) / 2, (a.y + b.y) / 2, .15, [255, 255, 255], 1.2, .4); Sfx.play('pop');
     return true;
   },
@@ -330,7 +330,7 @@ const Quarks = {
     fxRing(o.x, o.y, .4, [255, 255, 255], 2.4, .9);
     if (o.kind === 'meson') {
       this.zoo('meson', o.x, o.y);
-      if (hand) { this.st.mesons++; this.kn += 4; this.float(o.x, o.y - .4, `${HSYM[o.pk]} белый +4 ✦`, PI_C[o.pk], 15); this.once('meson', 'Антикварк несёт антицвет: с кварком своего цвета он белый. Пион живёт миг и вспыхивает светом'); }
+      if (hand) { this.st.mesons++; Tips.did('quarks:anti'); this.kn += 4; this.float(o.x, o.y - .4, `${HSYM[o.pk]} белый +4 ✦`, PI_C[o.pk], 15); this.once('meson', 'Антикварк несёт антицвет: с кварком своего цвета он белый. Пион живёт миг и вспыхивает светом'); }
       else if (onScreen(...W2S(o.x, o.y), 0)) this.float(o.x, o.y - .4, HSYM[o.pk], PI_C[o.pk], 12);
       return;
     }
@@ -348,7 +348,7 @@ const Quarks = {
     const hand = src === 'hand' || o.byHand, conf = this.rs.conf && !Uni.off(this, 'conf');
     this.made[o.kind]++;
     const pts = o.fromD ? DELTA_PTS : 10;
-    if (hand) { this.handN++; this.kn += pts; this.learn.bar = true; if (this.handN === 1) this.once('cue', 'Готовый нуклон — тоже шар: зажми его и сбей кварк в пару или в барион, а замерзающий — обратно в тепло. От края плазмы шар отскакивает'); }
+    if (hand) { this.handN++; Tips.did('quarks:pair'); this.kn += pts; this.learn.bar = true; if (this.handN === 1) this.once('cue', 'Готовый нуклон — тоже шар: зажми его и сбей кварк в пару или в барион, а замерзающий — обратно в тепло. От края плазмы шар отскакивает'); }
     else if (conf) { this.autoN++; Uni.pay(this, 'conf', 3); }
     this.zoo(o.kind, o.x, o.y - .5);
     if (hand) this.float(o.x, o.y, `${HSYM[o.kind]} белый +${pts} ✦`, GOLD, 16);

@@ -23,15 +23,34 @@ test('подсказки: урок-сообщение и стоп-кадр — �
   assert.equal(again(h).ev(`Hint.once('k', 'x'); Hint.q.length`), 0, 'Hint.once — тоже навсегда');
 });
 
-test('подсказки: строка-подсказка живёт TIP_T секунд за всю историю игрока, потом молчит — и в новом забеге', () => {
+test('подсказки: запасной таймер — TIP_T секунд показа за всю историю игрока, потом молчит — и в новом забеге', () => {
   const g = loadGame({ seed: 1 });
-  const show = gg => gg.ev(`(() => { let n = 0; for (let i = 0; i < 60 * 4; i++) { G.T += 1 / 60; if (Tips.ok('держи 3 ⚡')) n++; } return n; })()`);
+  const show = gg => gg.ev(`(() => { let n = 0; for (let i = 0; i < 60 * 16; i++) { G.T += 1 / 60; if (Tips.ok('держи 3 ⚡')) n++; } return n; })()`);
   const a = show(g);
-  assert.ok(a > 200, 'первые секунды — видна');
+  assert.ok(a > 900, 'первые секунды — видна');
   const b = show(g), c = show(g), d = show(g), T = g.ev('TIP_T');
   assert.ok(a + b + c + d <= T * 60 + 2 && d === 0, `всего — не больше TIP_T: ${a} + ${b} + ${c} + ${d}`);
   assert.equal(g.ev(`Tips.ok('держи 5 ⚡')`), false, 'числа в тексте не различаем');
   assert.equal(show(again(g)), 0, 'новый забег — тоже молчит');
+});
+
+test('подсказки гаснут по делу: дважды сделал — молчит и в новом забеге; «?» (H) возвращает подсказки и строку управления уровня', () => {
+  const g = loadGame({ seed: 1 });
+  g.ev(PREP.start);
+  const ok = gg => gg.ev(`G.T += 1 / 60; Tips.ok('particles:x')`);
+  assert.equal(ok(g), true);
+  g.ev(`Tips.did('particles:x')`); assert.equal(ok(g), true, 'один раз — ещё видна');
+  g.ev(`Tips.did('particles:x')`); assert.equal(ok(g), false, 'дважды — гаснет');
+  assert.equal(ok(again(g)), false, 'новый забег помнит');
+  g.ev(`G.stage.t = G.stage.clock = CTL_T + 5; G.stage.controls = 'управление'`); g.step(12, true);
+  assert.equal(g.ev(`document.getElementById('controls').style.display`), 'none');
+  assert.notEqual(g.ev(`document.getElementById('help').style.display`), 'none', 'кнопка «?» на виду');
+  g.ev(`document.getElementById('help').onclick()`);
+  assert.equal(ok(g), true, '«?» — подсказка уровня снова');
+  g.step(12, true);
+  assert.notEqual(g.ev(`document.getElementById('controls').style.display`), 'none', 'строка управления — снова');
+  g.ev(`G.T += CTL_T + 1`); g.step(12, true);
+  assert.equal(g.ev(`document.getElementById('controls').style.display`), 'none', 'и снова уходит');
 });
 
 test('подсказки: строка управления — только первые секунды первого визита на уровень', () => {

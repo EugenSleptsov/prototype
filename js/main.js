@@ -39,7 +39,7 @@ function advance() {
 }
 function endGame(text) {
   if (G.ended) return;
-  flushKn(); // ✦ последнего кадра — тоже в очки
+  payMilestones(G.stage); // вехи последнего кадра — тоже в очки
   G.ended = true;
   document.getElementById('endtext').textContent = text;
   // счёт забега: в таблицу браузера и (если включена) в общую
@@ -186,12 +186,23 @@ addEventListener('keydown', e => {
   if (e.code === 'Space' && !G.paused) { e.preventDefault(); G.stage.dash && G.stage.dash(); }
   if (!G.paused && (e.code === 'Enter' || e.code === 'NumpadEnter')) G.stage.enterKey && G.stage.enterKey();
   if (e.code === 'KeyX') G.stage.detach && G.stage.detach();
+  if (e.code === 'KeyH' && !G.paused) helpAgain();
   if (/^Digit[1-9]$/.test(e.code)) { const i = +e.code.slice(5) - 1; if (G.paused) G.stage.pick && G.stage.pick(i); else G.stage.buy && G.stage.buy(i); }
   if (G.paused && (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter')) { e.preventDefault(); G.stage.closeCard && G.stage.closeCard(); return; }
   if (G.paused) return;
   if (e.code === 'BracketRight') G.stage.cheat && G.stage.cheat();
   if (e.code === 'KeyR' && G.ended) location.reload();
 });
+// «?» (H): подсказки текущего уровня — снова: жесты-подсказки, строка «как» у шага задания, строка управления
+function helpAgain() {
+  if (!G.started || G.ended || G.tutor) return;
+  const S = G.stage;
+  Tips.again(S.key);
+  Known.forget('ctl:' + S.key); G.ctlT = G.T + CTL_T;
+  const cur = S.steps ? S.steps().find(s => !s.d) : null; if (cur) Known.forget('step:' + cur.t.replace(/\d+/g, '#'));
+  msg('Подсказки уровня — снова на экране', 2);
+}
+/** @type {HTMLElement} */ (document.getElementById('help')).onclick = () => { helpAgain(); /** @type {HTMLElement} */ (document.getElementById('help')).blur(); };
 // PWA: игра ставится как приложение и работает без сети (только с http/https, не из файла)
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { /* без офлайна */ }));
 addEventListener('keyup', e => keys.delete(e.code));
@@ -224,7 +235,7 @@ intro.onclick = e => { if (intro.classList.contains('st-line') && !/** @type {HT
 if (savedName) { document.getElementById('whon').textContent = savedName; intro.classList.add('quick'); introSt('ready'); } else introSt('name'); // вернулся — всё уже на местах, без полёта
 function startRun() {
   try { localStorage.setItem('proto.name', pname.value.trim() || savedName || 'Игрок'); } catch (e) { /* без хранилища */ }
-  document.getElementById('intro').style.display = 'none'; G.started = true; G.runT0 = Date.now();
+  document.getElementById('intro').style.display = 'none'; G.started = true; G.runT0 = Date.now(); G.run = (G.run || 0) + 1;
   jumpTo(G.fromI);
 }
 document.getElementById('go').onclick = startRun;
@@ -238,18 +249,17 @@ function endTut(done) {
   if (!G.tutor) return;
   G.tutor = false; document.body.classList.remove('tut'); Cine.clear(); Spot.end();
   try { localStorage.setItem('proto.tut', '1'); } catch (e) { /* без хранилища */ }
-  G.stage.enter(); G.score = 0; G.knOf = null; G.runT0 = Date.now(); G.fx = []; mouse.down = false;
+  G.stage.enter(); G.score = 0; G.run = (G.run || 0) + 1; G.runT0 = Date.now(); G.fx = []; mouse.down = false;
   msg(done ? 'Обучение пройдено. Начинается настоящий забег' : 'Обучение пропущено. Забег начинается', 2.5);
 }
 
 // ---------- цикл ----------
 function update(dt) {
   G.T += dt; P.dashCd -= dt; P.dashT -= dt;
-  // каждый добытый ✦ уровня — 10 очков забега (kn у уровней только растёт; траты — отдельно)
-  if (!G.ended) flushKn(); // забег кончен — счёт стоит
   Tally.tick(dt); Hint.tick(dt); Fly.tick(dt);
   if (G.stage.sling) tickPan(dt);
   G.stage.update(dt, true);
+  payMilestones(G.stage); // очки — за вехи (шаг задания, ★), не за ✦; забег кончен — счёт стоит
   if (G.started && !G.ended) Uni.tick(G.stage, dt * (G.stage.ff > 1 ? G.stage.ff : 1)); // чему научил — приносит ✦ само (на ×4 — вчетверо, как и всё время уровня)
   // принесённые с прошлого уровня ✦ — искрами к счётчику, как только он на виду
   if (G.stage.carryIn && !G.prev) {
@@ -343,7 +353,8 @@ function hud() {
   put('goal', h.goal, true);
   const S = G.stage, pan = !S.sling ? '' : isTouch() ? 'два пальца: сдвинуть карту' : 'WASD или правая кнопка: сдвинуть карту';
   // строка управления внизу — только при первом визите на уровень и первые CTL_T секунд (потом игрок знает сам)
-  const ctlOn = !Known.has('ctl:' + S.key) && (S.clock ?? S.t ?? 0) < CTL_T;
+  const ctlOn = !Known.has('ctl:' + S.key) && (S.clock ?? S.t ?? 0) < CTL_T || G.T < (G.ctlT || 0); // ctlT — «?» вернул строку
+  const hb = document.getElementById('help'); if (hb) hb.style.display = G.started && !G.ended && !G.tutor && !G.paused ? '' : 'none';
   if (G.started && !ctlOn && (S.clock ?? S.t ?? 0) >= CTL_T) Known.add('ctl:' + S.key);
   put('controls', ctlOn ? [S.controls, pan].filter(Boolean).join(' · ') : '');
   document.getElementById('laws').style.display = h.laws.length ? '' : 'none';

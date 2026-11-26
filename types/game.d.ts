@@ -45,8 +45,13 @@ interface Stage {
   controls?: string;
   /** очки забега на входе в уровень (ставит advance) */
   scoreAt?: number;
-  /** ✦ уровня — main.js превращает прирост в очки */
+  /** ✦ уровня — валюта (в очки не идут: очки — за вехи, core.js payMilestones) */
   kn?: number;
+  /** задание уровня (шаги) и испытания ★ — вехи для очков; эпоха (частицы) */
+  steps?(): { t: string; d?: boolean }[];
+  stars?: Star[]; ep?: number;
+  /** оплаченные вехи этого забега (payMilestones) */
+  paidRun?: number; paid?: Set<unknown>; mile?: { st: number; star: number };
   /** «Законы Вселенной» (core.js Uni): строки научённого; работает ли сейчас; где показать «+1 ✦» */
   uni?: UniRow[];
   uniOn?(k: string): boolean;

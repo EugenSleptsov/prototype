@@ -33,13 +33,14 @@ test('атомы: доля нейтральных — по ионам у кад�
   assert.equal(g.ev('G.stage.neutral()'), 0, 'там, где голое ядро, — 0');
 });
 
-test('молекулы: финал — итоги уровня и ✦ последнего кадра в очках', () => {
+test('молекулы: финал — итоги уровня и вехи последнего кадра в очках', () => {
   const g = toStage('molecules');
   g.ev('G.stage.cheat(); G.stage.st.soup = 99; Cine.clear(); Cine.tick(99)');
   g.ev('update(1 / 60)');
   assert.equal(g.ev('G.ended'), true);
   assert.match(g.ev(`document.getElementById('tally').innerHTML`), /Молекулы/);
-  assert.equal(g.ev('G.knSeen'), g.ev('G.stage.kn'), 'все ✦ — в очках');
+  assert.ok(g.ev('G.stage.mile.st') > 0, 'шаги задания последнего кадра — в очках');
+  assert.match(g.ev(`document.getElementById('tally').innerHTML`), /шаги задания/);
 });
 
 test('молекулы: повернул Q / E при прицеливании — прицел не доворачивает обратно', () => {

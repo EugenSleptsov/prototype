@@ -41,7 +41,9 @@
   #laws b{display:block;font-size:11px;opacity:.6;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em}
   .bar{height:4px;background:#ffffff1c;margin:3px 0 8px;border-radius:2px;overflow:hidden}
   .bar>i{display:block;height:100%;background:#8fd0ff;transition:width .25s}
-  #controls{position:fixed;left:16px;bottom:52px;font-size:12px;opacity:.7;pointer-events:none}
+  #controls{position:fixed;left:52px;bottom:52px;font-size:12px;opacity:.7;pointer-events:none}
+  #help{position:fixed;left:max(16px,env(safe-area-inset-left));bottom:46px;width:28px;height:28px;border-radius:50%;border:1px solid #ffffff33;background:#0b0f1ccc;color:#dde3f0;font:700 14px system-ui,sans-serif;z-index:6;cursor:pointer;padding:0}
+  #help:hover{border-color:#ffd27a88;color:#ffd27a}
   #msg{position:fixed;left:50%;top:20%;transform:translateX(-50%);font-size:18px;opacity:0;transition:opacity .5s;text-align:center;pointer-events:none;max-width:80vw}
   .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#05030acc;z-index:5}
   .overlay>div{max-width:560px;padding:24px;line-height:1.55}
@@ -414,6 +416,7 @@
 </div>
 <div id="laws" class="shadow"><b>Законы этапа</b><div id="bars"></div></div>
 <div id="controls" class="shadow"></div>
+<button id="help" title="Подсказки уровня снова (H)" aria-label="подсказки уровня снова" style="display:none">?</button>
 <div id="msg" class="shadow"></div>
 <div id="codex" class="shadow" title="Кодекс (C)"></div>
 <div id="uni" style="display:none"></div>
@@ -472,20 +475,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=152"></script>
-<script src="js/gestures.js?v=152"></script>
-<script src="js/audio.js?v=152"></script>
-<script src="js/core.js?v=152"></script>
-<script src="js/universe.js?v=152"></script>
-<script src="js/codex.js?v=152"></script>
-<script src="js/sling.js?v=152"></script>
-<script src="js/s0_quarks.js?v=152"></script>
-<script src="js/s_particles.js?v=152"></script>
-<script src="js/s1_nuclei.js?v=152"></script>
-<script src="js/s_stars.js?v=152"></script>
-<script src="js/s2_atoms.js?v=152"></script>
-<script src="js/s3_molecules.js?v=152"></script>
-<script src="js/online.js?v=152"></script>
-<script src="js/main.js?v=152"></script>
+<script src="js/util.js?v=153"></script>
+<script src="js/gestures.js?v=153"></script>
+<script src="js/audio.js?v=153"></script>
+<script src="js/core.js?v=153"></script>
+<script src="js/universe.js?v=153"></script>
+<script src="js/codex.js?v=153"></script>
+<script src="js/sling.js?v=153"></script>
+<script src="js/s0_quarks.js?v=153"></script>
+<script src="js/s_particles.js?v=153"></script>
+<script src="js/s1_nuclei.js?v=153"></script>
+<script src="js/s_stars.js?v=153"></script>
+<script src="js/s2_atoms.js?v=153"></script>
+<script src="js/s3_molecules.js?v=153"></script>
+<script src="js/online.js?v=153"></script>
+<script src="js/main.js?v=153"></script>
 </body>
 </html>
