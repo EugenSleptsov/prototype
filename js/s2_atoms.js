@@ -125,7 +125,7 @@ const Atoms = {
   },
   // доля нейтральных — по ионам в кадре и рядом: электроны живут только здесь, и улетевшие далеко ядра сверхновой не держат уровень
   recOn() { return !!this.rs.rec && !Uni.off(this, 'rec'); },
-  neutral() { let n = 0, z = 0; for (const i of this.ions) if (!i.dead && inView(i.x, i.y, 4)) { n += Math.min(i.ne, i.Z); z += i.Z; } return z ? n / z : 0; },
+  neutral() { let n = 0, z = 0; for (const i of this.ions) if (!i.dead && inRef(i.x, i.y, 4)) { n += Math.min(i.ne, i.Z); z += i.Z; } return z ? n / z : 0; },
 
   // ---------- след ----------
   tickTrail(live) {
@@ -258,7 +258,7 @@ const Atoms = {
       for (const io of this.ions) {
         if (io.ne <= 0 || io === p.from || io === p.pass) continue;
         const d2 = (io.x - p.x) ** 2 + (io.y - p.y) ** 2;
-        if (d2 > 1.6 || !inView(io.x, io.y)) continue; // ободок за краем свет не трогает: ионизация там была бы невидимой порчей
+        if (d2 > 1.6 || !inRef(io.x, io.y)) continue; // ободок за краем свет не трогает: ионизация там была бы невидимой порчей
         if (d2 > (p.res === io.Z && io.ex > 0 ? 1.6 : .8)) continue;
         if (io.ex > 0) {
           if (p.res === io.Z) { this.relax(io, p.hand ? 'casc' : 'self'); p.dead = true; break; } // вынужденное излучение: та же линия осаживает такой же атом (цепочку начал твой след — каскад твой)

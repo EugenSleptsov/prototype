@@ -85,6 +85,12 @@ const slingFullPx = () => clamp(Math.min(G.W, G.H) * .42, 170, 340);
 const halfView = (z = cam.z) => [G.W / 2 / z, G.H / 2 / z];
 /** масштаб, к которому камера тянется на этапе @param {Stage} st */
 const zoomFor = st => Math.max(100, Math.min(G.W, G.H)) / 2 / st.viewR() * (G.zoom || 1);
+// Кадр-эталон: тот же центр, но масштаб этапа без зума игрока. Всё, что игра СЧИТАЕТ (доход, счётчики целей,
+// «Вселенная делает сама», размер мира), меряем по нему, а не по экрану: приблизил или отдалил — видно иначе, считается то же.
+const refZ = () => Math.max(100, Math.min(G.W, G.H)) / 2 / G.stage.viewR();
+/** @param {number} x @param {number} y @param {number} [m] */
+const inRef = (x, y, m = 0) => { const [hw, hh] = halfView(refZ()); return Math.abs(x - cam.x) < hw + m && Math.abs(y - cam.y) < hh + m; };
+const refRadius = () => Math.hypot(G.W, G.H) / 2 / refZ();
 /** точка в кадре (с запасом m мировых единиц) @param {number} x @param {number} y @param {number} [m] */
 const inView = (x, y, m = 0) => { const [hw, hh] = halfView(); return Math.abs(x - cam.x) < hw + m && Math.abs(y - cam.y) < hh + m; };
 /** сколько тел держать в кадре: плотность (на единицу площади) × площадь кадра, но не больше cap @param {number} dens @param {number} cap @param {number} [z] */

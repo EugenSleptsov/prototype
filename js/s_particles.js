@@ -326,12 +326,12 @@ const Particles = {
   up(k) { const v = DET[k]; if (v == null) throw new Error(`нет свойства детектора ${k}`); return v; },
   hr() { return this.up('r'); },
   fr() { return this.hr() * this.up('fr'); }, // радиус захвата полем
-  wr() { return Math.max(WORLD_R, viewRadius() + 1); },
+  wr() { return Math.max(WORLD_R, refRadius() + 1); }, // мир — по кадру-эталону: отдалил зум — квантов и событий не больше
   nQ() { return Math.round(N_QUANTA * (this.wr() / WORLD_R) ** 2 * this.heat); }, // горячее разогрев — больше квантов
   /** @param {boolean} outside @returns {[number, number]} */
   randPos(outside) {
     for (let i = 0; i < 8; i++) {
-      const a = Math.random() * TAU, d = outside ? rnd(viewRadius() * .9, this.wr()) : Math.sqrt(Math.random()) * this.wr();
+      const a = Math.random() * TAU, d = outside ? rnd(Math.min(viewRadius(), refRadius()) * .9, this.wr()) : Math.sqrt(Math.random()) * this.wr();
       const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
       if (Math.hypot(x - P.x, y - P.y) > this.hr() * 1.5) return [x, y];
     }
@@ -886,12 +886,12 @@ const Particles = {
       a.dx = Math.cos(na); a.dy = Math.sin(na);
     }
   },
-  // вспышка e⁺e⁻ → γγ: +1 ✦ всегда (свет Вселенной копит знание и за кадром); на виду — ещё и +1 ⚡
+  // вспышка e⁺e⁻ → γγ: +1 ✦ и +1 ⚡ — где бы ни случилась (не только на экране: зум и сдвиг не меняют доход); надпись — на виду
   /** @param {number} x @param {number} y */
   eFlash(x, y) {
-    if (!onScreen(...W2S(x, y), 0)) { Uni.pay(this, 'e', 1); return; }
     const en = this.enOn(); if (en) this.en = Math.min(E_CAP, this.en + 1);
     Uni.pay(this, 'e', 1, en ? 1 : 0);
+    if (!onScreen(...W2S(x, y), 0)) return;
     this.float(x, y - .3, en ? 'e⁺e⁻ → γγ +1 ✦ +1 ⚡' : 'e⁺e⁻ → γγ +1 ✦', PH_C, 12);
     fxRing(x, y, .1, PH_C, .9, .5);
   },
@@ -940,7 +940,7 @@ const Particles = {
     });
     fxRing(o.x, o.y, .1, this.dcol(o), .5, .5);
     if (onScreen(...W2S(o.x, o.y), 0)) Sfx.play('decay');
-    if (o.sp === 't' && o.uni && Codex.auto.has('t') && this.enOn() && this.t - this.tAt >= T_CD && onScreen(...W2S(o.x, o.y), 0)) { // 173 ГэВ на виду
+    if (o.sp === 't' && o.uni && Codex.auto.has('t') && this.enOn() && this.t - this.tAt >= T_CD) { // 173 ГэВ — где бы ни распался
       Uni.pay(this, 't', 0, E_CAP - this.en); this.en = E_CAP; this.full = true; this.tAt = this.t;
       fxRing(P.x, P.y, this.hr(), PH_C, this.hr() * 1.8, .8);
       this.float(P.x, P.y + this.hr() + .3, 't → ⚡ полный заряд', PH_C, 15, -.3);
@@ -1287,7 +1287,7 @@ const Particles = {
   // точка в кадре, не у самого детектора
   /** @returns {[number, number]} */
   inViewPos() {
-    const a = Math.random() * TAU, d = rnd(this.hr() * 1.8, Math.max(this.hr() * 2, viewRadius() * .75));
+    const a = Math.random() * TAU, d = rnd(this.hr() * 1.8, Math.max(this.hr() * 2, refRadius() * .75));
     return [P.x + Math.cos(a) * d, P.y + Math.sin(a) * d];
   },
   // Лишние частицы уходят только за экраном: на глазах у игрока ничего не пропадает «в пустоте» (уйдёт, когда уедешь).
@@ -1356,7 +1356,7 @@ const Particles = {
       if (o.rep > 0) o.rep -= dt;
       if (o.pull > 0 && (o.pull -= dt) <= 0) o.v = undefined;
       if (o.fade >= 0) { o.fade -= dt * 1.5; o.born = Math.min(o.born, Math.max(0, o.fade)); if (o.fade <= 0) o.dead = true; }
-      else if ((o.sp === 'ph' ? phLife && this.hzAt(o.x, o.y) < .2 : o.sp === 'g' && gLife && this.czAt(o.x, o.y) < .2) && !o.cap && !(o.flung > 0) && !(o.mine > 0) && (o.qt = (o.qt || 0) + dt * (onScreen(...W2S(o.x, o.y), 0) ? Q_VIEW : 1)) > (o.ql || (o.ql = rnd(Q_LIFE * .7, Q_LIFE * 1.3))) && !this.inHand(o)) o.fade = 1;
+      else if ((o.sp === 'ph' ? phLife && this.hzAt(o.x, o.y) < .2 : o.sp === 'g' && gLife && this.czAt(o.x, o.y) < .2) && !o.cap && !(o.flung > 0) && !(o.mine > 0) && (o.qt = (o.qt || 0) + dt * (inRef(o.x, o.y) ? Q_VIEW : 1)) > (o.ql || (o.ql = rnd(Q_LIFE * .7, Q_LIFE * 1.3))) && !this.inHand(o)) o.fade = 1;
       if (ep4 && SM[o.sp].kind === 'quark' && !(o.rep > 0) && !(o.pull > 0)) this.drift4(o, dt);
       if (!o.cap) {
         // магнитное поле камеры закручивает заряженные следы (античастицы — в другую сторону)
@@ -1376,7 +1376,7 @@ const Particles = {
       if (this.hig > .5 && o.life < Infinity) { o.age += dt; if (o.age > o.life) { this.decay(o); continue; } }
       if (!act) continue;
       const ox = o.x - P.x, oy = o.y - P.y, d = Math.hypot(ox, oy);
-      if (o.rep > 0 && d > viewRadius() + .5) { o.dead = true; this.ejected++; continue; }
+      if (o.rep > 0 && d > refRadius() + .5) { o.dead = true; this.ejected++; continue; }
       if (d > WR && !o.cap) {
         o.x = P.x - ox * .95; o.y = P.y - oy * .95; o.born = 0; o.vis = 0; if (o.trail) o.trail = [];
         const w = rnd(-.6, .6), c = Math.cos(w), s = Math.sin(w), x = o.dx; o.dx = x * c - o.dy * s; o.dy = x * s + o.dy * c; // не по той же линии
@@ -1504,7 +1504,7 @@ const Particles = {
     // всплески поля рождают H, только когда это исследовано: Вселенная умеет лишь то, что игрок создал сам
     if (!Codex.auto.has('H')) return;
     this.ripCd = 5;
-    const a = Math.random() * TAU, d = rnd(this.hr() + .8, viewRadius() * .5);
+    const a = Math.random() * TAU, d = rnd(this.hr() + .8, refRadius() * .5);
     const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
     this.ripples.push({ x, y, t: 0 });
     const h = this.mk('H', false, x, y, Math.random() * TAU, rnd(5, 25)); h.life = rnd(4, 8);

@@ -369,7 +369,7 @@ const Mols = {
     const goals = COMP.filter(x => this.res.has(x.f) && !Uni.off(this, x.f)); // выключенный «Синтез» Вселенная не варит
     if (!goals.length || (this.autoCd -= dt) > 0) return;
     this.autoCd = 2.4; // не чаще — у игрока есть время собрать своё
-    const f = this.m.filter(m => !m.dead && !m.held && m.age > 1 && !(m.hand > 0) && !(m.auto > 0) && !(this.t - (m.mineT ?? -99) < M_MINE) && this.freeSlots(m) && inView(m.x, m.y, -5));
+    const f = this.m.filter(m => !m.dead && !m.held && m.age > 1 && !(m.hand > 0) && !(m.auto > 0) && !(this.t - (m.mineT ?? -99) < M_MINE) && this.freeSlots(m) && inRef(m.x, m.y, -5));
     let best = null, bs = -Infinity;
     for (const g of goals) for (let i = 0; i < f.length; i++) {
       const ca = this.counts(f[i]); if (!fits(ca, g.c)) continue;

@@ -250,7 +250,7 @@ const Nuclei = {
   autoFuse(dt) {
     if (!this.rs.syn || Uni.off(this, 'syn') || this.doneAt !== null || (this.autoCd -= dt) > 0) return;
     this.autoCd = 1.8 / Math.max(.35, this.T());
-    const f = this.o.filter(o => this.free(o) && o.age > 1 && o.nb <= 0 && inView(o.x, o.y, -1)); // на виду — чтобы было видно, как Вселенная куёт
+    const f = this.o.filter(o => this.free(o) && o.age > 1 && o.nb <= 0 && inRef(o.x, o.y, -1)); // в кадре-эталоне: видно, как Вселенная куёт, а зум не ускоряет
     let best = null, bs = -Infinity;
     for (let i = 0; i < f.length; i++) for (let j = i + 1; j < f.length; j++) {
       const a = f[i], b = f[j], d = Math.hypot(a.x - b.x, a.y - b.y);

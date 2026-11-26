@@ -114,7 +114,7 @@ const Stars = {
     let near = 0;
     for (const g of this.gas) {
       g.age += dt;
-      if (inView(g.x, g.y, .5)) { g.vx += (c.x - g.x) * .05 * dt; g.vy += (c.y - g.y) * .05 * dt; } // газ в кадре стягивается сам — медленно; за краем — свой
+      if (inRef(g.x, g.y, .5)) { g.vx += (c.x - g.x) * .05 * dt; g.vy += (c.y - g.y) * .05 * dt; } // газ в кадре стягивается сам — медленно; за краем — свой
       if (w) {
         const dx = w.x - g.x, dy = w.y - g.y, d = Math.hypot(dx, dy) || 1e-6;
         if (d < 6) { const f = 9 * (1 - d / 6) + 2; g.vx += dx / d * f * dt; g.vy += dy / d * f * dt; }
@@ -193,7 +193,7 @@ const Stars = {
     if (this.doneAt !== null) return;
     // звезда сама жжёт водород: 4p → ⁴He
     if ((this.hT += dt) > 3.5) {
-      const ps = this.o.filter(o => nkey(o) === '1,0' && this.free(o) && o.age > 1 && inView(o.x, o.y));
+      const ps = this.o.filter(o => nkey(o) === '1,0' && this.free(o) && o.age > 1 && inRef(o.x, o.y));
       if (ps.length >= 6) {
         this.hT = 0; const p0 = ps[Math.random() * ps.length | 0];
         const four = ps.sort((u, v) => Math.hypot(u.x - p0.x, u.y - p0.y) - Math.hypot(v.x - p0.x, v.y - p0.y)).slice(0, 4);
@@ -225,7 +225,7 @@ const Stars = {
     if (need('8,8') > 0 && spareC) want.push(['6,6', '2,2', 3]);
     if (need('7,7') > 0) { want.push(['6,7', '1,0', 4]); if (spareC) want.push(['6,6', '1,0', 2]); }
     want.push(['4,4', '2,2', 5]);
-    const f = this.o.filter(o => this.free(o) && o.age > .8 && inView(o.x, o.y, -1));
+    const f = this.o.filter(o => this.free(o) && o.age > .8 && inRef(o.x, o.y, -1));
     let best = null, bs = -Infinity;
     for (const [tk, bk, w] of want) for (const tg of f) {
       if (nkey(tg) !== tk) continue;

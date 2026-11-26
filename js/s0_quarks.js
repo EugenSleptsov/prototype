@@ -194,7 +194,7 @@ const Quarks = {
   // Барион собран: своими руками (полем) — дороже, сам слипся — дешевле
   onBaryon(grp, hand = grp.m.some(x => x.cap || x.hand > 0)) {
     const c = centroid(grp.m);
-    const pts = hand ? 10 : inView(c.x, c.y, 1) ? 4 : 0; if (!hand) this.st.passive++; // за кадром Вселенная лепит без ✦: иначе доход рос бы с размером мира
+    const pts = hand ? 10 : inRef(c.x, c.y, 1) ? 4 : 0; if (!hand) this.st.passive++; // за кадром-эталоном Вселенная лепит без ✦: иначе доход рос бы с размером мира (и с зумом)
     if (hand) this.handN++;
     const conf = this.rs.conf && !Uni.off(this, 'conf');
     if (conf) this.autoN++; // после закона — все барионы, и твои тоже
@@ -772,7 +772,7 @@ const Quarks = {
     const lo = Math.min(...sup), col = sup.indexOf(lo);
     // лишние (самого частого цвета) далеко за краем экрана уходят — свободных не копится больше FLOW_MAX
     if (f.length > FLOW_MAX) {
-      const hi = sup.indexOf(Math.max(...sup)), far = f.filter(o => o.col === hi && !o.mine && Math.hypot(o.x - P.x, o.y - P.y) > viewRadius() + 1);
+      const hi = sup.indexOf(Math.max(...sup)), far = f.filter(o => o.col === hi && !o.mine && Math.hypot(o.x - P.x, o.y - P.y) > refRadius() + 1);
       if (far.length) far[0].dead = true;
     }
     if (lo > 0 && f.length >= FLOW_N) return; // цвета, без которого нет ни одной тройки, — всегда
