@@ -230,7 +230,7 @@ interface ParticlesState {
   /** эпоха 0…3 */
   ep: number; epDone: boolean; epGap: number; bannerFor: number; banner: number; epT: number;
   pairs: number; decSeen: Set<string>; tries: Record<string, number>;
-  hot: Hot[]; hotCd: number; hz: HotZone[]; hzCd: number; hzSeen: boolean; hzSp: number; uniOff: Set<string>;
+  hot: Hot[]; hotCd: number; hz: HotZone[]; hzCd: number; hzSeen: boolean; cz: HotZone[]; czCd: number; czSeen: boolean; hzSp: number; uniOff: Set<string>;
   /** эпоха 4: запас кварков в детекторе */
   stock: number; stockQ: Stored[]; soupCd: number;
   /** u и d, что Вселенная накопила к эпохе 4 (фора) */

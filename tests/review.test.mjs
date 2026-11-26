@@ -166,3 +166,26 @@ test('эпоха 3: цепочка b — в задании всегда', () => 
     assert.ok(g.ev(`G.stage.need2.includes('b')`), `seed ${seed}`);
   }
 });
+
+test('«Свет» III — не больше света, а вдвое больше горячих областей', () => {
+  const g = toStage('particles');
+  g.ev('G.stage.tut = null; Cine.clear(); Cine.tick(99)');
+  assert.equal(g.ev('G.stage.hzN()'), g.ev('HZ_N'));
+  const cap2 = g.ev('(() => { G.stage.rs.ph = 2; return G.stage.phN(2); })()');
+  g.ev('G.stage.rs.ph = 3');
+  assert.equal(g.ev('G.stage.phN(3)'), cap2, 'света столько же');
+  assert.equal(g.ev('G.stage.hzN()'), 2 * g.ev('HZ_N'));
+  g.ev('G.stage.hz = []; G.stage.hzCd = 0'); g.step(60 * 40);
+  assert.ok(g.ev('G.stage.hz.length') > g.ev('HZ_N'), `областей ${g.ev('G.stage.hz.length')}`);
+  assert.match(g.ev(`G.stage.resList().length ? '' : 'x'`) + g.ev(`(() => { G.stage.rs.ph = 2; const r = G.stage.resList().find(r => r.k === 'ph'); return r ? r.about(2) : ''; })()`), /горячих областей вдвое больше/);
+});
+
+test('метрики «Во Вселенной»: число e±, μ±, τ± и γ в мире и корзина', () => {
+  const g = toStage('particles');
+  g.ev(`(() => { const S = G.stage; for (const o of S.p) o.dead = true; S.p = []; for (let i = 0; i < 3; i++) S.pair('mu', P.x + 2, P.y + i, .3); S.mk('e', false, P.x, P.y + 3, 0, .3); })()`);
+  assert.equal(g.ev(`JSON.stringify(G.stage.metric('mu'))`), JSON.stringify({ n: 6, bin: 3 }), 'μ⁺ и μ⁻ — вместе; 6 — третья корзина');
+  assert.equal(g.ev(`G.stage.metric('e').n`), 1);
+  assert.equal(g.ev(`G.stage.metric('ta').bin`), 0);
+  g.ev(`G.stage.p.find(o => o.sp === 'e').fade = 1`);
+  assert.equal(g.ev(`G.stage.metric('e').n`), 0, 'гаснущий — уже не в счёт');
+});

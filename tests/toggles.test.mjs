@@ -92,7 +92,7 @@ test('частицы: свет рождается в основном в гор�
       const ph = S.p.filter(o => !o.dead && o.sp === 'ph' && !(o.fade >= 0)); n += ph.length; nZ += ph.filter(o => Math.hypot(o.x - z.x, o.y - z.y) < z.r * 2.5).length; }
     const zA = Math.PI * (z.r * 2.5) ** 2, wA = Math.PI * S.wr() ** 2;
     // жёсткость: квант из области против обычного
-    const avg = hp => { let s = 0, n = 0; for (let i = 0; i < 300; i++) { const k = S.p.length; S.spawnQuantum(true, hp); const o = S.p[k]; if (o && o.sp === 'ph') { s += o.p; n++; } } return s / n; };
+    const avg = hp => { let s = 0, n = 0; for (let i = 0; i < 3000; i++) { const k = S.p.length; S.spawnQuantum(true, hp); const o = S.p[k]; if (o && o.sp === 'ph') { s += o.p; n++; } } return s / n; };
     return { share: nZ / n, area: zA / wA, pIn: avg([z.x, z.y]), pOut: avg(null) }; })()`);
   assert.ok(r.share > r.area * 1.6 && r.share > .45, `у области ${Math.round(r.share * 100)} % квантов при ${Math.round(r.area * 100)} % площади`);
   assert.ok(r.pIn > r.pOut * 1.3, `свет жёстче: ${r.pIn.toFixed(2)} против ${r.pOut.toFixed(2)}`);
@@ -113,6 +113,27 @@ test('частицы: горячие области появляются сам�
   assert.ok(g.ev('G.stage.hz.every(z => z.t < 1)'), 'старые остыли — на их месте могут вспыхнуть новые');
   g.ev('G.stage.ep = 3'); g.step(2);
   assert.equal(g.ev('G.stage.hz.length'), 0);
+});
+
+test('частицы: после закона «Глюоны» — синие холодные области, глюоны рождаются в основном в них; без закона их нет', () => {
+  const g = lit();
+  g.ev('G.stage.tut = null; G.stage.autoT = 99; G.stage.cz = []; G.stage.czCd = 0');
+  g.step(60 * 5);
+  assert.equal(g.ev('G.stage.rs.g'), 0); assert.equal(g.ev('G.stage.cz.length'), 0, 'до закона холодных областей нет');
+  buy(g, 'g');
+  assert.ok(g.ev('G.stage.rs.g') > 0, 'закон «Глюоны» куплен');
+  g.step(60 * 15);
+  assert.ok(g.ev('G.stage.cz.length') >= 1, 'на карте есть холодная область');
+  assert.ok(g.ev('G.stage.cz.every(z => G.stage.hz.every(h => Math.hypot(h.x - z.x, h.y - z.y) >= HZ_R * 3 - 1e-9))'), 'холодная не налезает на горячую');
+  const r = g.ev(`(() => { const S = G.stage; const z = S.cz.find(q => S.hzK(q) > .5) || S.cz[0]; z.t = Math.max(z.t, HZ_IN); z.L = 999; S.cz = [z]; S.czCd = 999; // одна область — мерить долю у неё
+    let n = 0, nZ = 0;
+    for (let i = 0; i < 60 * 20; i++) { update(1 / 60); if (i < 60 * 8 || i % 30) continue;
+      const gl = S.p.filter(o => !o.dead && o.sp === 'g' && !(o.fade >= 0)); n += gl.length; nZ += S.cz.length ? gl.filter(o => S.cz.some(q => Math.hypot(o.x - q.x, o.y - q.y) < q.r * 2.5)).length : 0; }
+    const zA = Math.PI * (HZ_R * 2.5) ** 2, wA = Math.PI * S.wr() ** 2;
+    return { share: nZ / n, area: zA / wA, n }; })()`);
+  assert.ok(r.n > 0 && r.share > r.area * 1.6 && r.share > .4, `у холодных ${Math.round(r.share * 100)} % глюонов при ${Math.round(r.area * 100)} % площади`);
+  g.ev(`Uni.off(G.stage, 'g') || G.stage.uniOff.add('g')`); g.step(2);
+  assert.equal(g.ev('G.stage.cz.length'), 0, 'закон выключен — холодных нет');
 });
 
 for (const key of ['nuclei', 'atoms']) test(`мир без края: ${key} — за краем кадра уже Вселенная: сдвинул карту — в кадре не пусто`, () => {
