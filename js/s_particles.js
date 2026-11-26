@@ -1173,7 +1173,7 @@ const Particles = {
       `<div class="cp">${what}</div>`;
     const pay = `<div class="cg">и это приносит +${fmtPm(pm)} ✦ в минуту (справа, в «Законах Вселенной»)</div>`;
     // первый закон — важное знание (так устроена вся игра): кадр-пауза; дальше — сцена над лавкой
-    if (first) Cine.show(html + `<div class="cg">Он платит: +${fmtPm(pm)} ✦ в минуту, пока идёт игра. Справа: все сформированные законы</div>`, 6, .8);
+    if (first) Cine.show(html + `<div class="cg">Закон приносит +${fmtPm(pm)} ✦ в минуту, пока идёт игра. Справа: все сформированные законы</div>`, 6, .8);
     else if (k === 'g' && l === 1 && this.ep === 0) Cine.show(html + this.gluPairs() + pay, 8, .8);
     else showScene(html + pay, 3.4);
   },

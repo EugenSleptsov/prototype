@@ -15,14 +15,14 @@ const clear = `for (const o of G.stage.p) if (Math.hypot(o.x - P.x, o.y - P.y) <
 // зажать поле на полсекунды там, где ловить нечего (кванты рядом гасим каждый кадр), и отпустить
 const holdEmpty = `mouse.clicked = true; mouse.down = true; for (let i = 0; i < 30; i++) { for (const o of G.stage.p) if (Math.hypot(o.x - P.x, o.y - P.y) < G.stage.fr() * 3) o.dead = true; update(1 / 60); } mouse.down = false; update(1 / 60)`;
 
-test('пустой клик и клик по знакомому свету — ⚡ цела, подсказка: свет ловится кругом сам', () => {
+test('пустой клик и клик по знакомому свету — ⚡ цела, подсказка: свет ловится кругом', () => {
   const g = lit();
   g.ev(`${clear} G.stage.en = 5; G.stage.shotCd = 0; G.stage.snapshot()`);
   assert.equal(g.ev('G.stage.en'), 5, 'пусто — без траты');
   assert.equal(g.ev('G.stage.st.empty'), 1);
   g.ev(`G.stage.shotCd = 0; const o = G.stage.mk('ph', false, P.x + .1, P.y, 0, 1); o.born = 1; G.stage.snapshot()`);
   assert.equal(g.ev('G.stage.en'), 5, 'знакомый фотон в круге — снимать нечего');
-  assert.ok(g.ev(`G.stage.floats.some(f => /свет ловится кругом сам/.test(f.txt))`), 'подсказка: кликать по свету не нужно');
+  assert.ok(g.ev(`G.stage.floats.some(f => /свет ловится кругом/.test(f.txt))`), 'подсказка: кликать по свету не нужно');
   g.ev(`G.stage.shotCd = 0; const q = G.stage.mk('e', false, P.x - .1, P.y, 0, 1); q.born = 1; G.stage.snapshot()`);
   assert.equal(g.ev('G.stage.en'), 4, 'новое в круге — снимок стоит 1 ⚡');
 });
