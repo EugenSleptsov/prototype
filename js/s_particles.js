@@ -149,6 +149,11 @@ const QGEN = { q1: ['u', 'd'], q2: ['c', 's'], q3: ['t', 'b'] };
 const QLAW = { u: 'q1', d: 'q1', c: 'q2', s: 'q2', t: 'q3', b: 'q3' };
 /** @type {Record<string, string>} */
 const QROM = { q1: 'I', q2: 'II', q3: 'III' };
+// Лептоны — ветка, параллельная кваркам: «Лептоны I / II / III» (ключи законов — сами e, μ, τ, по лестнице e → μ → τ).
+// Все три сформированы — ветка завершена: «Лептонная универсальность» — распад μ и τ Вселенной даёт +1 ⚡, где бы ни случился.
+/** @type {Record<string, string>} */
+const LGEN = { e: 'I', mu: 'II', ta: 'III' };
+const LEP = ['e', 'mu', 'ta'];
 const COL_N = ['красный', 'зелёный', 'синий']; // цвет кварка; у глюона — цвет и антицвет
 const STOCK_GOAL = 15, TRIO_GOAL = 5; // цель эпохи 4 — пять будущих барионов (по кварку каждого цвета)
 const TRIO_W = TRIO_GOAL < 5 ? 'тройки' : 'троек';
@@ -289,7 +294,7 @@ const Particles = {
     this.learn = {}; this.coach = { idle: 0, t: 0, kind: null }; this.spotted = new Set(); this.missT = -99; this.en = 0; this.enFx = 0; this.shotCd = 0; this.shotFx = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.bannerFor = -1; this.banner = 99; this.epT = 0;
-    this.pairs = 0; this.tries = {}; this.decSeen = new Set(); this._pk = null; this.starsShown = false; this.hot = []; this.hotCd = 3; this.hz = []; this.hzCd = 2; this.hzSeen = false; this.cz = []; this.czCd = 2; this.czSeen = false; this.stock = 0; this.stockQ = []; this.udRes = []; this.eRes = 0; this.forgedQ = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
+    this.pairs = 0; this.tries = {}; this.decSeen = new Set(); this._pk = null; this.starsShown = false; this.lepDone = false; this.hot = []; this.hotCd = 3; this.hz = []; this.hzCd = 2; this.hzSeen = false; this.cz = []; this.czCd = 2; this.czSeen = false; this.stock = 0; this.stockQ = []; this.udRes = []; this.eRes = 0; this.forgedQ = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1;
     Codex.run = new Set(); Codex.dirty = true;
     // цели этого забега: что открыть в эпохе 1 и чьи распады снять в эпохе 3
     this.need0 = [...NEED0];
@@ -928,6 +933,9 @@ const Particles = {
   decay(o) {
     const pr = this.decayProducts(o); if (!pr) return;
     o.dead = true; this.forge(o);
+    if (o.uni && (o.sp === 'mu' || o.sp === 'ta') && this.lepDone && this.lepAll() && this.enOn() && this.en < E_CAP) { // лептонная универсальность
+      this.en = Math.min(E_CAP, this.en + 1); if (onScreen(...W2S(o.x, o.y), 0)) this.float(o.x, o.y - .3, `${SM[o.sp].sym} → +1 ⚡`, GOLD, 11);
+    }
     const m = this.meff(o), E = Math.hypot(o.p, m), base = Math.atan2(o.dy, o.dx), n = pr.length;
     const fan = n === 2 ? [-.65, .65] : [0, -1.15, 1.15];
     const c0 = Math.random() * 3 | 0;
@@ -1073,7 +1081,7 @@ const Particles = {
     /** @type {Research[]} */
     const items = [
       ...qs.map(k => ({ k, ic: QROM[k], name: `Кварки ${QROM[k]}`, cost: [resNew(this.qVal(k), nb)], about: () => this.qRole(k), nd: needQ(k) })),
-      ...all.map(sp => ({ k: sp, ic: SM[sp].sym, name: `Генерация ${SM[sp].sym}`, cost: [resNew(this.value(sp), nb)], about: () => this.role(sp), nd: need.includes(sp) })),
+      ...all.map(sp => ({ k: sp, ic: SM[sp].sym, name: LGEN[sp] ? `Лептоны ${LGEN[sp]}` : `Генерация ${SM[sp].sym}`, cost: [resNew(this.value(sp), nb)], about: () => this.role(sp), nd: need.includes(sp) })),
     ];
     for (const r of [...items.filter(r => r.nd), ...items.filter(r => !r.nd)]) L.push({ k: r.k, ic: r.ic, name: r.name, cost: r.cost, about: r.about });
     return L;
@@ -1082,7 +1090,7 @@ const Particles = {
   /** @param {string} sp */
   role(sp) {
     if (sp === 'H') return 'всплески поля генерируют H';
-    if (sp === 'e') return 'e⁺e⁻ гаснут в γγ: +1 ✦, на виду +1 ⚡';
+    if (sp === 'e') return 'e⁺e⁻ гаснут в γγ: +1 ✦ +1 ⚡';
     if (sp === 'u' || sp === 'd') { const o = sp === 'u' ? 'd' : 'u'; return `запас к эпохе 4: ${this.udRes.length}/${this.udCap()} ◉` + (Codex.auto.has(o) ? '' : ` · тройке нужен и ${o}`); }
     const fg = FORGE_Q.includes(sp) ? ` · кузница: распад → u/d в запас (потолок ${this.udCap(sp)})` : FORGE_L.includes(sp) ? ' · кузница: распад → e⁻ к атомам' : '';
     if (sp === 't') return `t Вселенной в кадре: ⚡ полный (раз в ${T_CD} с)${fg}`;
@@ -1095,7 +1103,9 @@ const Particles = {
   /** @param {string} sp */
   lawOf(sp) { return QLAW[sp] || sp; },
   /** @param {string} sp */
-  lawName(sp) { return QLAW[sp] ? `«Кварки ${QROM[QLAW[sp]]}»` : `«Генерация ${SM[sp].sym}»`; },
+  lawName(sp) { return QLAW[sp] ? `«Кварки ${QROM[QLAW[sp]]}»` : LGEN[sp] ? `«Лептоны ${LGEN[sp]}»` : `«Генерация ${SM[sp].sym}»`; },
+  // ветка лептонов завершена: сформированы «Лептоны I, II, III» и ни один не выключен
+  lepAll() { return LEP.every(sp => this.rs[sp] > 0 && Codex.auto.has(sp)); },
   // ценность поколения кварков — по самому тяжёлому кварку (цена и ✦/мин)
   /** @param {string} k */
   qVal(k) { return Math.max(...QGEN[k].map(sp => this.value(sp))); },
@@ -1130,7 +1140,7 @@ const Particles = {
     const need = new Set();
     const walk = (/** @type {string} */ s) => { for (const k of GEN_PREV[s] || []) if (!(this.rs[k] > 0)) { walk(k); need.add(k); } };
     walk(sp);
-    return [...need, sp].map(k => `«Генерация ${SM[k].sym}»`).join(', потом ');
+    return [...need, sp].map(k => this.lawName(k)).join(', потом ');
   },
   // сколько квантов света держит в мире закон «Свет» уровня l (как в qCap, когда разгорелся)
   /** @param {number} l */
@@ -1199,15 +1209,24 @@ const Particles = {
     // сцена: что теперь происходит в мире (первый закон и закон глюонов — кадр-пауза)
     const what = k === 'ph' ? (l >= 3 ? `Горячих областей вдвое больше: ${HZ_N} → ${HZ_N * 2}. Свет генерируется именно там` : l > 1 ? `Света во Вселенной больше: ~${this.phN(l - 1)} → ~${this.phN(l)} квантов γ` : 'Вселенная светит созданным светом. Пойманный кругом свет даёт ⚡ и ✦')
       : k === 'g' ? 'Мир наполняется глюонами: это клей, который потом свяжет кварки' : k === 'coll' ? 'Кванты сталкиваются: генерация частиц по сформированным законам'
-      : k === 'cp' ? 'Вещество больше не сгорает: тройки сберегаются' : k === 'H' ? 'Всплески поля генерируют бозоны Хиггса' : QGEN[k] ? `Генерация кварков ${QROM[k]} поколения в мире · ${this.qRole(k)}` : `Генерация ${SM[k].sym} в мире · ${this.role(k)}`;
+      : k === 'cp' ? 'Вещество больше не сгорает: тройки сберегаются' : k === 'H' ? 'Всплески поля генерируют бозоны Хиггса' : QGEN[k] ? `Генерация кварков ${QROM[k]} поколения в мире · ${this.qRole(k)}` : LGEN[k] ? `Генерация лептонов ${LGEN[k]} поколения (${SM[k].sym}) в мире · ${this.role(k)}` : `Генерация ${SM[k].sym} в мире · ${this.role(k)}`;
     const first = !this.learn.taught; this.learn.taught = true;
     const html = `<div class="ck">Закон сформирован</div><div class="rx"><span class="cs res">${r.ic}</span></div><div class="cn">${r.name}</div>` +
       `<div class="cp">${what}</div>`;
     const pay = `<div class="cg">и это приносит +${fmtPm(pm)} ✦ в минуту (справа, в «Законах Вселенной»)</div>`;
     // первый закон — важное знание (так устроена вся игра): кадр-пауза; дальше — сцена над лавкой
+    if (LGEN[k] && !this.lepDone && this.lepAll()) { this.lepBranch(); return; } // третий лептонный закон — ветка завершена: своя сцена
     if (first) Cine.show(html + `<div class="cg">Закон приносит +${fmtPm(pm)} ✦ в минуту, пока идёт игра. Справа: все сформированные законы</div>`, 6, .8);
     else if (k === 'g' && l === 1 && this.ep === 0) Cine.show(html + this.gluPairs() + pay, 8, .8);
     else showScene(html + pay, 3.4);
+  },
+  // Ветка лептонов завершена: золотая вспышка, кадр-пауза и бонус «Лептонная универсальность»
+  lepBranch() {
+    this.lepDone = true; Sfx.play('segment');
+    fxRing(P.x, P.y, this.hr(), GOLD, this.wr(), 2.4); fxFlash(P.x, P.y, this.hr() * 2.5, [255, 230, 170], .5);
+    const sym = LEP.map(sp => `<span class="cs res">${SM[sp].sym}</span>`).join('');
+    Cine.show(`<div class="ck">Ветка завершена</div><div class="rx">${sym}</div><div class="cn">Лептоны I, II, III</div>` +
+      `<div class="cp">Все три поколения лептонов — законы Вселенной. Бонус: лептонная универсальность — μ и τ распадаются одинаково, и каждый их распад во Вселенной даёт +1 ⚡</div>`, 6, .8);
   },
   // Важное родилось у тебя впервые в жизни — стоп-кадр со стрелкой: что это и что сделать.
   // Важное: глюон третьей струи, H, W, Z и самая первая новая частица забега (дальше — без остановок)

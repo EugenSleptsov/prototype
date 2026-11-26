@@ -116,7 +116,7 @@ test('частицы: «Генерация» лептонов — по лест�
   assert.ok(!list().some(k => ['u', 'd', 'c', 's'].includes(k)), 'кварки — не по одному');
   assert.equal(g.ev("G.stage.buyNext('s')"), 'q1'); assert.equal(g.ev("G.stage.ladder('s')"), '«Кварки I», потом «Кварки II»');
   assert.equal(g.ev(`G.stage.buyNext('ta')`), 'e', 'к τ — сначала e');
-  assert.match(g.ev(`G.stage.ladder('ta')`), /«Генерация e», потом «Генерация μ», потом «Генерация τ»/);
+  assert.match(g.ev(`G.stage.ladder('ta')`), /«Лептоны I», потом «Лептоны II», потом «Лептоны III»/);
   g.ev(`G.stage.rs.e = 1`);
   assert.ok(list().includes('mu') && !list().includes('ta'));
   g.ev(`G.stage.rs.q1 = 1; G.stage.rs.mu = 1`);

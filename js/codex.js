@@ -65,7 +65,8 @@ const Codex = {
       const s = SM[k], lock = !this.run.has(k) && !genOpen(k), st = this.run.has(k) ? 'on' : lock ? 'lock' : this.known.has(k) ? 'old' : 'off';
       if (st === 'on') n++;
       const tip = lock ? `откроется после ${genNeed(k).map(x => SM[x].sym).join(' и ')}` : st === 'off' ? '?' : s.name;
-      return `<div class="cx ${s.kind} ${st}${st === 'on' && this.auto && this.auto.has(k) ? ' auto' : ''}" title="${tip}">${lock ? '·' : st === 'off' ? '?' : s.sym}</div>`;
+      const br = (s.kind === 'lepton' || s.kind === 'nu') && G.stage && G.stage.lepDone ? ' br' : ''; // ветка лептонов завершена — золотом
+      return `<div class="cx ${s.kind} ${st}${st === 'on' && this.auto && this.auto.has(k) ? ' auto' : ''}${br}" title="${tip}">${lock ? '·' : st === 'off' ? '?' : s.sym}</div>`;
     }).join('');
     const gc = genCur(), head = [1, 2, 3].map(g => `<div class="gh ${g < gc ? 'done' : g === gc ? 'cur' : ''}">${g < gc ? '✓' : GEN_N[g]}</div>`).join('') + '<div></div><div></div>';
     el.innerHTML = `<b>Кодекс · ${n}/17 <i>C</i></b><div class="cxg">${head}${cells}</div>`;

@@ -89,10 +89,10 @@ test('t: распад t Вселенной в кадре — ⚡ до полно
   assert.equal(tRun(true), g.ev('E_CAP'));
 });
 
-test('лавка: «Генерация X» говорит, зачем она — и в подсказке у компактной кнопки', () => {
+test('лавка: закон («Лептоны I», «Генерация X») говорит, зачем она — и в подсказке у компактной кнопки', () => {
   const g = toField();
   for (const [sp, want] of [['e', 'γγ'], ['u', 'эпохе 4'], ['c', '✦'], ['t', '⚡']]) assert.ok(g.ev(`G.stage.role('${sp}')`).includes(want), sp);
   g.ev(`for (const sp of ['e', 'u', 'mu', 'c']) Codex.run.add(sp); G.stage.rs.coll = 1; G.stage.kn += 999`);
   const el = g.ev(`(() => { const el = document.getElementById('shop'); G.stage.renderShop(el); return el.innerHTML; })()`);
-  assert.match(el, /title="Генерация [^"]+: [^"]+"/);
+  assert.match(el, /title="(Генерация|Лептоны) [^"]+: [^"]+"/);
 });

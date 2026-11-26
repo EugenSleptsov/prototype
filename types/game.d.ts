@@ -37,6 +37,8 @@ interface TallyData { name: string; rows: [string, string | number, string?][]; 
 /** Этап лестницы (STAGES в main.js) — то, что main.js и core.js вызывают у уровня. Необязательное — не у всех. */
 interface Stage {
   key: string; name: string;
+  /** частицы: ветка лептонов (I, II, III) завершена */
+  lepDone?: boolean;
   /** цвет фона */
   bg: RGB;
   /** подсказка по управлению (HTML) */
@@ -249,7 +251,7 @@ interface ParticlesState {
   wave?: Wave;
   annN?: number;
   /** исследование для текущего шага задания (кэш на кадр) */
-  _pk: string | null | undefined; starsShown: boolean;
+  _pk: string | null | undefined; starsShown: boolean; lepDone: boolean;
 }
 
 /** Шаг задания эпохи (hudTask в core.js): t — заголовок, h — подсказка, d — выполнен, res — нужное исследование,
