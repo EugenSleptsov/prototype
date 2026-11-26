@@ -294,7 +294,7 @@ const Quarks = {
     if (hand) {
       this.st.snaps++; this.kn += 4; Sfx.play('snap');
       this.float(mx, my - .3, `струна → q ${qGlyph(aq)} +4 ✦`, [255, 210, 150], 14);
-      this.once('cut', 'Струна порвалась, из вакуума родилась пара: кварк достроил барион, полый антикварк улетел');
+      this.once('cut', 'Струна порвалась: генерация пары из вакуума. Кварк достроил барион, полый антикварк улетел');
     } else { Uni.pay(this, 'frag', 2); if (inView(mx, my)) this.float(mx, my - .3, 'струна → q q̄ +2 ✦', [230, 200, 170], 11); }
     this.join(a, q);
   },
@@ -879,7 +879,7 @@ const Quarks = {
     const L = [];
     if (!this.rs.conf && (this.handN >= HAND_Q || this.steps0())) L.push({ k: 'conf', ic: '◬', name: 'Конфайнмент', about: 'барионы собираются повсюду', c: CONF_COST });
     if (this.rs.conf && !this.rs.np && this.st.handFlips >= 1) L.push({ k: 'np', ic: '⚖', name: 'Баланс n/p', about: 'лишние нейтроны распадаются в протоны', c: NP_COST });
-    if (this.st.snaps >= 1 && !this.rs.frag) L.push({ k: 'frag', ic: '⚡', name: 'Фрагментация', about: 'струны рвутся, пары рождаются из вакуума', c: FRAG_COST, opt: true });
+    if (this.st.snaps >= 1 && !this.rs.frag) L.push({ k: 'frag', ic: '⚡', name: 'Фрагментация', about: 'струны рвутся, генерация пар из вакуума', c: FRAG_COST, opt: true });
     return L;
   },
   keyOf(k) { const i = this.shopItems().findIndex(x => x.k === k); return i < 0 ? null : i + 1; },
