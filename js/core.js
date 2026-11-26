@@ -12,7 +12,8 @@ const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0,
   zoom: 1, runT0: 0, run: 0, ctlT: 0, tutor: false,
   ladP: /** @type {number | null} */ (null), ladT: /** @type {number | undefined} */ (undefined),
   /** единицы уходящего этапа: x_prev = x·s + ox (на переходе со сменой масштаба, см. rescale) */
-  prevU: { s: 1, ox: 0, oy: 0 } };
+  prevU: { s: 1, ox: 0, oy: 0 },
+  /** когда игрок последний раз касался, жал клавишу или крутил колесо (законы платят, пока он здесь) */ inT: /** @type {number | undefined} */ (undefined) };
 // Очки — только для счёта: копятся весь забег, не тратятся (✦ — валюта уровня, её тратят на исследования).
 // Очки — за вехи, не за ✦ (payMilestones): шаг задания, испытание ★, пройденный уровень и вехи уровней; ✦ в очки не идут.
 /** @param {number} n */
@@ -662,6 +663,10 @@ const Tally = {
 // Закон — тумблер: щелчок по строке выключает/включает его (S.uniOff), уровень спрашивает Uni.off(S, k) там, где закон действует,
 // и может дать uniSet(k, on) — что поменять в мире. Уровень (эпоха) завершён — все законы снова включены.
 const UNI_WIN = 60, UNI_LVL = 3; // UNI_LVL — ✦/мин от закона на уровнях после частиц (их события платят ещё)
+// Вселенная платит, пока ты играешь: UNI_AFK секунд без касания, клавиши, колеса — законы работают, но ✦ не приносят
+// (раньше пока эпоха не закрыта, можно было уйти от игры на ×4 и вернуться к бесконечной копилке — а ÷10 из неё — в следующий уровень)
+const UNI_AFK = 30;
+const afk = () => G.inT != null && G.T - G.inT > UNI_AFK;
 /** @type {RGB} */
 const UNI_C = [140, 235, 170];
 const Uni = {
@@ -678,6 +683,7 @@ const Uni = {
   /** Вселенная сработала сама: +v ✦ уровню (en — ⚡, только для сводки)
    * @param {Stage} S @param {string} k @param {number} v @param {number} [en] */
   pay(S, k, v, en = 0) {
+    if (afk()) return;
     S.kn = (S.kn || 0) + v;
     const r = S.uni && S.uni.find(x => x.k === k); if (!r || this.off(S, k)) return; // выключенный закон себе не пишет
     r.kn += v; r.en += en; r.n++; r.fl = G.T;
@@ -733,7 +739,7 @@ const Uni = {
         `<span class="ic">${r.ic}</span><b>${r.name}${r.lv > 1 ? ` <small>×${r.lv}</small>` : ''}</b><em>${got}</em><u class="sw${dis ? '' : ' on'}"></u>` +
         `<i>${dis ? 'выключен (щелчок включает)' : pm ? fmtPm(pm) + '/мин' : 'не в эту эпоху'}</i></div>`;
     }).join('');
-    const html = `<div class="uh"><span>Законы Вселенной</span><em>+${fmtPm(tot)} ✦/мин</em></div>` + rows;
+    const html = `<div class="uh"><span>Законы Вселенной</span><em>${afk() ? 'ждут тебя' : `+${fmtPm(tot)} ✦/мин`}</em></div>` + rows;
     if (el._h !== html) { el._h = html; el.innerHTML = html; }
     // над лавкой (она бывает в два ряда) и не налезая на сетку кодекса сверху
     const sh = byId('shop'), cx = byId('codex');

@@ -297,12 +297,9 @@ const Stars = {
   autoFuse(dt) {
     if (!this.rs.syn || Uni.off(this, 'syn') || (this.autoCd -= dt) > 0) return;
     this.autoCd = 1.4;
-    const need = k => (ST_NEED[k] || 0) - this.cnt(k);
-    const want = [];
-    const spareC = this.cnt('6,6') > ST_NEED['6,6']; // ¹²C в O и N — только лишний: собранные к сверхновой не трогаем
-    if (need('8,8') > 0 && spareC) want.push(['6,6', '2,2', 3]);
-    if (need('7,7') > 0) { want.push(['6,7', '1,0', 4]); if (spareC) want.push(['6,6', '1,0', 2]); }
-    want.push(['4,4', '2,2', 5]);
+    // закон куёт только углерод (тройная альфа: ⁸Be + ⁴He); кислород и азот — твоими бросками. Раньше он ковал и их —
+    // после трёх бросков и закона уровень доходил до сверхновой сам, а лучшей игрой было убрать руки (разбор ревью)
+    const want = [['4,4', '2,2', 5]];
     const f = this.o.filter(o => this.free(o) && o.age > .8 && inRef(o.x, o.y, -1));
     let best = null, bs = -Infinity;
     for (const [tk, bk, w] of want) for (const tg of f) {
@@ -379,7 +376,7 @@ const Stars = {
 
   // ---------- исследование ----------
   bal() { return Math.floor(this.kn - this.spent); },
-  shopItems() { return this.phase === 'core' && this.seen.has('6,6') && !this.rs.syn && this.doneAt === null ? [{ ic: '✺', name: 'Звёздный синтез', about: 'звезда куёт ядра', c: ST_COST }] : []; },
+  shopItems() { return this.phase === 'core' && this.seen.has('6,6') && !this.rs.syn && this.doneAt === null ? [{ ic: '✺', name: 'Звёздный синтез', about: 'звезда куёт углерод', c: ST_COST }] : []; },
   keyOf() { return this.shopItems().length ? 1 : null; },
   buy(i) {
     const it = this.shopItems()[i];
@@ -400,7 +397,7 @@ const Stars = {
       { t: 'Сделать кислород', h: 'бросить ⁴He в ¹²C', s: 'кислород', d: s.has('8,8') },
       { t: 'Сделать азот', h: 'бросить протон в ¹²C, потом ещё один', items: [['¹³C', s.has('6,7')], ['¹⁴N', s.has('7,7')]], s: 'азот', d: s.has('7,7') },
       { t: 'Сформировать закон «Звёздный синтез»', h: `${isTouch() ? 'в лавке' : 'клавиша 1'} за ${ST_COST} ✦`, s: 'звёздный синтез', d: this.rs.syn > 0, res: 'syn' },
-      { t: 'Накопить на сверхновую', h: 'C, N, O — для жизни; дальше до железа звезда догорит сама, железное ядро схлопнется — и взрыв разнесёт их', items: [[`¹²C ${Math.min(n('6,6'), 2)}/2`, n('6,6') >= 2], [`¹⁶O ${Math.min(n('8,8'), 2)}/2`, n('8,8') >= 2], [`¹⁴N ${Math.min(n('7,7'), 1)}/1`, n('7,7') >= 1]], s: 'сверхновая', d: Object.keys(ST_NEED).every(k => n(k) >= ST_NEED[k]) },
+      { t: 'Накопить на сверхновую', h: `C, N, O — для жизни${this.rs.syn ? ' (закон куёт углерод, кислород и азот — ты)' : ''}; дальше до железа звезда догорит сама, железное ядро схлопнется — и взрыв разнесёт их`, items: [[`¹²C ${Math.min(n('6,6'), 2)}/2`, n('6,6') >= 2], [`¹⁶O ${Math.min(n('8,8'), 2)}/2`, n('8,8') >= 2], [`¹⁴N ${Math.min(n('7,7'), 1)}/1`, n('7,7') >= 1]], s: 'сверхновая', d: Object.keys(ST_NEED).every(k => n(k) >= ST_NEED[k]) },
     ];
   },
   starPool() {

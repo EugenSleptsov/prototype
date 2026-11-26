@@ -60,6 +60,8 @@ const ckey = c => Object.keys(c).filter(k => c[k]).sort().map(k => k + c[k]).joi
 const COMP_BY = Object.fromEntries(COMP.map(x => [ckey(x.c), x]));
 const fits = (c, t) => Object.keys(c).every(k => (t[k] || 0) >= c[k]);
 
+// в соединении есть тяжёлый атом (C, N, O) — не голый водород: только такое идёт в бульон и первым в лавку
+const heavy = (/** @type {{c: Record<string, number>}} */ cp) => Object.keys(cp.c).some(e => e !== 'H');
 const Mols = {
   key: 'molecules', name: 'Молекулы', bg: [6, 24, 44], sling: true,
   // взятое поворачивают Q / E или Shift + колесо (на сенсоре оно поворачивается само по ходу броска)
@@ -69,7 +71,7 @@ const Mols = {
   enter(prev) {
     this.m = []; this.t = 0; this.clock = 0; this.hints = []; this.lowEMsgT = 0; this.floats = []; this.tk = {}; this.banner = -1.5;
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
-    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, tear: 0, cut: 0 }; this.tore = false; this.paidB = 0;
+    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, tear: 0, cut: 0 }; this.tore = false;
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     // атомы с прошлого уровня — на своих местах: мир растягивается в M_U раз, камера — во столько же отъезжает
     if (prev && prev.ions) {
@@ -246,19 +248,20 @@ const Mols = {
     host.hand = 0; host.auto = 0;
     if (src === 'hand') {
       host.mine = true; this.st.bonds++;
-      // очки — только за чистый прирост связей: «связал — разорвал (двойным кликом или ударом) — связал» не фармит
-      if (this.st.bonds - this.st.cut > this.paidB) { this.paidB = this.st.bonds - this.st.cut; addScore(40); }
+      // очков за связь нет (раньше +40 за каждую — с бесконечным притоком H это печатало очки): очки — за вехи (шаги, ★, уровень)
       if (this.st.bonds === 1) tipMsg('mols:bond', 'Ковалентная связь: общая пара электронов');
     }
     if (this.freeSlots(host)) return;
     const cp = COMP_BY[ckey(this.counts(host))];
-    if (!cp) return;
+    // насыщенное, но не из каталога (пропан, CH₂(OH)₂…) — реакция удалась, просто это не бульон: хотя бы формула
+    if (!cp) { if (src === 'hand') this.float(x, y - 10, `${this.formula(host)} · не из бульона`, [175, 185, 205], 12); return; }
     // C₂H₆O — это и этанол CH₃–CH₂–OH, и диметиловый эфир CH₃–O–CH₃: у этанола углероды связаны между собой
     if (cp.f === 'C₂H₅OH' && !host.bonds.some(b => host.atoms[b[0]].el === 'C' && host.atoms[b[1]].el === 'C')) {
       this.float(x, y - 10, 'CH₃–O–CH₃ · эфир, не спирт', [200, 205, 220], 13); return;
     }
     if (src === 'auto') { this.st.auto++; Uni.pay(this, this.res.has(cp.f) && !Uni.off(this, cp.f) ? cp.f : [...this.res].find(k => !Uni.off(this, k)) || cp.f, 2); } else if (src === 'hand') this.st.hand++;
-    if (src === 'auto' || (src === 'hand' && this.res.size)) { this.st.soup++; host.soup = true; } // Вселенная учится — бульон варит она и ты вместе
+    // Вселенная учится — бульон варит она и ты вместе; H₂ в бульон не в счёт (иначе финал проходился штамповкой H + H)
+    if ((src === 'auto' || (src === 'hand' && this.res.size)) && heavy(cp)) { this.st.soup++; host.soup = true; }
     Codex.note('m:' + cp.f);
     if (!this.found.includes(cp.f)) {
       this.found.push(cp.f); this.kn += 15; Sfx.play('fresh');
@@ -503,7 +506,7 @@ const Mols = {
 
   // ---------- исследование ----------
   bal() { return Math.floor(this.kn - this.spent); },
-  shopItems() { return this.doneAt !== null ? [] : COMP.filter(x => this.found.includes(x.f) && !this.res.has(x.f)).slice(0, 4).map(x => ({ ic: x.f, name: 'Синтез', about: x.n, c: this.mCost(), f: x.f })); },
+  shopItems() { return this.doneAt !== null ? [] : COMP.filter(x => this.found.includes(x.f) && !this.res.has(x.f)).sort((a, b) => +heavy(b) - +heavy(a)).slice(0, 4).map(x => ({ ic: x.f, name: 'Синтез', about: x.n, c: this.mCost(), f: x.f })); },
   // каждый следующий «Синтез» дороже на четверть: научённое приносит ✦ само
   mCost() { return Math.round(M_COST * (1 + .25 * this.res.size) / 5) * 5; },
   keyOf() { return this.shopItems().length ? 1 : null; },
@@ -534,7 +537,7 @@ const Mols = {
       { t: 'Открыть 4 соединения', h: 'аммиак NH₃, метан CH₄, перекись H₂O₂…', items: fd.slice(0, 6).map(f => [f, true]), p: [Math.min(fd.length, 4), 4], s: '4 соединения', d: fd.length >= 4 },
       { t: 'Собрать органику: связь C–C, C–O или C–N', h: 'метанол CH₃OH, этан C₂H₆, метиламин CH₃NH₂; тяжёлое в тяжёлое — бросок сильнее', s: 'органика', d: ORGANIC.some(f => fd.includes(f)) },
       { t: 'Сформировать законы', h: `${touch ? 'в лавке' : 'клавиши 1–4'}: «Синтез …»`, p: [Math.min(this.res.size, 2), 2], s: 'законы сформированы', d: this.res.size >= 2 },
-      { t: 'Первичный бульон', h: 'Вселенная собирает открытое, рогатка ей помогает', p: [Math.min(this.st.soup, 10), 10], s: 'бульон готов', d: this.st.soup >= 10 },
+      { t: 'Первичный бульон', h: 'Вселенная собирает открытое, рогатка ей помогает · H₂ не в счёт: нужны молекулы с C, N или O', p: [Math.min(this.st.soup, 10), 10], s: 'бульон готов', d: this.st.soup >= 10 },
     ];
   },
   starPool() {

@@ -90,7 +90,7 @@ function markDbl(e) {
   lastDown = { t: mouse.dbl ? -1e9 : t, x: e.clientX, y: e.clientY };
 }
 addEventListener('pointerdown', e => {
-  Sfx.unlock(); // звук включается первым жестом игрока (так требует браузер)
+  Sfx.unlock(); G.inT = G.T; // звук включается первым жестом игрока (так требует браузер); inT — игрок здесь (законы платят)
   if (Cine.stop) { e.stopPropagation(); Cine.skip(); if (e.pointerType !== 'mouse') touchMode(); return; } // кадр-пауза: касание — дальше, в игру не идёт
   if (Spot.on) { e.stopPropagation(); Spot.skip(); return; } // стоп-кадр со стрелкой: так же
   if (e.pointerType === 'mouse') {
@@ -181,11 +181,12 @@ function touchBar() {
 }
 addEventListener('wheel', e => {
   if (e.target !== cv) return;
+  G.inT = G.T;
   if (e.shiftKey && G.stage.wheel) { G.stage.wheel(e.deltaY || e.deltaX); return; }
   G.zoom = clamp((G.zoom || 1) * Math.exp(-e.deltaY * .0015), ZOOM_MIN, ZOOM_MAX);
 }, { passive: true });
 addEventListener('keydown', e => {
-  keys.add(e.code); Sfx.unlock();
+  keys.add(e.code); Sfx.unlock(); G.inT = G.T;
   if (e.code === 'KeyM' && document.activeElement !== pname) { const m = Sfx.toggle(); if (G.started) msg(m ? 'звук выкл. · M' : 'звук вкл. · M', 1.2); }
   if (Cine.stop) { if (e.code !== 'KeyM') { e.preventDefault(); Cine.skip(); } return; } // кадр-пауза: любая клавиша — дальше
   if (Spot.on && e.code !== 'KeyM') { e.preventDefault(); Spot.skip(); return; }

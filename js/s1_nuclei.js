@@ -28,6 +28,9 @@ const NR = .8; // радиус нуклона в масштабе уровня �
 // Y_R — гелий считаем в круге этого радиуса вокруг центра кадра (не по всему, что сейчас живёт в мире: иначе доля зависела бы от зума)
 const Y_R = 12.6;
 const N_FRAC = [.15, .4]; // доля нейтронов во Вселенной: по итогу «Адронов» — не меньше и не больше
+// «Нуклеосинтез» сам доводит гелий лишь до SYN_TOP — дальше ⁴He куёт Вселенная только до A = 3 (²H, ³H, ³He — заготовки),
+// последний шаг до 25 % — твоими бросками (как REC_TOP в «Атомах»): иначе после закона лучшей игрой было убрать руки
+const SYN_TOP = .17;
 const NU_R = .42, N_WIN = 120, N_PAR = 75, N_VIEW = 9, N_DENS = .075, N_CAP = 60, N_FLY = 1.3, N_REACH = 11, N_SPD = 1.75, N_VMAX = 15 * N_SPD, SYN_COST = 30, Y_GOAL = .25;
 const NUC_NAME = {
   '1,0': ['p', 'протон'], '0,1': ['n', 'нейтрон'], '1,1': ['²H', 'дейтерий'], '1,2': ['³H', 'тритий'], '2,1': ['³He', 'гелий-3'],
@@ -269,6 +272,7 @@ const Nuclei = {
     this.autoCd = 1.8 / Math.max(.35, this.T());
     const f = this.o.filter(o => this.free(o) && o.age > 1 && o.nb <= 0 && inRef(o.x, o.y, -1)); // в кадре-эталоне: видно, как Вселенная куёт, а зум не ускоряет
     let best = null, bs = -Infinity;
+    const top = this.Y() >= SYN_TOP;
     for (let i = 0; i < f.length; i++) for (let j = i + 1; j < f.length; j++) {
       const a = f[i], b = f[j], d = Math.hypot(a.x - b.x, a.y - b.y);
       if (d > 7) continue;
@@ -276,6 +280,7 @@ const Nuclei = {
       if (!r.out) continue;
       const A = a.Z + a.N + b.Z + b.N, he = r.out.some(([Z, N]) => Z === 2 && N === 2);
       if (A > 5 && !he) continue; // литий — только руками (испытание ★)
+      if (he && top) continue; // свою долю закон набрал — гелий дальше за тобой
       const sc = (he ? 10 : 0) + A * 2 - d - (a.Z * b.Z) * .5 + Math.random();
       if (sc > bs) { bs = sc; best = [a, b, d]; }
     }
@@ -294,7 +299,9 @@ const Nuclei = {
       const a = f[i], b = f[j];
       if (Math.hypot(a.x - b.x, a.y - b.y) > (a.rad + b.rad) * .8 || a.Z * b.Z > 0) continue;
       a.nb = b.nb = 1;
-      if (Math.random() < .35 && this.outcome(a, b).out) { this.collide(a, b, 1, this.rs.syn && !Uni.off(this, 'syn') ? 'auto' : null); this.spCd = 3; return; }
+      const r = Math.random() < .35 && this.outcome(a, b);
+      if (r && r.out && this.rs.syn && this.Y() >= SYN_TOP && r.out.some(([Z, N]) => Z === 2 && N === 2)) continue; // и сам по себе не доводит
+      if (r && r.out) { this.collide(a, b, 1, this.rs.syn && !Uni.off(this, 'syn') ? 'auto' : null); this.spCd = 3; return; }
     }
   },
 
@@ -416,7 +423,7 @@ const Nuclei = {
       { t: 'Собрать гелий-4', h: 'к ²H нейтрон, потом протон (протон бросать сильнее)',
         items: [['²H', s.has('1,1')], ['³H или ³He', s.has('1,2') || s.has('2,1')], ['⁴He', s.has('2,2')]], s: 'гелий-4', d: s.has('2,2') },
       { t: 'Сформировать закон «Нуклеосинтез»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${SYN_COST} ✦`, s: 'нуклеосинтез', d: this.rs.syn > 0, res: 'syn' },
-      { t: 'Набрать 25 % гелия', h: 'столько гелия в нашей Вселенной', p: [Math.min(Y, 25), 25], s: 'гелий как в нашей Вселенной', d: this.Y() >= Y_GOAL },
+      { t: 'Набрать 25 % гелия', h: this.rs.syn ? `столько в нашей Вселенной; «Нуклеосинтез» сам — до ${SYN_TOP * 100} %, дальше ⁴He твоими бросками` : 'столько гелия в нашей Вселенной', p: [Math.min(Y, 25), 25], s: 'гелий как в нашей Вселенной', d: this.Y() >= Y_GOAL },
     ];
   },
   starPool() {

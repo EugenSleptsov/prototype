@@ -11,16 +11,19 @@ function toStage(key, seed = 3) {
   return g;
 }
 
-test('звёзды: «Звёздный синтез» не бросает ⁴He в собранные к сверхновой ¹²C', () => {
+test('звёзды: «Звёздный синтез» куёт только углерод — ⁴He в ¹²C (кислород) и протоны (азот) бросаешь ты', () => {
   const g = toStage('stars');
   g.ev('G.stage.ignite(P.x, P.y)');
   // в недрах — ровно два ¹²C и гелий рядом; кислорода нет — он ещё нужен
   const put = (Z, N, dx) => `Object.assign({}, __t, { Z: ${Z}, N: ${N}, x: P.x + ${dx}, y: P.y, vx: 0, vy: 0, age: 5, dead: false, held: false, fly: 0, thrown: null })`;
   const setup = (nC) => g.ev(`(() => { const S = G.stage; globalThis.__t = S.o[0];
-    S.o = [${[...Array(nC)].map((_, i) => put(6, 6, i * 1.5)).join(', ')}, ${put(2, 2, -1.5)}];
+    S.o = [${[...Array(nC)].map((_, i) => put(6, 6, i * 1.5)).join(', ')}, ${put(2, 2, -1.5)}, ${put(1, 0, -3)}];
     S.rs.syn = 1; S.autoCd = 0; S.autoFuse(1 / 60); return S.o.filter(o => o.thrown === 'auto').length; })()`);
-  assert.equal(setup(2), 0, 'два ¹²C — ровно сколько нужно: не трогаем');
-  assert.equal(setup(3), 1, 'третий ¹²C — лишний: из него делаем ¹⁶O');
+  assert.equal(setup(2), 0, 'два ¹²C — не трогаем');
+  assert.equal(setup(3), 0, 'и лишний ¹²C закон в кислород не превращает: это твой бросок');
+  // ⁸Be и ⁴He рядом — тройная альфа: это закон делает
+  const be = g.ev(`(() => { const S = G.stage; S.o = [${put(4, 4, 0)}, ${put(2, 2, -1.5)}]; S.autoCd = 0; S.autoFuse(1 / 60); return S.o.filter(o => o.thrown === 'auto').length; })()`);
+  assert.equal(be, 1, '⁸Be + ⁴He → ¹²C — закон куёт');
 });
 
 test('молекулы: после «Синтеза» собранное рогаткой тоже идёт в «Первичный бульон»', () => {

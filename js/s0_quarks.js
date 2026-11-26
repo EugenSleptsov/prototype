@@ -269,7 +269,7 @@ const Quarks = {
   split(b, vx, vy) {
     b.dead = true; this.st.split++; this.st.strikes++;
     const s = Math.hypot(vx, vy) || 1, px = -vy / s, py = vx / s;
-    b.m.forEach((q, i) => { const k = i ? 1 : -1, o = this.mk([{ col: q.col, fl: q.fl, anti: q.anti }], q.x, q.y, vx * .5 + px * k * 2.5, vy * .5 + py * k * 2.5); o.age = 9; o.mine = b.mine; o.nb = .6; });
+    b.m.forEach((q, i) => { const k = i ? 1 : -1, o = this.mk([{ col: q.col, fl: q.fl, anti: q.anti, paid: q.paid, saved: q.saved }], q.x, q.y, vx * .5 + px * k * 2.5, vy * .5 + py * k * 2.5); o.age = 9; o.mine = b.mine; o.nb = .6; });
     fxRing(b.x, b.y, .2, [255, 255, 255], 1.6, .5); Sfx.play('pop');
     this.float(b.x, b.y - .7, 'пара разбита', [235, 235, 245], 13);
   },
@@ -316,14 +316,19 @@ const Quarks = {
       if (hand) { this.st.bounce++; if (j.why === 'same') this.once('same', 'Одинаковые цвета не складываются: в барионе все три разные — красный, зелёный и синий'); }
       return false;
     }
-    const o = this.mk([...b.m, ...a.m].map(q => ({ col: q.col, fl: q.fl, anti: q.anti })), (a.x + b.x) / 2, (a.y + b.y) / 2, (a.vx + b.vx) / 4, (a.vy + b.vy) / 4);
+    // paid — кварк уже был в оплаченной паре, saved — уже спасён за ✦: «сложил → разбил нуклоном → сложил» ✦ не печатает
+    const o = this.mk([...b.m, ...a.m].map(q => ({ col: q.col, fl: q.fl, anti: q.anti, paid: q.paid, saved: q.saved })), (a.x + b.x) / 2, (a.y + b.y) / 2, (a.vx + b.vx) / 4, (a.vy + b.vy) / 4);
     o.age = 9; o.nb = .5; o.rot = b.rot; o.mine = a.mine || b.mine || hand; o.byHand = hand || a.byHand || b.byHand;
     o.cold = Math.min(a.cold, b.cold); o.src = src;
     a.dead = b.dead = true; this.place(o);
     fxFlash(o.x, o.y, .7, isWhite(o) ? [255, 255, 255] : j.c, .35);
     if (hand) Sfx.play('segment');
-    if (carom) { this.st.carom++; this.kn += 4; this.float(o.x, o.y - 1.1, 'карамболь +4 ✦', GOLD, 15); fxRing(o.x, o.y, .3, GOLD, 2, .7); }
-    if (o.kind === 'pair') { this.zoo('qq', o.x, o.y); if (hand) { this.kn += 2; this.float(o.x, o.y - .5, `пара: ждёт ${Q_COLN[this.missing(o)[0]]} +2 ✦`, j.c, 13); } }
+    const fresh = o.kind !== 'pair' || !o.m.some(q => q.paid); // белое — всегда в первый раз (его не разбить)
+    if (carom) { this.st.carom++; if (fresh) this.kn += 4; this.float(o.x, o.y - 1.1, fresh ? 'карамболь +4 ✦' : 'карамболь', GOLD, 15); fxRing(o.x, o.y, .3, GOLD, 2, .7); }
+    if (o.kind === 'pair') {
+      this.zoo('qq', o.x, o.y);
+      if (hand) { if (fresh) { this.kn += 2; for (const q of o.m) q.paid = true; } this.float(o.x, o.y - .5, `пара: ждёт ${Q_COLN[this.missing(o)[0]]}${fresh ? ' +2 ✦' : ''}`, j.c, 13); }
+    }
     else this.onWhite(o, src, hand && a.kind === 'pair');
     return true;
   },
@@ -504,7 +509,11 @@ const Quarks = {
           if (Math.hypot(o.x - C.x, o.y - C.y) > R + o.rad * .3) { if ((o.cold += dt) > FREEZE_T) this.freeze(o); }
           else {
             o.cold = Math.max(0, o.cold - dt * 2);
-            if (o.rescue) { o.rescue = false; this.st.saved++; this.kn += 2; this.float(o.x, o.y - .6, 'спасён +2 ✦', Q_OK, 13); }
+            if (o.rescue) { // спасённое платит раз на кварк: «выбил за край — вернул шаром» не ферма
+              o.rescue = false; this.st.saved++; const nw = !o.m.some(q => q.saved);
+              if (nw) { this.kn += 2; for (const q of o.m) q.saved = true; }
+              this.float(o.x, o.y - .6, nw ? 'спасён +2 ✦' : 'спасён', Q_OK, 13);
+            }
           }
         }
         this.autoThrow(dt);

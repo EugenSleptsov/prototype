@@ -69,18 +69,19 @@ test('молекулы: зажал на атоме (не на связи) и д�
   assert.ok(g.ev('Math.hypot(__mol.vx, __mol.vy)') > 1, 'бросок');
 });
 
-test('молекулы: «связал — разорвал — связал» не фармит очки', () => {
+test('молекулы: «связал — разорвал — связал» не фармит очки (очков за связь нет — только вехи)', () => {
   const g = toStage('molecules');
   g.ev('for (const m of G.stage.m) m.dead = true; G.stage.m = []');
   const s0 = g.ev('G.score');
   g.ev(pairH);
-  assert.equal(g.ev('G.score') - s0, 40, 'первая связь — +40');
+  const s1 = g.ev('G.score');
+  assert.equal((s1 - s0) % g.ev('STEP_PTS'), 0, 'за саму связь очков нет — разве что веха шага');
   for (let i = 0; i < 3; i++) {
     g.ev(`(() => { const mol = G.stage.m.find(m => !m.dead && m.bonds.length); G.stage.splitBond(mol, 0); G.stage.st.tear++;
       for (const m of G.stage.m) m.dead = true; G.stage.m = []; })()`);
     g.ev(pairH);
   }
-  assert.equal(g.ev('G.score') - s0, 40, 'повторы после разрыва — без очков');
+  assert.equal(g.ev('G.score'), s1, 'повторы после разрыва — без очков');
 });
 
 test('звёзды: два ⁴He в ядре звезды сами сливаются в ⁸Be (скорость — в окне нового барьера)', () => {
