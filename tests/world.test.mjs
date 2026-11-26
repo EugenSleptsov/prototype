@@ -13,7 +13,7 @@ function toStage(key, seed = 3) {
 }
 // чем этап хранит свои тела и сколько их держать в кадре
 const WORLD = {
-  quarks: ['q', null],
+  quarks: ['o', null],
   nuclei: ['o', 'popWant(N_DENS, N_CAP)'],
   stars: ['gas', 'popWant(ST_GAS_D, ST_GAS_CAP)'],
   atoms: ['ions', 'popWant(A_DENS, A_CAP)'],

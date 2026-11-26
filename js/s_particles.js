@@ -620,19 +620,24 @@ const Particles = {
     if (sp === 'tg') return [{ c: 't', glu: true }];
     return [{ c: sp }];
   },
-  // Почему клетка не рождается ('' — рождается): поколение закрыто, мало энергии на массу, Вселенная ещё не умеет
+  // Почему клетка не рождается ('' — рождается): поколение закрыто, удару (√s) не хватает на массу, Вселенная ещё не умеет.
+  // Энергия удара — не запас ⚡: её верх 2·T·сила, и Вселенная остывает — после Хиггса тяжёлое (t, W, H) уже не родить
   /** @param {Cell} x @param {number} rs @param {boolean} [spont] */
   cellWhy(x, rs, spont) {
     const c = x.c;
     if (c === 'WW' || c === 'H') {
       if (this.hig <= .5) return 'после Хиггса';
-      if (rs < (c === 'WW' ? 2 * SM.W.m : SM.H.m) * this.hig) return 'мало энергии';
+      const need = (c === 'WW' ? 2 * SM.W.m : SM.H.m) * this.hig;
+      if (rs < need) return this.coldWhy(need);
       return spont && !Codex.auto.has(c === 'WW' ? 'W' : 'H') ? 'auto' : '';
     }
     if (!genOpen(c)) return `сначала ${genNeed(c).map(sp => SM[sp].sym).join(' и ')}`;
-    if (rs < 2 * this.mThr(c)) return 'мало энергии';
+    if (rs < 2 * this.mThr(c)) return this.coldWhy(2 * this.mThr(c));
     return spont && !Codex.auto.has(c) ? 'auto' : '';
   },
+  // удару не хватает на массу: если и в полную силу не хватит — Вселенная остыла; иначе — бить сильнее
+  /** @param {number} need */
+  coldWhy(need) { return need > this.Emax() ? `остыло: удару нужно ${fmtGeV(need)}, в полную силу — ${fmtGeV(this.Emax())}` : `нужен удар сильнее: ${fmtGeV(need)}`; },
   // Что родит удар: клетка ступени k, а если она закрыта — ближайшая ниже по строке
   /** @param {string} kinds @param {number} k @param {number} rs @param {boolean} [spont] @returns {Hit} */
   pickCell(kinds, k, rs, spont) {
@@ -818,7 +823,7 @@ const Particles = {
       const t = a.dx; a.dx = b.dx; b.dx = t; const u = a.dy; a.dy = b.dy; b.dy = u;
       a.flung = b.flung = 0; a.v = b.v = undefined;
       if (spont && k > 0 && this.pickCell(kinds, k, rs, false).c && onScreen(...W2S(x, y), 0)) fxRing(x, y, .05, [255, 240, 200], .35, .3); // искра: могло бы родить, но не исследовано
-      if (!spont) { fxRing(x, y, .1, [255, 160, 140], .6, .4); this.float(x, y, r.why || 'мало энергии', [255, 160, 140], 12); Sfx.play('fizzle'); if (this.tut) this.tut.weak++; this.tried([]); }
+      if (!spont) { fxRing(x, y, .1, [255, 160, 140], .6, .4); this.float(x, y, r.why || 'слабый удар', [255, 160, 140], 12); Sfx.play('fizzle'); if (this.tut) this.tut.weak++; this.tried([]); }
       return;
     }
     const c = r.c;

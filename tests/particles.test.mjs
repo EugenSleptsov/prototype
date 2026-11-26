@@ -194,3 +194,13 @@ test('рецепт в задании: поколение II — только п�
   setup(g2);
   assert.equal(step(g2).k, 2, 'μ уже открыт в прошлом забеге — рецепт сразу целиком');
 });
+
+test('частицы: удару не хватает на массу — подпись в ГэВ: «остыло» или «сильнее», а не «мало энергии» (запас ⚡ ни при чём)', () => {
+  const g = toField();
+  g.ev(`(() => { const S = G.stage; S.hig = 1; for (const k of ['e', 'u', 'd', 'mu', 'c', 's', 'ta', 't', 'b']) { Codex.see(k); Codex.run.add(k); } })()`);
+  g.ev('G.stage.T = 20');
+  assert.match(g.ev(`G.stage.cellWhy({ c: 't' }, G.stage.lvE(4), false)`), /^остыло: удару нужно 346 ГэВ, в полную силу — 120 ГэВ$/);
+  g.ev('G.stage.T = 200');
+  assert.match(g.ev(`G.stage.cellWhy({ c: 't' }, G.stage.lvE(1), false)`), /^нужен удар сильнее: 346 ГэВ$/);
+  assert.equal(g.ev(`G.stage.cellWhy({ c: 't' }, G.stage.lvE(4), false)`), '');
+});

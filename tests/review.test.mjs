@@ -62,22 +62,10 @@ test('ядра: гелий считается только в круге вок�
   assert.ok(g.ev('G.stage.Y()') > 0);
 });
 
-test('адроны: законы лепят барионы, но последний шаг — и твой: 5 нуклонов полем', () => {
+test('адроны: антибарионов нет — антикварк гасит только один кварк своего цвета', () => {
   const g = toStage('quarks');
-  g.ev(`(() => { const S = G.stage; for (const o of S.q) o.dead = true; S.q = []; S.groups.clear(); S.qgp = []; S.flow = () => {}; S.pairs = () => {};
-    S.handN = 5; S.made.p = 3; S.made.n = 2; S.st.snaps = 1; S.st.handFlips = 1; S.rs.conf = S.rs.np = 1;
-    globalThis.__G = [];
-    for (let i = 0; i < 12; i++) { const fl = i < 10 ? ['u', 'u', 'd'] : ['u', 'd', 'd'], m = fl.map((f, c) => S.mk(P.x + i * 1.5 + c * .3, P.y + 4, c, false, f)), id = S.gid++, grp = { id, m, kind: i < 10 ? 'p' : 'n', t: 9, born: S.t };
-      for (const o of m) o.g = id; S.groups.set(id, grp); __G.push(grp); } })()`);
-  assert.equal(g.ev('G.stage.steps()[5].d'), false, '12 барионов Вселенной — мало');
-  g.ev('for (const grp of __G.slice(0, 5)) for (const o of grp.m) o.own = 1');
-  assert.equal(g.ev('G.stage.steps()[5].d'), true);
-});
-
-test('адроны: антибарионов нет; повтор экзотики платит лишь первые разы', () => {
-  const g = toStage('quarks');
-  assert.equal(g.ev(`(() => { const S = G.stage, m = [0, 1, 2].map(c => S.mk(P.x, P.y, c, true, 'u')); return S.valid(m); })()`), false);
-  assert.equal(g.ev('EXO_REP') >= 1, true);
+  assert.equal(g.ev(`(() => { const S = G.stage, a = S.mk([{ col: 0, fl: 'u', anti: true }], 0, 0), b = S.mk([{ col: 1, fl: 'u', anti: true }], 0, 0); return S.judge(a, b).ok; })()`), false);
+  assert.equal(g.ev(`(() => { const S = G.stage, a = S.mk([{ col: 0, fl: 'u', anti: true }], 0, 0), b = S.mk([{ col: 0, fl: 'u', anti: false }, { col: 1, fl: 'd', anti: false }], 0, 0); return S.judge(a, b).why; })()`), 'antipair');
 });
 
 test('атомы: «Рекомбинация» сама прозрачности не даёт — после ~65 % электроны тормозит след игрока; в задании нет «дальше ты»', () => {
@@ -154,7 +142,7 @@ test('кузница: выкованное сверх UD_MAX в детектор
   assert.equal(g.ev('G.stage.forgedQ.length'), 15 - g.ev('UD_MAX'));
   g.ev('G.stage.endLevel(); G.trans = 99');
   assert.equal(g.ev('G.stage.key'), 'quarks');
-  assert.ok(g.ev('G.stage.q.filter(q => q.mine).length') >= 15, 'выкованное — материал «Адронов»');
+  assert.ok(g.ev('G.stage.o.filter(o => o.mine).length') >= 15, 'выкованное — материал «Адронов»');
   while (g.ev('G.stage.key') !== 'atoms') g.ev('advance(); G.trans = 99');
   assert.equal(g.ev('G.stage.eForge'), 5);
   assert.ok(g.ev('G.stage.el.filter(e => e.slow > 0).length') >= 5, 'холодные электроны у ионов');

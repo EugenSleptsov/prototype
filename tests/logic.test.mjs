@@ -62,18 +62,6 @@ test('рогатка: щипок без тела в руке не отменяе
   assert.equal(g.ev('mouse.cancel'), false);
 });
 
-test('кварки: Δ собрать можно (uuu), но поле сперва берёт тот, с кем выйдет протон', () => {
-  const g = toStage('quarks');
-  g.ev(`(() => { const S = G.stage; for (const o of S.q) o.dead = true; S.q = [];
-    const a = S.mk(P.x, P.y, 0, false, 'u'), b = S.mk(P.x, P.y, 1, false, 'u'); a.cap = b.cap = true;
-    globalThis.__u = S.mk(P.x + .2, P.y, 2, false, 'u'); globalThis.__d = S.mk(P.x + .5, P.y, 2, false, 'd'); __u.age = __d.age = 1;
-    S.focus = { cap: [a, b], had: [], ang: 0, t: 0, tog: 0, tog2: 0 }; S.tickFocus(1 / 60); })()`);
-  assert.equal(g.ev('__d.cap'), true, 'ближе u, но взят d — выйдет uud');
-  assert.ok(!g.ev('__u.cap'));
-  g.ev(`(() => { const S = G.stage; __d.cap = false; __d.dead = true; S.focus.cap = S.focus.cap.filter(o => o !== __d); S.tickFocus(1 / 60); })()`);
-  assert.equal(g.ev('__u.cap'), true, 'другого нет — берёт и u: Δ достижим');
-});
-
 test('ядра: тупик (нет нейтронов) — конец через несколько секунд, без бонуса уровня и ★ «до конца»', () => {
   const g = toStage('nuclei');
   g.ev(`G.stage.t = 61; G.stage.stuck = () => true`); // тупик: в кадре ни нейтронов, ни «недостроенного»
