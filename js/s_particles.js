@@ -70,7 +70,7 @@ const PH_CLS = [
   { n: 'мягкий', r: 'обычный', x: 0, e: 1, k: 5, kn: 1, c: [255, 200, 130] },
   { n: 'жёсткий', r: 'редкий', x: 4, e: 3, k: 15, kn: 5, c: [200, 225, 255] },
 ];
-const GLU_LOOPS = 4; // петель в пружинке глюона
+const GLU_LOOPS = 4, GLU_SPIN = 5; // петель в пружинке глюона; скорость её вращения (рад/с)
 const PH_TOP = PH_CLS.length - 1, PH_XMAX = 11, PH_HARD_A = .55; // самый жёсткий класс; верх спектра (x = E/T); с какого размаха раскачки свет жёсткий
 /** верх класса c в долях T @param {number} c */
 const phHi = c => (c < PH_TOP ? PH_CLS[c + 1].x : PH_XMAX);
@@ -238,19 +238,21 @@ function wavePacket(sx, sy, dx, dy, L, per, amp, phase, col, a, lw) {
 }
 // Глюон — пружинка из петель (как на диаграммах Фейнмана): у всех глюонов одна и та же форма, отличается только цвет.
 // Петли чередуют цвет и антицвет. Центр — в (sx, sy), ось — вдоль (dx, dy); размер — от зума, не от энергии.
-/** @param {number} sx @param {number} sy @param {number} dx @param {number} dy @param {RGB[]} cols @param {number} a @param {number} lw */
-function gluonCoil(sx, sy, dx, dy, cols, a, lw) {
+// roll — фаза вращения: пружинка крутится, петли (с их цветами) бегут вдоль оси, форма та же.
+/** @param {number} sx @param {number} sy @param {number} dx @param {number} dy @param {RGB[]} cols @param {number} a @param {number} lw @param {number} roll */
+function gluonCoil(sx, sy, dx, dy, cols, a, lw, roll) {
   const N = GLU_LOOPS, L = clamp(.95 * cam.z, 28, 64), k = L / (N * TAU), b = 2.4 * k, nx = -dy, ny = dx, per = 18;
+  const pt = (/** @type {number} */ t) => { const s = k * (t - roll) - b * Math.sin(t) - L / 2, w = -b * Math.cos(t); return [sx + dx * s + nx * w, sy + dy * s + ny * w]; };
   ctx.lineWidth = lw;
-  for (let j = 0; j < N; j++) {
-    ctx.strokeStyle = rgb(cols[j % cols.length], a); ctx.beginPath();
-    for (let i = 0; i <= per; i++) {
-      const t = (j + i / per) * TAU, s = k * t - b * Math.sin(t) - L / 2, w = b * (1 - Math.cos(t)) - b;
-      const x = sx + dx * s + nx * w, y = sy + dy * s + ny * w;
-      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-    }
-    ctx.stroke();
+  let ci = -1, t = roll;
+  for (let i = 0; i <= N * per; i++, t = roll + i / per * TAU) {
+    const c = ((Math.floor(t / TAU) % cols.length) + cols.length) % cols.length, [x, y] = pt(t);
+    if (c !== ci) { // новая петля — новый цвет: продолжаем с той же точки
+      if (ci >= 0) { ctx.lineTo(x, y); ctx.stroke(); }
+      ci = c; ctx.strokeStyle = rgb(cols[c], a); ctx.beginPath(); ctx.moveTo(x, y);
+    } else ctx.lineTo(x, y);
   }
+  ctx.stroke();
 }
 // Дуга-клин: толщина растёт от w0 у начала до w1 у конца — «набираешь» видно по толщине
 /** @param {number} x @param {number} y @param {number} r @param {number} a0 @param {number} a1 @param {number} w0 @param {number} w1 @param {RGB} c @param {number} a */
@@ -2188,7 +2190,7 @@ const Particles = {
         const glu = o.sp === 'g', gc = glu ? [c, QANTI[/** @type {number} */ (o.col2)]] : [c];
         if (o.thrown) { ctx.lineCap = 'round'; line(sx, sy, sx - o.dx * 34, sy - o.dy * 34, GOLD, .5 * a, 4); }
         if (!known) {
-          if (glu) gluonCoil(sx, sy, o.dx, o.dy, gc, .6 * a, 1.6); else wavePacket(sx, sy, o.dx, o.dy, L, per, amp, phase, c, .6 * a, 1.6);
+          if (glu) gluonCoil(sx, sy, o.dx, o.dy, gc, .6 * a, 1.6, o.ph + G.T * GLU_SPIN); else wavePacket(sx, sy, o.dx, o.dy, L, per, amp, phase, c, .6 * a, 1.6);
           ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,32,.85)'; ctx.beginPath(); ctx.arc(sx, sy, 7.5, 0, TAU); ctx.fill(); // кружок — на оси: волна бежит, а он стоит
           ring(sx, sy, 7.5, [235, 245, 255], .9, 1.3); label('?', sx, sy + .5, 10, [255, 255, 255], 1, 800); ctx.globalAlpha = 1;
           // нужный для задания квант (глюон третьей струи) — золотые дуги и что сделать
@@ -2205,7 +2207,7 @@ const Particles = {
           wavePacket(sx, sy, o.dx, o.dy, L, per, amp, phase, cc, .8 * a, 1.8);
         } else {
           glow(sx, sy, 7, c, .25 * a);
-          gluonCoil(sx, sy, o.dx, o.dy, gc, .85 * a, 2);
+          gluonCoil(sx, sy, o.dx, o.dy, gc, .85 * a, 2, o.ph + G.T * GLU_SPIN);
           // эпоха 4: что глюон сделает с кварком в детекторе — «антицвет → цвет»; полезный — в золотом кольце
           if (this.ep === 3 && !this.stockOut) {
             const help = this.helpGlu(o), y = sy - 15; // метка — на оси, чтобы не прыгала с волной
