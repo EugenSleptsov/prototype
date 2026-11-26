@@ -74,11 +74,15 @@ const GLU_LOOPS = 4, GLU_SPIN = 5; // петель в пружинке глюо�
 const PH_TOP = PH_CLS.length - 1, PH_XMAX = 11, PH_HARD_A = .55; // самый жёсткий класс; верх спектра (x = E/T); с какого размаха раскачки свет жёсткий
 /** верх класса c в долях T @param {number} c */
 const phHi = c => (c < PH_TOP ? PH_CLS[c + 1].x : PH_XMAX);
-// Цены исследований: новое в мире (новый вид частиц) — дорого, автоматизация уже имеющегося — дешевле
-// Цены «Сформировать закон». «Генерация X»: тяжелее X — дороже; каждое следующее «Генерация» — ещё на RES_UP дороже (их много,
-// а научённое приносит ✦ само — без роста цен Вселенная к концу эпохи 3 покупала бы себя сама).
-const RES_COST = { ph: [10, 30, 60], g: [40], coll: [60], cp: [40] }, RES_UP = .2;
-const resNew = (/** @type {number} */ v, n = 0) => Math.round((40 + 15 * v) * (1 + RES_UP * n) / 5) * 5;
+// Цены «Сформировать закон». Обязательные для заданий — «Свет» I, «Глюоны», «Асимметрия»; прочие — по одному
+// на эпоху сверх них: замер (бот «средний игрок», tests/shop.test.mjs) — ~1–1,5 ✦ в секунду (свет, снимки, вехи),
+// и каждый необязательный закон действует в первые секунды (lawNow) и окупается за 20–40 с игры, а не доходом в минуту.
+// Вся необязательная лавка — 245 ✦ (было ~600). «Столкновения» отдельно не продаются: приходят с первым законом вещества.
+const RES_COST = { ph: [10, 20, 30], g: [40], cp: [40] };
+/** «Кварки I–III» и «Лептоны I–III»: тяжелее поколение — чуть дороже (без роста за каждую покупку) @type {Record<string, number>} */
+const LAW_COST = { q1: 25, q2: 35, q3: 45, e: 25, mu: 30, ta: 35 };
+// что закон делает сразу: ◉ в запас u/d (кварки), e⁻ к атомам (лептоны II–III), пар своего вида в кадре, γ у детектора («Свет» II)
+const NOW_UD = 3, NOW_E = 2, NOW_PAIRS = 2, NOW_PH = 8;
 // Доход от научённого, ✦/мин (сводка «Законы Вселенной»): свет — по уровню, «Генерация X» — 2 + ценность X
 /** @type {Record<string, number>} */
 const UNI_RATE = { g: 3, coll: 4, cp: 4 }, UNI_PH = [0, 2, 4, 6];
@@ -538,7 +542,7 @@ const Particles = {
   // После первого столкновения игрока кванты изредка сталкиваются и сами — при случайной встрече
   /** @param {number} dt */
   spontaneous(dt) {
-    if (!this.rs.coll || Uni.off(this, 'coll') || this.ep === 3) return; // только после исследования «Столкновения»
+    if (!this.rs.coll || Uni.off(this, 'coll') || this.ep === 3) return; // только после закона «Столкновения» (приходит с первым законом вещества)
     if ((this.spCd -= dt) > 0) return; // равномерно по миру: горячая область не зовёт столкновения к себе
     const q = this.p.filter(o => !o.dead && this.isQ(o) && !o.cap && !(o.flung > 0) && o.born >= 1 && o.cd <= 0 && !(o.fade >= 0));
     for (let i = 0; i < q.length; i++) for (let j = i + 1; j < q.length; j++) {
@@ -1072,23 +1076,22 @@ const Particles = {
   /** @returns {Research[]} */
   resList() {
     if (!this.lit) return [];
-    if (this.ep === 3) return baryonTrios(this.stockQ) >= HAND_CP || this.rs.cp ? [{ k: 'cp', ic: '⚖', name: 'Асимметрия', cost: RES_COST.cp, about: () => 'вещества чуть больше, чем антивещества: нарушение CP дают три поколения кварков' }] : [];
-    const ph = { k: 'ph', ic: 'γ', name: 'Свет', cost: RES_COST.ph, about: (/** @type {number} */ l) => l >= 2 ? `горячих областей вдвое больше: ${HZ_N} → ${HZ_N * 2}, свет генерируется в них` : l ? `света в мире: ~${this.phN(l)} γ → ~${this.phN(l + 1)} γ` : `свет в мире: ~${this.phN(1)} γ` };
+    if (this.ep === 3) return baryonTrios(this.stockQ) >= HAND_CP || this.rs.cp ? [{ k: 'cp', ic: '⚖', name: 'Асимметрия', cost: RES_COST.cp, about: () => 'сразу: первая тройка сбережена · вещества чуть больше, чем антивещества: нарушение CP дают три поколения кварков' }] : [];
+    const ph = { k: 'ph', ic: 'γ', name: 'Свет', cost: RES_COST.ph, about: (/** @type {number} */ l) => l >= 2 ? `сразу: горячая область у детектора · горячих областей вдвое больше: ${HZ_N} → ${HZ_N * 2}` : l ? `сразу: +${NOW_PH} γ у детектора · света в мире ~${this.phN(l)} → ~${this.phN(l + 1)} γ` : `свет в мире: ~${this.phN(1)} γ` };
     const L = [];
     if (!this.rs.ph) L.push(ph);
-    if (Codex.has('g')) L.push({ k: 'g', ic: 'g', name: 'Глюоны', cost: RES_COST.g, about: () => 'Вселенная генерирует g' });
-    if (this.pairs > 0) L.push({ k: 'coll', ic: '✸', name: 'Столкновения', cost: RES_COST.coll, about: () => 'кванты сталкиваются: генерация исследованного' });
+    if (Codex.has('g')) L.push({ k: 'g', ic: 'g', name: 'Глюоны', cost: RES_COST.g, about: () => 'сразу: глюоны в мире · Вселенная генерирует g' });
     if (this.rs.ph && this.ep === 0) L.push(ph);
-    const need = this.ep === 2 ? this.need2 : this.ep === 0 ? this.need0 : ['H', 'Z', 'W'];
-    const all = [...Codex.run].filter(sp => !QLAW[sp] && (sp === 'H' || this.rs.coll > 0 && ((FERMIONS.includes(sp) && SM[sp].kind !== 'nu') || sp === 'W' || sp === 'Z'))).filter(sp => this.genBuyOk(sp)); // поколения — по лестнице
-    const nb = this.births();
+    // законы вещества — после первого столкновения руками (столкновения квантов приходят вместе с первым из них)
+    const need = this.ep === 2 ? this.need2 : this.ep === 0 ? this.need0 : [], hand = this.pairs > 0 || this.rs.coll > 0;
+    const all = hand ? [...Codex.run].filter(sp => LGEN[sp] && this.genBuyOk(sp)) : []; // лептоны — по лестнице поколений
     // кварки — по закону на поколение: открыт хоть один кварк поколения и куплено предыдущее
-    const qs = this.rs.coll > 0 ? Object.keys(QGEN).filter((k, i) => QGEN[k].some(sp => Codex.run.has(sp)) && (i === 0 || this.rs['q' + i] > 0)) : [];
+    const qs = hand ? Object.keys(QGEN).filter((k, i) => QGEN[k].some(sp => Codex.run.has(sp)) && (i === 0 || this.rs['q' + i] > 0)) : [];
     const needQ = (/** @type {string} */ k) => QGEN[k].some(sp => need.includes(sp));
     /** @type {Research[]} */
     const items = [
-      ...qs.map(k => ({ k, ic: QROM[k], name: `Кварки ${QROM[k]}`, cost: [resNew(this.qVal(k), nb)], about: () => this.qRole(k), nd: needQ(k) })),
-      ...all.map(sp => ({ k: sp, ic: SM[sp].sym, name: LGEN[sp] ? `Лептоны ${LGEN[sp]}` : `Генерация ${SM[sp].sym}`, cost: [resNew(this.value(sp), nb)], about: () => this.role(sp), nd: need.includes(sp) })),
+      ...qs.map(k => ({ k, ic: QROM[k], name: `Кварки ${QROM[k]}`, cost: [LAW_COST[k]], about: () => this.lawSoon(k) + this.qRole(k), nd: needQ(k) })),
+      ...all.map(sp => ({ k: sp, ic: SM[sp].sym, name: `Лептоны ${LGEN[sp]}`, cost: [LAW_COST[sp]], about: () => this.lawSoon(sp) + this.role(sp), nd: need.includes(sp) })),
     ];
     for (const r of [...items.filter(r => r.nd), ...items.filter(r => !r.nd)]) L.push({ k: r.k, ic: r.ic, name: r.name, cost: r.cost, about: r.about });
     return L;
@@ -1123,6 +1126,64 @@ const Particles = {
     if (k === 'q2') return `кузница c, s → u/d (потолок ${this.udCap('c')}) · в «Адронах»: странные ▲ и очарованные ■ кварки, гипероны Λ, Σ, Ξ и Λc`;
     return `t в кадре: ⚡ полный · кузница b (потолок ${this.udCap('b')}) · в «Адронах»: прелестный ⬢, Λb и каскад b → c → s → u`;
   },
+  // виды закона вещества: поколение кварков или лептон
+  /** @param {string} k @returns {string[]} */
+  lawSps(k) { return QGEN[k] || (LGEN[k] ? [k] : []); },
+  // вид задания эпохи 3, который закон k отдаст горячей точке сразу (распад ещё не снят, вид создан игроком)
+  /** @param {string} k */
+  lawHot(k) { return this.ep === 2 ? this.need2.find(sp => this.lawSps(k).includes(sp) && !this.decSeen.has(sp) && genOpen(sp) && Codex.has(sp)) : undefined; },
+  // что закон сделает в первые секунды — начало строки лавки («сразу: … · »)
+  /** @param {string} k */
+  lawSoon(k) {
+    const hot = this.lawHot(k), sym = (/** @type {string} */ s) => SM[s].sym, L = [];
+    if (hot) L.push(`горячая точка родит ${sym(hot)}`);
+    const seen = this.lawSps(k).filter(sp => Codex.has(sp) && sp !== hot).map(sym);
+    if (k === 'q3' && this.enOn()) L.push('⚡ полный');
+    const room = QGEN[k] ? Math.min(NOW_UD, this.udCap(QGEN[k][0]) - this.udRes.length) : 0;
+    if (room > 0) L.push(`+${room} ◉ в запас u/d`);
+    if (FORGE_L.includes(k)) L.push(`+${NOW_E} e⁻ к атомам`);
+    if (seen.length) L.push(k === 'e' ? `${NOW_PAIRS} пары e⁺e⁻ в кадре` : `пары ${seen.join(', ')} в кадре`);
+    return L.length ? `сразу: ${L.join(', ')} · ` : '';
+  },
+  // Закон сформирован — действует в ту же секунду (а не когда-нибудь): возвращает, что произошло, для сцены
+  /** @param {string} k @param {number} l */
+  lawNow(k, l) {
+    const L = [];
+    if (k === 'ph' && l === 2) { // свет: вспышка квантов у детектора — их сразу можно ловить
+      for (let i = 0; i < NOW_PH; i++) { const [x, y] = this.inViewPos(), o = this.mk('ph', false, x, y, Math.random() * TAU, 0); o.p = this.phP(); o.uni = true; }
+      fxRing(P.x, P.y, this.hr(), PH_C, this.hr() * 2.2, .8);
+      L.push(`+${NOW_PH} γ у детектора`);
+    } else if (k === 'ph' && l >= 3 && this.hzOn()) { // горячая область вспыхивает в кадре уже разогретой
+      const a = Math.random() * TAU, d = this.hr() + HZ_R * 1.2;
+      this.hz.push({ x: P.x + Math.cos(a) * d, y: P.y + Math.sin(a) * d, r: HZ_R, t: HZ_IN, L: HZ_L }); this.hzCd = 0;
+      L.push('горячая область у детектора');
+    }
+    if (k === 'cp') L.push('первая тройка сбережена');
+    const sps = this.lawSps(k); if (!sps.length) return L.join(', ');
+    const hot = this.lawHot(k);
+    if (hot) { // задание эпохи 3: горячая точка — сейчас, без очереди
+      if (!this.hot.some(h => h.sp === hot)) { const a = Math.random() * TAU, d = rnd(this.hr() + 1.2, viewRadius() * .5); this.hot.push({ x: P.x + Math.cos(a) * d, y: P.y + Math.sin(a) * d, t: 0, sp: hot }); }
+      this.hotCd = 5; L.push(`горячая точка родит ${SM[hot].sym}`);
+    }
+    if (k === 'q3' && this.enOn()) { this.en = E_CAP; this.full = true; L.push('⚡ полный'); }
+    if (QGEN[k]) { // кузница сразу: ◉ в запас (поровну u и d — сложатся тройки)
+      let n = 0;
+      for (; n < NOW_UD && this.udRes.length < this.udCap(); n++) this.udRes.push(this.udRes.filter(f => f === 'u').length * 2 <= this.udRes.length ? 'u' : 'd');
+      if (n) { Uni.pay(this, k, 0); this.float(P.x, P.y + this.hr() + .3, `+${n} ◉ в запас · ${this.udRes.length}/${this.udCap()} ◉`, [140, 235, 170], 13); L.push(`+${n} ◉ в запас u/d (${this.udRes.length}/${this.udCap()})`); }
+    }
+    if (FORGE_L.includes(k)) {
+      const n = Math.min(NOW_E, E_FORGE - this.eRes); this.eRes += n;
+      if (n) { this.float(P.x, P.y + this.hr() + .3, `+${n} e⁻ к атомам · ${this.eRes}/${E_FORGE}`, [150, 205, 255], 13); L.push(`+${n} e⁻ к атомам`); }
+    }
+    // пары своего вида — в кадре, рождённые Вселенной: видно, что теперь она это умеет (вид задания — у горячей точки)
+    const seen = sps.filter(sp => Codex.has(sp) && sp !== hot);
+    for (const sp of seen) for (let i = 0; i < (k === 'e' ? NOW_PAIRS : 1); i++) {
+      const [x, y] = this.inViewPos();
+      for (const q of this.pair(sp, x, y, this.thermalP(this.T))) q.uni = true;
+    }
+    if (seen.length) L.push(k === 'e' ? `${NOW_PAIRS} пары e⁺e⁻ в кадре: гаснут в γγ` : `пары ${seen.map(sp => SM[sp].sym).join(', ')} в кадре`);
+    return L.join(', ');
+  },
   // законы поколений: кварк, открытый после закона, Вселенная тоже рождает (выключенный закон — нет)
   qSync() {
     for (const k in QGEN) {
@@ -1152,8 +1213,6 @@ const Particles = {
   // сколько квантов света держит в мире закон «Свет» уровня l (как в qCap, когда разгорелся)
   /** @param {number} l */
   phN(l) { return Math.round(this.nQ() * PH_DENS[Math.min(l, PH_DENS.length - 1)]); },
-  // сколько «Генераций» уже научено (каждое следующее дороже)
-  births() { return Object.keys(this.rs).filter(k => this.rs[k] > 0 && !(k in RES_COST) && !QLAW[k]).length; }, // кварки считаются законами поколений (q1…q3)
   // ровный доход от научённого, ✦/мин, на уровне l
   /** @param {string} k @param {number} l */
   uniRate(k, l) { return k === 'ph' ? UNI_PH[Math.min(l, UNI_PH.length - 1)] : UNI_RATE[k] ?? 2 + (QGEN[k] ? this.qVal(k) : this.value(k)); },
@@ -1209,21 +1268,25 @@ const Particles = {
     else if (k === 'g') { Codex.auto.add('g'); this.unlockGluons(); }
     else if (k === 'cp') this.saveCd = .8;
     else if (QGEN[k]) this.qSync();
-    else if (k !== 'ph' && k !== 'coll') Codex.auto.add(k);
+    else if (k !== 'ph') Codex.auto.add(k);
+    // первый закон вещества приносит и столкновения квантов: без них Вселенной не из чего генерировать вещество
+    const coll = this.lawSps(k).length > 0 && !this.rs.coll;
+    if (coll) { this.rs.coll = 1; Uni.learn(this, 'coll', '✸', 'Столкновения', UNI_RATE.coll); }
     Codex.dirty = true;
     const pm = gain || this.uniRate(k, l); Uni.learn(this, k, r.ic, r.name, this.uniRate(k, l));
+    const now = this.lawNow(k, l);
     fxRing(P.x, P.y, this.hr(), GOLD, this.hr() * 1.8, .7);
-    // сцена: что теперь происходит в мире (первый закон и закон глюонов — кадр-пауза)
+    // сцена: что теперь происходит в мире и что случилось сразу (первый закон и закон глюонов — кадр-пауза)
     const what = k === 'ph' ? (l >= 3 ? `Горячих областей вдвое больше: ${HZ_N} → ${HZ_N * 2}. Свет генерируется именно там` : l > 1 ? `Света во Вселенной больше: ~${this.phN(l - 1)} → ~${this.phN(l)} квантов γ` : 'Вселенная светит созданным светом. Пойманный кругом свет даёт ⚡ и ✦')
-      : k === 'g' ? 'Мир наполняется глюонами: это клей, который потом свяжет кварки' : k === 'coll' ? 'Кванты сталкиваются: генерация частиц по сформированным законам'
-      : k === 'cp' ? 'Вещество больше не сгорает: тройки сберегаются' : k === 'H' ? 'Всплески поля генерируют бозоны Хиггса' : QGEN[k] ? `Генерация кварков ${QROM[k]} поколения в мире · ${this.qRole(k)}` : LGEN[k] ? `Генерация лептонов ${LGEN[k]} поколения (${SM[k].sym}) в мире · ${this.role(k)}` : `Генерация ${SM[k].sym} в мире · ${this.role(k)}`;
+      : k === 'g' ? 'Мир наполняется глюонами: это клей, который потом свяжет кварки'
+      : k === 'cp' ? 'Вещество больше не сгорает: тройки сберегаются' : QGEN[k] ? `Генерация кварков ${QROM[k]} поколения в мире · ${this.qRole(k)}` : `Генерация лептонов ${LGEN[k]} поколения (${SM[k].sym}) в мире · ${this.role(k)}`;
     const first = !this.learn.taught; this.learn.taught = true;
     const html = `<div class="ck">Закон сформирован</div><div class="rx"><span class="cs res">${r.ic}</span></div><div class="cn">${r.name}</div>` +
-      `<div class="cp">${what}</div>`;
-    const pay = `<div class="cg">и это приносит +${fmtPm(pm)} ✦ в минуту (справа, в «Законах Вселенной»)</div>`;
+      `<div class="cp">${what}${coll ? '. Кванты сталкиваются и сами: из столкновений Вселенная генерирует вещество' : ''}</div>` + (now ? `<div class="cg">Сразу: ${now}</div>` : '');
+    const pay = `<div class="cg"><small>и понемногу ✦: +${fmtPm(pm)} в минуту (справа, в «Законах Вселенной»)</small></div>`;
     // первый закон — важное знание (так устроена вся игра): кадр-пауза; дальше — сцена над лавкой
     if (LGEN[k] && !this.lepDone && this.lepAll()) { this.lepBranch(); return; } // третий лептонный закон — ветка завершена: своя сцена
-    if (first) Cine.show(html + `<div class="cg">Закон приносит +${fmtPm(pm)} ✦ в минуту, пока идёт игра. Справа: все сформированные законы</div>`, 6, .8);
+    if (first) Cine.show(html + `<div class="cg">Закон работает сразу и сам, пока идёт игра (и понемногу приносит ✦: +${fmtPm(pm)} в минуту). Справа: все сформированные законы</div>`, 6, .8);
     else if (k === 'g' && l === 1 && this.ep === 0) Cine.show(html + this.gluPairs() + pay, 8, .8, true); // лента без паузы
     else showScene(html + pay, 3.4);
   },
@@ -1266,9 +1329,9 @@ const Particles = {
     const b = this.bal(), anyPri = items.some(x => x.pri);
     // иерархия: «для задания» — крупно; прочие исследования — компактно (если есть главное или их много)
     const html = items.map((x, k) => {
-      const { r, c } = x, sec = !x.pri && (anyPri || k > 0 && items.length > 2), ab = `${r.about(this.rLvl(r.k))} · +${fmtPm(this.uniGain(r.k))} ✦/мин`;
+      const { r, c } = x, sec = !x.pri && (anyPri || k > 0 && items.length > 2), ab = r.about(this.rLvl(r.k)), tip = `${ab} · и понемногу +${fmtPm(this.uniGain(r.k))} ✦/мин`;
       const gn = QGEN[r.k] ? ` g${r.k[1]}` : SM[r.k] && SM[r.k].kind !== 'boson' ? ` g${SM[r.k].gen}` : ''; // поколение: I — зелёный, II — жёлтый, III — красный
-      return `<button data-i="${k}" class="res ${b >= c ? 'ok' : 'no'}${x.pri ? ' pri' : sec ? ' sec' : ''}${gn}" title="${r.name}: ${ab}">${x.pri ? '<u>для задания</u>' : ''}<span class="k">${k + 1}</span>` +
+      return `<button data-i="${k}" class="res ${b >= c ? 'ok' : 'no'}${x.pri ? ' pri' : sec ? ' sec' : ''}${gn}" title="${r.name}: ${tip}">${x.pri ? '<u>для задания</u>' : ''}<span class="k">${k + 1}</span>` +
         `<span class="ic">${r.ic}</span><b>${r.name}</b><i>${ab}</i><em>${x.pri ? 'Сформировать закон · ' : ''}${c} ✦</em></button>`;
     }).join('');
     if (el._h !== html) { el._h = html; el.innerHTML = html; }
@@ -1846,7 +1909,7 @@ const Particles = {
         const pre = genOpen(sp) ? null : genNeed(sp)[0], mk = pre || (Codex.auto.has(sp) ? null : sp);
         return { t: `Снять распад ${sym(sp)}`, h: pre ? `сначала ${this.howTo(pre).toLowerCase()}. Поколения открываются по порядку`
           : Codex.auto.has(sp) ? `Вселенная генерирует ${sym(sp)} у горячей точки. Снимок: ${tap} по золотой вершине, где он распадётся`
-          : `${this.howTo(sp)}, затем ${tap} по золотой вершине, где он распадётся. Или ${this.rs[sp] ? `включить закон ${this.lawName(sp)} справа` : `сформировать закон: ${this.rs.coll ? '' : '«Столкновения», потом '}${this.ladder(sp)}`}`,
+          : `${this.howTo(sp)}, затем ${tap} по золотой вершине, где он распадётся. Или ${this.rs[sp] ? `включить закон ${this.lawName(sp)} справа` : `сформировать закон: ${this.ladder(sp)} (горячая точка родит его сразу)`}`,
           s: `распад ${sym(sp)}`, d: this.decSeen.has(sp), res: genOpen(sp) ? this.buyNext(sp) : null, rx: mk ? this.taskRx(mk) : undefined };
       });
       default: {

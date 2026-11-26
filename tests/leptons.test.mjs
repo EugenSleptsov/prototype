@@ -18,7 +18,7 @@ const names = g => g.ev(`G.stage.resList().map(r => r.name).join(' | ')`);
 
 test('лептоны: в лавке — «Лептоны I, II, III» по лестнице, как кварки', () => {
   const g = lit();
-  assert.ok(buy(g, 'coll') !== null);
+  assert.equal(buy(g, 'coll'), null, '«Столкновения» не продаются: приходят с первым законом вещества');
   assert.match(names(g), /Лептоны I(?!I)/, names(g));
   assert.doesNotMatch(names(g), /Генерация (e|μ|τ)/);
   assert.doesNotMatch(names(g), /Лептоны II/, 'II — только после I');
@@ -29,7 +29,7 @@ test('лептоны: в лавке — «Лептоны I, II, III» по ле�
 
 test('лептоны: все три — ветка завершена, сцена и бонус ⚡ за распад μ и τ Вселенной', () => {
   const g = lit();
-  buy(g, 'coll'); buy(g, 'e'); buy(g, 'mu');
+  buy(g, 'e'); buy(g, 'mu');
   assert.equal(g.ev('G.stage.lepDone'), false);
   const html = buy(g, 'ta');
   assert.equal(g.ev('G.stage.lepDone'), true);
@@ -46,7 +46,7 @@ test('лептоны: все три — ветка завершена, сцен�
 
 test('лептоны: без всех трёх бонуса нет', () => {
   const g = lit();
-  buy(g, 'coll'); buy(g, 'e'); buy(g, 'mu');
+  buy(g, 'e'); buy(g, 'mu');
   const de = g.ev(`(() => { const S = G.stage; S.en = 2; const o = S.mk('mu', false, P.x + 30, P.y, 0, .01); o.uni = true; o.born = 1; S.decay(o); return S.en - 2; })()`);
   assert.equal(de, 0);
 });

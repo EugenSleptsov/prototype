@@ -36,7 +36,7 @@ test('молекулы: после «Синтеза» собранное рог�
 test('лавка частиц: пункт «для задания» не отрезается, даже если исследований много', () => {
   const g = loadGame();
   g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.light); g.ev(`Codex.see('ph')`);
-  g.ev(`(() => { const S = G.stage; S.ep = 1; S.rs.coll = 1; S.rs.e = S.rs.u = S.rs.d = 1; S.kn += 9999; for (const sp of ['e', 'u', 'd', 'mu', 'nm', 's', 'c', 'ta', 'b', 'g', 'H']) { Codex.see(sp); Codex.run.add(sp); } })()`); // первое поколение научено — второе в лавке
+  g.ev(`(() => { const S = G.stage; S.ep = 1; S.rs.coll = 1; S.rs.e = S.rs.u = S.rs.d = S.rs.q1 = S.rs.mu = 1; S.kn += 9999; for (const sp of ['e', 'u', 'd', 'mu', 'nm', 's', 'c', 'ta', 'b', 'g', 'H']) { Codex.see(sp); Codex.run.add(sp); } })()`); // первое поколение и μ научены — в лавке второе и третье
   const all = g.ev(`G.stage.resList().map(r => r.k)`);
   assert.ok(all.length > g.ev('RES_MAX'), 'исследований больше, чем мест в лавке');
   const last = all[all.length - 1];
