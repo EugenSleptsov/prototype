@@ -23,6 +23,8 @@ const Q_TOTAL = 54, ANTI_N = 6, U_SHARE = .6;
 // бросок: скорость полной резинки, сколько пролетает самое меньшее, сколько летит самое меньшее
 const Q_VMAX = 13, Q_REACH = 6, Q_FLY = .8;
 const DELTA_T = 1.6, MESON_T = 2.6; // жизнь Δ и пиона
+// белое схлопывается: за SQ_T кварки стягиваются к центру (до SQ_K раскладки), цвета сливаются в белый
+const SQ_T = .5, SQ_K = .4, SQ_RAD = .36;
 // цель, своих нуклонов в цели, нейтронов в цели, барионов рогаткой до закона, цена закона, как часто бросает Вселенная
 const GOAL_N = 12, OWN_N = 5, GOAL_NN = 2, HAND_Q = 2, CONF_COST = 25, AUTO_CD = 1.6;
 // «Адронный зоопарк» — ключи кодекса 'h:…'
@@ -118,17 +120,18 @@ const Quarks = {
   // тело — кварк, пара или адрон: члены уложены вокруг центра (у каждого — своё место в мире: так их видят «Ядра»)
   mk(m, x, y, vx = 0, vy = 0) {
     const o = { id: this.id++, m: m.map(q => ({ ...q, lx: 0, ly: 0, x, y, vx, vy })), x, y, vx, vy, kind: 'q', rad: QR, age: 0, dead: false, nb: 0, fly: 0, thrown: null, held: false,
-      rot: Math.random() * TAU, cold: 0, mine: false, byHand: false, t: 0, T: 0, sym: '', top: '', dq: '', pk: '', tr: null };
+      rot: Math.random() * TAU, cold: 0, mine: false, byHand: false, t: 0, T: 0, sym: '', top: '', dq: '', pk: '', tr: null, sq: 0, r0: QR };
     this.lay(o); this.classify(o); this.o.push(o); return o;
   },
   lay(o) {
     const n = o.m.length, R = n === 1 ? 0 : n === 2 ? .22 : .3;
     o.m.forEach((q, k) => { const a = -Math.PI / 2 + k * TAU / n; q.lx = Math.cos(a) * R; q.ly = Math.sin(a) * R; });
-    o.rad = n === 1 ? QR : n === 2 ? .48 : .56;
+    o.r0 = o.rad = n === 1 ? QR : n === 2 ? .48 : .56;
     this.place(o);
   },
   place(o) {
-    const c = Math.cos(o.rot), s = Math.sin(o.rot);
+    const e = smooth(0, 1, o.sq), f = 1 - (1 - SQ_K) * e, c = Math.cos(o.rot) * f, s = Math.sin(o.rot) * f;
+    o.rad = lerp(o.r0, SQ_RAD, e);
     for (const q of o.m) { q.x = o.x + q.lx * c - q.ly * s; q.y = o.y + q.lx * s + q.ly * c; q.vx = o.vx; q.vy = o.vy; }
   },
   float(x, y, txt, c = [140, 220, 255], sz = 14) { this.floats.push({ x, y, t: 0, txt, c, sz }); Fly.from(x, y, txt); },
@@ -367,6 +370,7 @@ const Quarks = {
     for (const o of this.o) {
       if (o.dead) continue;
       o.age += dt; o.nb -= dt; o.rot += dt * (isWhite(o) ? .8 : .4);
+      if (isWhite(o) && o.sq < 1) o.sq = Math.min(1, o.sq + dt / SQ_T);
       if (o.tr) { if (o.age < 3.5) { o.tr.push([o.x, o.y]); if (o.tr.length > 40) o.tr.shift(); } else o.tr = null; }
       if (!o.held) {
         if (o.fly > 0) { if ((o.fly -= dt) <= 0) o.thrown = null; }
@@ -605,11 +609,13 @@ const Quarks = {
     const c = white ? (isNuc(o) ? NP_C[o.kind] : o.kind === 'meson' ? PI_C[o.pk] : o.kind === 'hyp' ? HYP_C[o.top] : [255, 200, 130]) : o.m.length === 2 ? mixc(QCOL[o.m[0].col], QCOL[o.m[1].col], .5) : QCOL[o.m[0].col];
     if (pts.length === 3) { const cx = (pts[0][0] + pts[1][0] + pts[2][0]) / 3, cy = (pts[0][1] + pts[1][1] + pts[2][1]) / 3; for (const p of pts) this.tube(cx, cy, p[0], p[1], [255, 255, 255], w, a); }
     else if (pts.length === 2) this.tube(pts[0][0], pts[0][1], pts[1][0], pts[1][1], white ? [255, 255, 255] : c, w, a * (white ? 1 : .75 + .25 * Math.sin(G.T * 5)));
+    const e = white ? smooth(0, 1, o.sq) : 0, rr = lerp(.72, .5, e);
     if (white) {
-      glow(sx, sy, 1.5 * zs, [255, 255, 255], .28 * a);
-      ring(sx, sy, .72 * zs, c, .7 * a, 2.5);
-      if (o.kind === 'delta' || o.kind === 'hyp' || o.kind === 'meson') arc(sx, sy, .86 * zs, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(o.t / o.T, 0, 1), c, .8 * a, 2);
-      tag(this.symOf(o), sx, sy - .72 * zs - 13, clamp(.22 * z, 12, 20), c, .95 * a, 800);
+      glow(sx, sy, lerp(1.5, 1.1, e) * zs, [255, 255, 255], (.28 + .2 * e) * a);
+      ball(sx, sy, rr * .62 * zs, [255, 255, 255], .3 * e * a); // схлопнулась — одно белое ядрышко
+      ring(sx, sy, rr * zs, c, .7 * a, 2.5);
+      if (o.kind === 'delta' || o.kind === 'hyp' || o.kind === 'meson') arc(sx, sy, (rr + .14) * zs, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(o.t / o.T, 0, 1), c, .8 * a, 2);
+      tag(this.symOf(o), sx, sy - rr * zs - 13, clamp(.22 * z, 12, 20), c, .95 * a, 800);
     } else {
       glow(sx, sy, (o.m.length === 2 ? 1.2 : .9) * zs, c, .32 * a);
       // пара: на пустом месте — кружок недостающего цвета
@@ -620,9 +626,10 @@ const Quarks = {
       }
     }
     o.m.forEach((q, i) => {
-      const [px, py] = pts[i], r = QR * zs * .9;
-      glow(px, py, r * 2.6, QCOL[q.col], (white ? .2 : .4) * a);
-      quark(px, py, r, QCOL[q.col], q.fl, q.anti, a);
+      // в белом цвет кварка тает в белый, сам кварк сжимается
+      const [px, py] = pts[i], r = QR * zs * .9 * (1 - .4 * e), qc = mixc(QCOL[q.col], [255, 255, 255], .85 * e);
+      glow(px, py, r * 2.6, qc, (white ? .2 * (1 - .6 * e) : .4) * a);
+      quark(px, py, r, qc, q.fl, q.anti, a);
       if (r > 8 && !white) label(q.anti ? `${q.fl}̄` : q.fl, px, py + r * 1.9, r * .85, HEAVY[q.fl] ? HYP_C[q.fl] : [255, 255, 255], .75 * a);
     });
     // в холоде: ледяная дуга — сколько осталось до вымерзания

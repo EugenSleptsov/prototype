@@ -195,3 +195,15 @@ test('p⁺ и n⁰ различимы: свой цвет кольца и под�
   assert.ok(p && n, JSON.stringify(tags));
   assert.notEqual(p[1], n[1]);
 });
+
+test('адроны: белое схлопывается — кварки стягиваются к центру, цветное (пара) не сжимается', () => {
+  const g = hadrons(); empty(g);
+  g.ev(B('__p', [[0, 'u'], [1, 'u'], [2, 'd']], 0)); g.ev(B('__q', [[0, 'u'], [1, 'd']], 3));
+  const D = n => g.ev(`+Math.hypot(${n}.m[0].x - ${n}.x, ${n}.m[0].y - ${n}.y).toFixed(3)`);
+  assert.equal(D('__p'), .3);
+  g.step(60);
+  assert.equal(g.ev('__p.sq'), 1);
+  assert.equal(D('__p'), +(0.3 * g.ev('SQ_K')).toFixed(3));
+  assert.equal(g.ev('__p.rad'), g.ev('SQ_RAD'));
+  assert.equal(g.ev('__q.sq'), 0); assert.equal(D('__q'), .22);
+});
