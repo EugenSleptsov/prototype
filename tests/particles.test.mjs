@@ -66,7 +66,7 @@ test('ступени удара: каждая стоит 1 ⚡, одиночны
   const r = [1, 2, 3, 4].map(k => json(g, `__hit('ph', 'ph', ${k})`));
   r.forEach((x, i) => { assert.equal(x.lv, i + 1); assert.equal(x.spent, i + 1); });
   // один квант в поле — ступени не растут, ⚡ не тратится
-  const one = json(g, `(() => { const S = G.stage; S.en = 5; for (const o of S.p) if (!o.dead && S.isQ(o)) o.dead = true; update(1 / 60);
+  const one = json(g, `(() => { const S = G.stage; S.en = 5; S.hz = []; S.cz = []; S.hzCd = S.czCd = 999; S.populate = () => {}; for (const o of S.p) if (!o.dead && S.isQ(o)) o.dead = true; update(1 / 60);
     const A = S.mk('ph', false, P.x + .5, P.y, 0, S.T); A.born = 1; A.cd = 2; mouse.clicked = true; mouse.down = true; __step(180);
     const r = { cap: S.focus ? S.focus.cap.length : 0, lv: S.focus ? S.focus.lv || 0 : 0, en: S.en }; mouse.down = false; __step(5); return r; })()`);
   assert.deepEqual(one, { cap: 1, lv: 0, en: 5 });

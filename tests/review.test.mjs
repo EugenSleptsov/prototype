@@ -185,3 +185,47 @@ test('метрики «Во Вселенной»: число e±, μ±, τ± и 
   g.ev(`G.stage.p.find(o => o.sp === 'e').fade = 1`);
   assert.equal(g.ev(`G.stage.metric('e').n`), 0, 'гаснущий — уже не в счёт');
 });
+
+test('кванты: в кадре не остывают — за улетающим можно погнаться; мир полон — области молчат', () => {
+  const g = toStage('particles');
+  const r = g.ev(`(() => { const S = G.stage; S.tut = null; for (const o of S.p) o.dead = true; S.p = []; S.populate = () => {};
+    S.hz = [{ x: P.x + 50, y: P.y, r: HZ_R, t: 10, L: 999 }];
+    const mk = (dx) => { const o = S.mk('ph', false, P.x + dx, P.y, 0, 0); o.born = 1; o.v = 0; o.ql = Q_LIFE; return o; };
+    const off = () => halfView()[1] + 1.5; // чуть за краем кадра, но в мире
+    const near = mk(3.5), far = mk(0); far.y = P.y + off();
+    for (let i = 0; i < 60 * (Q_LIFE + 5); i++) { near.x = P.x + 3.5; near.y = P.y; far.x = P.x; far.y = P.y + off(); far.v = near.v = 0; update(1 / 60); }
+    const gone = o => o.dead || o.fade >= 0, fNear = gone(near), fFar = gone(far);
+    // мир полон: квантов больше qCap · Q_FULL — горячая область у детектора не испускает
+    for (const o of S.p) o.dead = true; S.p = []; S.hz[0].x = P.x; S.hz[0].em = 0;
+    const N = Math.ceil(S.qCap() * Q_FULL) + 2; for (let i = 0; i < N; i++) { const o = mk(i * .01); o.y = P.y + off(); }
+    for (let i = 0; i < 120; i++) update(1 / 60);
+    return { fNear, fFar, full: S.qFull(), born: S.p.filter(o => !o.dead && o.sp === 'ph').length - N };
+  })()`);
+  assert.equal(r.fFar, true, 'за кадром остыл за Q_LIFE');
+  assert.equal(r.fNear, false, 'в кадре ещё живёт');
+  assert.equal(r.full, true);
+  assert.ok(r.born <= 0, `мир полон — область не добавила квантов (${r.born})`);
+});
+
+test('слева одна панель: пока меряешь свет — «Поймано γ», измерил — «Во Вселенной» на её месте', () => {
+  const g = loadGame({ seed: 3 }); g.ev(PREP.start); g.ev(PREP.pump()); g.step(60 * 3);
+  const drawn = () => g.ev(`(() => { const L = []; const f = ctx.fillText; ctx.fillText = (t, ...a) => { L.push(String(t)); return f.call(ctx, t, ...a); };
+    try { G.stage.drawCaught(1); G.stage.drawMeter(1); } finally { ctx.fillText = f; } return L.join('|'); })()`);
+  assert.equal(g.ev('G.stage.caughtOn()'), true, 'свет ещё не измерен');
+  assert.match(drawn(), /ПОЙМАНО γ/); assert.doesNotMatch(drawn(), /ВО ВСЕЛЕННОЙ/);
+  g.ev(`for (const c of G.stage.madeCls()) G.stage.measure(c)`);
+  assert.doesNotMatch(drawn(), /ПОЙМАНО γ/); assert.match(drawn(), /ВО ВСЕЛЕННОЙ/);
+});
+
+test('лишние частицы уходят только за экраном: на глазах ничего не пропадает в пустоте', () => {
+  const g = toStage('particles');
+  const r = g.ev(`(() => { const S = G.stage; for (const o of S.p) o.dead = true; S.p = []; Codex.auto.add('e');
+    const [hw, hh] = halfView(), mk = (x, y) => { const o = S.mk('e', false, x, y, 0, .3); o.born = 1; return o; };
+    const near = [], far = [];
+    for (let i = 0; i < 12; i++) near.push(mk(P.x + (i - 6) * .4, P.y + 1));
+    for (let i = 0; i < 12; i++) far.push(mk(P.x, P.y + hh + 3 + i * .1));
+    S.populate(1 / 60);
+    return { near: near.filter(o => !o.dead && !(o.fade >= 0)).length, far: far.filter(o => !o.dead).length }; })()`);
+  assert.equal(r.near, 12, 'в кадре все живы');
+  assert.ok(r.far < 12, `за экраном лишние ушли (осталось ${r.far})`);
+});
