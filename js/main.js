@@ -91,7 +91,7 @@ function markDbl(e) {
 }
 addEventListener('pointerdown', e => {
   Sfx.unlock(); // звук включается первым жестом игрока (так требует браузер)
-  if (Cine.on) { e.stopPropagation(); Cine.skip(); if (e.pointerType !== 'mouse') touchMode(); return; } // кадр-пауза: касание — дальше, в игру не идёт
+  if (Cine.stop) { e.stopPropagation(); Cine.skip(); if (e.pointerType !== 'mouse') touchMode(); return; } // кадр-пауза: касание — дальше, в игру не идёт
   if (Spot.on) { e.stopPropagation(); Spot.skip(); return; } // стоп-кадр со стрелкой: так же
   if (e.pointerType === 'mouse') {
     if (e.button !== 0) { if (G.stage.sling && e.target === cv) mpan = { x: e.clientX, y: e.clientY }; return; } // правая/средняя — тянуть карту (где карта своя), иначе — ничего
@@ -149,6 +149,8 @@ function touchBar() {
   on('act', G.started && hold && !G.paused);
   actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держать' : s.ep === 3 ? 'держать: щит' : 'тап: снимок · держать: поле') : '';
   on('t-ff', G.started && s.enterKey); on('t-dash', G.started && s.dash);
+  // «✕ разжать» — пока держишь взятое (частицы): раньше это было касание вторым пальцем поверх ◉ — третий палец
+  on('t-drop', G.started && !G.paused && s.canDrop && s.canDrop());
   on('t-cx', G.started && (!s.showCodex || s.showCodex() !== null)); on('t-rl', false); on('t-rr', false); on('t-x', false); // взятое само поворачивается по ходу броска
   document.getElementById('t-mute').textContent = Sfx.muted ? '🔇' : '🔊';
 }
@@ -175,7 +177,7 @@ addEventListener('wheel', e => {
 addEventListener('keydown', e => {
   keys.add(e.code); Sfx.unlock();
   if (e.code === 'KeyM' && document.activeElement !== pname) { const m = Sfx.toggle(); if (G.started) msg(m ? 'звук выкл. · M' : 'звук вкл. · M', 1.2); }
-  if (Cine.on) { if (e.code !== 'KeyM') { e.preventDefault(); Cine.skip(); } return; } // кадр-пауза: любая клавиша — дальше
+  if (Cine.stop) { if (e.code !== 'KeyM') { e.preventDefault(); Cine.skip(); } return; } // кадр-пауза: любая клавиша — дальше
   if (Spot.on && e.code !== 'KeyM') { e.preventDefault(); Spot.skip(); return; }
   // кодекс: C — открыть / закрыть, Esc — закрыть; пока открыт, игра стоит и клавиши не доходят до этапа
   if (Codex.isOpen) { if (e.code === 'KeyC' || e.code === 'Escape') Codex.close(); return; }

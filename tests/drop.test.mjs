@@ -1,6 +1,7 @@
 // Разжать без удара (правая кнопка, второй палец, X): взятое разлетается, ничего не рождается, ⚡ зажатия — назад.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { loadGame, PREP } from './harness.mjs';
 
 function held(g, k) {
@@ -38,4 +39,16 @@ test('разжать: без взятого — ничего; X с клавиа�
   held(g, 1);
   g.ev('G.stage.detach()');
   assert.equal(g.ev('G.stage.focus'), null, 'X разжал');
+});
+
+test('разжать на сенсоре: кнопка ✕ видна, пока держишь пару, и разжимает (раньше — касание вторым пальцем поверх ◉)', () => {
+  const g = loadGame({ seed: 5, touch: true });
+  held(g, 1);
+  g.ev('touchBar()');
+  assert.equal(g.ev(`document.getElementById('t-drop').style.display`), '', 'держишь — ✕ на виду');
+  assert.match(readFileSync(new URL('../index.html', import.meta.url), 'utf8'), /id="t-drop" data-key="KeyX"/, '✕ жмёт X');
+  g.ev('G.stage.detach()');
+  assert.equal(g.ev('G.stage.focus'), null, '✕ разжал');
+  g.ev('touchBar()');
+  assert.equal(g.ev(`document.getElementById('t-drop').style.display`), 'none', 'нечего держать — ✕ нет');
 });

@@ -85,7 +85,8 @@ test('звёзды: два ⁴He в ядре звезды сами сливаю�
 test('молекулы: Вселенная не трогает то, что ты недавно брал', () => {
   const g = toStage('molecules');
   g.ev(`G.stage.res.add('H₂'); for (const m of G.stage.m) m.dead = true; G.stage.m = [];
-    const S = G.stage, A = S.newMol('H', P.x, P.y), B = S.newMol('H', P.x + 6, P.y); A.age = B.age = 2; globalThis.__AB = [A, B]`);
+    const S = G.stage, A = S.newMol('H', P.x, P.y), B = S.newMol('H', P.x + 6, P.y); A.age = B.age = 2; globalThis.__AB = [A, B];
+    for (let i = 0; i < 6; i++) { const h = S.newMol('H', P.x - 30 - i * 12, P.y + 30); h.age = 2; h.mineT = 1e9; }`); // водорода вдоволь (последний Вселенная не берёт); эти — «твои», не в паре
   g.ev(`G.stage.hold(__AB[0]); __AB[0].held = false; G.stage.autoCd = 0; G.stage.autoChem(1 / 60)`);
   assert.ok(!(g.ev('__AB[0].auto') > 0) && !(g.ev('__AB[1].auto') > 0), 'твой атом — не в паре Вселенной');
   g.ev(`G.stage.t += 9; G.stage.autoCd = 0; G.stage.autoChem(1 / 60)`);

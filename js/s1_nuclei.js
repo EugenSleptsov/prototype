@@ -1,7 +1,9 @@
 "use strict";
 /* Уровень 3. Ядра — нуклеосинтез, первые три минуты после Большого взрыва.
    Материал — твои протоны и нейтроны с уровня адронов (на тех же местах) и вся Вселенная вокруг:
-   на одного нейтрона — три протона. Цель — гелий: 25 % массы, как в нашей Вселенной.
+   на одного нейтрона — три протона (или сколько вышло у тебя в «Адронах»: доля нейтронов среди твоих барионов задаёт
+   её и для всей Вселенной, N_FRAC — пределы). Цель — гелий: 25 % массы, как в нашей Вселенной; нейтронов больше — гелий
+   даётся легче (весь гелий держится на нейтронах), меньше — труднее.
    Глагол — рогатка (sling.js): зажми ядро — оно замирает; оттяни и отпусти — полетит в обратную сторону.
    Сила удара решает всё, и пунктир заранее пишет у цели, что выйдет:
    - нейтрон без заряда — сливается от мягкого броска;
@@ -25,6 +27,7 @@ const NR = .8; // радиус нуклона в масштабе уровня �
 // N_FLY — сколько летит брошенное (минимум), N_REACH — сколько оно пролетает самое меньшее: мягкий бросок летит дольше и долетает
 // Y_R — гелий считаем в круге этого радиуса вокруг центра кадра (не по всему, что сейчас живёт в мире: иначе доля зависела бы от зума)
 const Y_R = 12.6;
+const N_FRAC = [.15, .4]; // доля нейтронов во Вселенной: по итогу «Адронов» — не меньше и не больше
 const NU_R = .42, N_WIN = 120, N_PAR = 75, N_VIEW = 9, N_DENS = .075, N_CAP = 60, N_FLY = 1.3, N_REACH = 11, N_SPD = 1.75, N_VMAX = 15 * N_SPD, SYN_COST = 30, Y_GOAL = .25;
 const NUC_NAME = {
   '1,0': ['p', 'протон'], '0,1': ['n', 'нейтрон'], '1,1': ['²H', 'дейтерий'], '1,2': ['³H', 'тритий'], '2,1': ['³He', 'гелий-3'],
@@ -48,6 +51,13 @@ const Nuclei = {
     this.hr = prev && prev.hr != null ? (typeof prev.hr === 'function' ? prev.hr() : prev.hr) : 1.4;
     P.vx = P.vy = 0;
     if (!prev) P.x = P.y = 0;
+    // итог «Адронов» решает состав Вселенной: доля нейтронов среди твоих барионов (не собрал — нейтронов мало)
+    let mp = 0, mn = 0;
+    if (prev && prev.groups) for (const grp of prev.groups.values()) { if (grp.kind === 'p') mp++; else if (grp.kind === 'n') mn++; }
+    this.nFrac = !prev || !prev.groups ? .25 : mp + mn >= 2 ? clamp(mn / (mp + mn), N_FRAC[0], N_FRAC[1]) : N_FRAC[0];
+    this.npMsg = prev && prev.groups ? (mp + mn >= 2
+      ? `Из «Адронов»: ${mn} n⁰ на ${mp} p⁺ — во Вселенной нейтронов ${Math.round(this.nFrac * 100)} %${this.nFrac > .27 ? ': гелий дастся легче' : this.nFrac < .23 ? ': гелий дастся труднее' : ''}`
+      : `В «Адронах» почти нет нуклонов — нейтронов во Вселенной мало (${Math.round(this.nFrac * 100)} %): гелий дастся труднее`) : null;
     // барионы уровня адронов становятся нуклонами там же, где были
     if (prev && prev.groups) for (const grp of prev.groups.values()) {
       if (grp.kind !== 'p' && grp.kind !== 'n') continue;
@@ -74,7 +84,7 @@ const Nuclei = {
     // доля Y — по массе; ядер гелия по числу — y/(4 − 3y): тогда приходящее не меняет долю вокруг, а лишь держит её
     const Y = this.rs.syn && !Uni.off(this, 'syn') ? this.Y() : 0;
     if (Y > 0 && Math.random() < Y / (4 - 3 * Y)) return this.mk(2, 2, x, y, vx, vy);
-    const isN = Math.random() < .25 * Math.exp(-this.t / 150), o = this.mk(isN ? 0 : 1, isN ? 1 : 0, x, y, vx, vy);
+    const isN = Math.random() < (this.nFrac ?? .25) * Math.exp(-this.t / 150), o = this.mk(isN ? 0 : 1, isN ? 1 : 0, x, y, vx, vy);
     if (isN) o.life = rnd(60, 100);
     return o;
   },
@@ -285,6 +295,7 @@ const Nuclei = {
   update(dt, act) {
     const live = act && G.started;
     this.t += dt;
+    if (live && this.npMsg && this.clock > 2.5 && !G.prev) { msg(this.npMsg, 4.5); this.npMsg = null; } // чем «Адроны» отозвались здесь
     if (live) {
       this.banner += dt;
       if (this.doneAt === null) this.clock += dt;
@@ -497,8 +508,7 @@ const Nuclei = {
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 3', this.steps(), this.stars, `Гелий по массе: ${Math.round(this.Y() * 100)} %`);
     if (!G.prev && this.doneAt === null) {
       const rest = Math.max(0, N_WIN - this.clock), c = rest < 20 ? [255, 140, 120] : [205, 200, 230];
-      const shopUp = document.getElementById('shop').style.display === 'flex';
-      label(`гелий ${Math.round(this.Y() * 100)} % из 25 · остынет через ${fmtClock(rest)}`, G.W / 2, G.H - (shopUp ? 118 : 52), 13, c, .85 * al, 700);
+      label(`гелий ${Math.round(this.Y() * 100)} % из 25 · остынет через ${fmtClock(rest)}`, G.W / 2, aboveShop(), 13, c, .85 * al, 700);
     }
     hudBanner(this.banner, 'УРОВЕНЬ 3 · первые 3 минуты', 'Ядра', 'собрать гелий, пока Вселенная горячая', al, 'протоны + нейтроны → ядра → из гелия зажгутся звёзды');
     ctx.globalAlpha = 1;

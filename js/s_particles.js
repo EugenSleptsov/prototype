@@ -38,7 +38,7 @@ const HIT_R = .42, Z_WIN = 14, BAND_AT = .55; // BAND_AT — где на шка�
 // электрослабое — лептоны ≈ 0,2 T). Поэтому и без поля Хиггса у рождения пары есть порог 2m.
 /** @type {Record<string, number>} */
 const TH_M = { quark: .5, t: .6, lepton: .2 };
-const THROW_V = 5, THROW_R = .6; // скорость детектора для броска; радиус попадания броском
+const THROW_V = 5, THROW_R = .85; // скорость детектора для броска; радиус попадания броском (шире: бросок — не лотерея)
 // Энергия детектора: появляется, когда открыт фотон; пополняется пойманными фотонами,
 // тратится на снимки и на разгон квантов полем
 const E_CAP = 10, E_START = 0, E_SHOT = 1, E_FIELD = 2, PH_C = [255, 238, 150];
@@ -728,7 +728,7 @@ const Particles = {
   // √s столкновения, если отпустить сейчас (у массивных лоб в лоб: 2·√(p² + m²))
   /** @param {Focus} f */
   rsOf(f) { const a = f.cap[0]; return f.cap.length === 2 && !this.isQ(a) ? 2 * Math.hypot(f.E / 2, this.meff(a)) : f.E; },
-  // Разжать без удара (правая кнопка, второй палец, X): взятое разлетается от детектора, ничего не сталкивается;
+  // Разжать без удара (правая кнопка, X, на сенсоре — кнопка ✕): взятое разлетается от детектора, ничего не сталкивается;
   // ⚡, потраченная на это зажатие, возвращается. Возвращает true, если было что разжимать.
   drop() {
     const f = this.focus; if (!f || !this.holding || this.ep === 3) return false;
@@ -745,6 +745,7 @@ const Particles = {
   },
   // X с клавиатуры — то же, что правая кнопка
   detach() { this.drop(); },
+  canDrop() { return !!(this.focus && this.holding && this.ep !== 3 && this.focus.cap.length); },
   // Отпустил — захваченные летят навстречу друг другу и сталкиваются лоб в лоб (√s = E)
   release() {
     const f = this.focus; this.focus = null; if (!f) return;
@@ -1223,7 +1224,7 @@ const Particles = {
     // первый закон — важное знание (так устроена вся игра): кадр-пауза; дальше — сцена над лавкой
     if (LGEN[k] && !this.lepDone && this.lepAll()) { this.lepBranch(); return; } // третий лептонный закон — ветка завершена: своя сцена
     if (first) Cine.show(html + `<div class="cg">Закон приносит +${fmtPm(pm)} ✦ в минуту, пока идёт игра. Справа: все сформированные законы</div>`, 6, .8);
-    else if (k === 'g' && l === 1 && this.ep === 0) Cine.show(html + this.gluPairs() + pay, 8, .8);
+    else if (k === 'g' && l === 1 && this.ep === 0) Cine.show(html + this.gluPairs() + pay, 8, .8, true); // лента без паузы
     else showScene(html + pay, 3.4);
   },
   // Ветка лептонов завершена: золотая вспышка, кадр-пауза и бонус «Лептонная универсальность»
@@ -1232,7 +1233,7 @@ const Particles = {
     fxRing(P.x, P.y, this.hr(), GOLD, this.wr(), 2.4); fxFlash(P.x, P.y, this.hr() * 2.5, [255, 230, 170], .5);
     const sym = LEP.map(sp => `<span class="cs res">${SM[sp].sym}</span>`).join('');
     Cine.show(`<div class="ck">Ветка завершена</div><div class="rx">${sym}</div><div class="cn">Лептоны I, II, III</div>` +
-      `<div class="cp">Все три поколения лептонов — законы Вселенной. Бонус: лептонная универсальность — μ и τ распадаются одинаково, и каждый их распад во Вселенной даёт +1 ⚡</div>`, 6, .8);
+      `<div class="cp">Все три поколения лептонов — законы Вселенной. Бонус: лептонная универсальность — μ и τ распадаются одинаково, и каждый их распад во Вселенной даёт +1 ⚡</div>`, 6, .8, true);
   },
   // Важное родилось у тебя впервые в жизни — стоп-кадр со стрелкой: что это и что сделать.
   // Важное: глюон третьей струи, H, W, Z и самая первая новая частица забега (дальше — без остановок)
@@ -1419,7 +1420,12 @@ const Particles = {
         for (const q of this.p) {
           if (q === o || q === o.sib || q.dead || q.cap || q.thrown || q.cd > 0 || q.born < .5) continue;
           if (this.isQ(o) ? !this.isQ(q) : !this.antiPair(o, q)) continue; // брошенная частица бьёт только свою античастицу
-          if ((q.x - o.x) ** 2 + (q.y - o.y) ** 2 < THROW_R * THROW_R) { if (this.smash(o, q)) this.st.thr++; this.learn.hit = true; break; }
+          if ((q.x - o.x) ** 2 + (q.y - o.y) ** 2 < THROW_R * THROW_R) {
+            // бросок: каждый квант пары несёт заряд и бьёт сам — два удара за один заряд (лоб в лоб — один)
+            const sib = o.sib, x = (o.x + q.x) / 2, y = (o.y + q.y) / 2;
+            if (this.smash(o, q)) { this.st.thr++; o.thrHit = true; if (sib && sib.thrHit) { this.st.thr2 = (this.st.thr2 || 0) + 1; this.float(x, y - .3, 'бросок: второй удар за тот же заряд', GOLD, 14); } }
+            this.learn.hit = true; break;
+          }
         }
       }
       if (!this.full && this.enOn() && this.en >= E_CAP) this.full = true;
@@ -2663,8 +2669,8 @@ const Particles = {
     else if (this.ep === 1 && Codex.has('H') && !this.learn.heavy && this.hig >= 1)
       [t, g] = this.p.some(o => !o.dead && !this.isQ(o) && this.grabbable(o) && onScreen(...W2S(o.x, o.y), 0)) ? ['зажать возле частицы: с массой её можно удержать', 'hold'] : ['вещества нет: нужна пара из столкновения квантов', 'holdrel'];
     else if (this.focus && this.focus.cap.length === 2 && this.learn.smash && !this.learn.drop && this.focus.t > 4)
-      [t, g] = [isTouch() ? 'второй палец: разжать без удара' : 'правая кнопка или X: разжать без удара', ''];
-    else if (this.focus && this.focus.cap.length && this.learn.smash && !this.learn.throw && this.epT > 6) [t, g] = this.thrownReady() ? ['отпустить на ходу: бросок', 'release'] : ['разогнаться с квантами', 'move'];
+      [t, g] = [isTouch() ? 'кнопка ✕ справа: разжать без удара' : 'правая кнопка или X: разжать без удара', ''];
+    else if (this.focus && this.focus.cap.length && this.learn.smash && !this.learn.throw && this.epT > 6) [t, g] = this.thrownReady() ? ['отпустить на ходу: два удара за один заряд', 'release'] : ['разогнаться с квантами', 'move'];
     else if (!this.learn.hold && this.ep === 0 && this.fieldOn()) [t, g] = ['зажать: притянуть кванты', 'holdrel'];
     else if (this.ep === 0 && this.pairs > 0 && !this.rs.coll && this.canBuy()) [t, g] = ['из сделанного вручную можно сформировать закон: лавка внизу', 'shop'];
     else if (!this.learn.buy && this.canBuy()) [t, g] = ['хватает знаний ✦ на закон: лавка внизу', 'shop'];
@@ -2753,7 +2759,7 @@ const Particles = {
   /** @param {number} alpha */
   drawGauge(alpha) {
     if (!G.started || this.tut || (this.ep === 0 && !this.pairs)) return; // окна тяжёлых частиц важны, когда начал сталкивать
-    const x0 = 16, x1 = 276, y = 56 + this.leftTop(), lo = Math.log10(.1), hi = Math.log10(2000);
+    const x0 = 16, x1 = Math.min(276, G.W - 80), y = 56 + this.leftTop(), lo = Math.log10(.1), hi = Math.log10(2000); // узкий экран — короче
     const X = (/** @type {number} */ T) => lerp(x0, x1, clamp((hi - Math.log10(Math.max(T, .1))) / (hi - lo), 0, 1));
     ctx.globalAlpha = alpha;
     const gr = ctx.createLinearGradient(x0, 0, x1, 0);
@@ -2790,6 +2796,15 @@ const Particles = {
     const x = 16, y0 = 84 + this.leftTop();
     ctx.globalAlpha = alpha * .9; ctx.font = '600 10px system-ui,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(220,225,240,.6)'; ctx.fillText('ПОЙМАНО γ', x, y0);
+    if (this.narrowHud()) { // узкий экран — одной строкой рядом с заголовком
+      let cx = x + 70;
+      PH_CLS.forEach((C, i) => {
+        const seen = this.phSeen.has(i); ctx.globalAlpha = alpha * (seen ? 1 : .45);
+        ctx.fillStyle = rgb(C.c, 1); ctx.beginPath(); ctx.arc(cx + 4, y0, 4, 0, TAU); ctx.fill();
+        ctx.font = '600 12px system-ui,sans-serif'; ctx.fillStyle = 'rgba(235,240,250,.95)'; const s = String(this.caught[i]); ctx.fillText(s, cx + 11, y0); cx += 18 + ctx.measureText(s).width;
+      });
+      ctx.globalAlpha = 1; return;
+    }
     PH_CLS.forEach((C, i) => {
       const y = y0 + 16 + i * 15, seen = this.phSeen.has(i), hot = this.caughtFx === i && G.T - this.caughtAt < .6 ? 2.5 * (1 - (G.T - this.caughtAt) / .6) : 0;
       ctx.globalAlpha = alpha * (seen ? 1 : .45);
@@ -2833,6 +2848,14 @@ const Particles = {
     const x = 16, y0 = 84 + this.leftTop();
     ctx.globalAlpha = alpha * .9; ctx.font = '600 10px system-ui,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(220,225,240,.6)'; ctx.fillText('ВО ВСЕЛЕННОЙ', x, y0);
+    if (this.narrowHud()) { // узкий экран — одной строкой: символ и число
+      let cx = x + 86;
+      METER.forEach(M => {
+        const seen = Codex.has(M.sp), { n } = this.metric(M.sp); ctx.globalAlpha = alpha * (seen ? 1 : .45);
+        ctx.font = '600 12px system-ui,sans-serif'; ctx.fillStyle = rgb(M.c, 1); const s = seen ? `${M.n} ${n}` : '?'; ctx.fillText(s, cx, y0); cx += 10 + ctx.measureText(s).width;
+      });
+      ctx.globalAlpha = 1; return;
+    }
     METER.forEach((M, i) => {
       const y = y0 + 16 + i * 15, seen = Codex.has(M.sp), { n, bin } = this.metric(M.sp), N = M.bins.length;
       ctx.globalAlpha = alpha * (seen ? 1 : .45);
@@ -2842,6 +2865,8 @@ const Particles = {
     });
     ctx.globalAlpha = 1;
   },
+  // узкий экран: трекер γ и «Во Вселенной» — одной строкой, чтобы между панелями и лавкой оставалось поле
+  narrowHud() { return G.W < 520 || G.H < 640; },
   // Шкала остывания и трекер γ — слева вверху; если там карточки задания (узкий экран) — под ними
   leftTop() {
     const cx0 = (G.W - Math.min(400, G.W - 24)) / 2;

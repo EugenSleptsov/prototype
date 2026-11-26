@@ -635,7 +635,7 @@ const Quarks = {
         items: [['p⁺ = ● ● ◆', this.made.p > 0], ['n⁰ = ● ◆ ◆', this.made.n > 0]], s: 'протон и нейтрон', d: this.steps0() },
       { t: 'Погасить антикварк', h: 'полый — антикварк: бросить его в кварк своего цвета (или кварк в него). Мезон тоже белый', s: 'мезон', d: this.st.mesons > 0 },
       { t: 'Сформировать закон «Конфайнмент»', h: this.handN >= HAND_Q || this.steps0() ? `${touch || !this.keyOf('conf') ? 'в лавке' : `клавиша ${this.keyOf('conf')}`} за ${CONF_COST} ✦` : `сначала ещё ${HAND_Q - this.handN} барион${HAND_Q - this.handN === 1 ? '' : 'а'} рогаткой`, s: 'конфайнмент', d: this.rs.conf > 0 },
-      { t: 'Вещество для ядер', h: `${GOAL_N} нуклонов, пока плазма не остыла: не меньше ${GOAL_NN} нейтронов и ${OWN_N} своих`, p: [Math.min(N, GOAL_N), GOAL_N],
+      { t: 'Вещество для ядер', h: `${GOAL_N} нуклонов, пока плазма не остыла: не меньше ${GOAL_NN} нейтронов и ${OWN_N} своих. Доля нейтронов перейдёт во Вселенную «Ядер»: больше n⁰ — легче гелий`, p: [Math.min(N, GOAL_N), GOAL_N],
         items: [[`≥ ${GOAL_NN} n⁰`, np.n >= GOAL_NN], [`${OWN_N} своих`, own >= OWN_N]], s: 'вещество для ядер готово', d: N >= GOAL_N && np.n >= GOAL_NN && own >= OWN_N },
     ];
   },
@@ -807,8 +807,7 @@ const Quarks = {
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 2', this.steps(), this.stars, `К ядрам: ${p} p⁺ · ${n} n⁰`);
     if (!G.prev && this.doneAt === null) {
       const rest = Math.max(0, Q_COOL - this.cool), c = rest < 20 ? [255, 140, 120] : [205, 200, 230];
-      const shopUp = document.getElementById('shop').style.display === 'flex';
-      label(`белое ${Math.round(this.white() * 100)} % · нуклонов ${p + n}/${GOAL_N} · остынет через ${fmtClock(rest)}`, G.W / 2, G.H - (shopUp ? 118 : 52), 13, c, .85 * al, 700);
+      label(`белое ${Math.round(this.white() * 100)} % · нуклонов ${p + n}/${GOAL_N} · остынет через ${fmtClock(rest)}`, G.W / 2, aboveShop(), 13, c, .85 * al, 700);
     }
     hudBanner(this.banner, 'УРОВЕНЬ 2 · 10⁻⁶ с', 'Адроны', this.nSaved ? `${this.nSaved} сбережённых кварков: всё должно стать белым` : 'всё должно стать белым: три цвета или цвет и антицвет', al, 'из кварков → протоны и нейтроны → без них не будет ни одного ядра');
     ctx.globalAlpha = 1;

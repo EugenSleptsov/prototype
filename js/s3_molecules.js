@@ -5,9 +5,12 @@
    - Валентность: у атома свободные связи с фиксированной геометрией (C — 4 под 90°, N — 3 под 120°,
      O — 2 под 104,5°, H — 1). Связь возникает, если свободные связи двух атомов смотрят друг на друга
      и удар сильнее энергии активации; связь выделяет энергию (толчок соседям). Стерика: налезать нельзя.
+   - Энергия активации — заметная доля рогатки: H–H слабее всего, связь с водородом сильнее, тяжёлое с тяжёлым
+     (C–C, C–O, C–N) — сильнее всех; слабый бросок отскакивает. Геометрия: брошенное смотрит связью вперёд
+     (доворачивает рука), но цель не доворачивается — бить надо в её свободную связь (конус у цели на прицеле).
    - Очень сильный удар рвёт связь. Насыщенная молекула больше не растёт.
    Игра — по всему полю, своего атома нет. Рогатка: зажми атом или молекулу, оттяни, отпусти;
-   взятое само поворачивается свободной связью по ходу броска, у цели свободная связь доворачивается навстречу.
+   взятое само поворачивается свободной связью по ходу броска; цель — как лежит (её вращение пунктир учитывает).
    Цель — открывать соединения (вода, аммиак, метан…), потом учить Вселенную их делать:
    исследование «Синтез H₂O» — Вселенная сама сводит подходящие куски воды, и т. д.
    Мир без края: атомы — твои с прошлого уровня, на своих местах. Масштаб тут в M_U раз крупнее — мир растягивается,
@@ -25,7 +28,15 @@ const CHEM = {
   Ne: { r: 9, c: [255, 150, 120], s: [], m: 20 },
 };
 const TOL = .42, M_VMAX = 70, BREAK_V = 52, M_MINE = 8; // M_MINE — сколько секунд Вселенная не трогает то, что ты брал
-const EA = (x, y) => (x === 'H' && y === 'H') ? 1 : 2;
+// допуски связи при броске (рад): у брошенного — между его свободной связью и линией удара (пунктир сам доворачивает её вперёд,
+// так что это «бить в лоб, а не вскользь»), у цели — её свободная связь должна смотреть на удар; без броска — TOL
+const TOL_HIT = .5, TOL_AIM = .7;
+// энергия активации — скорость удара по линии центров: H–H 18, связь с водородом 22, тяжёлое с тяжёлым (C–C, C–O, C–N…) 27 —
+// 26 %, 31 % и 39 % полной рогатки M_VMAX; Вселенная («Синтез») бросает со скоростью M_AUTO_V — выше любого барьера, ниже BREAK_V
+const EA_HH = 18, EA_XH = 22, EA_XX = 27, M_AUTO_V = 38, M_HKEEP = 6;
+const EA = (/** @type {string} */ x, /** @type {string} */ y) => x === 'H' && y === 'H' ? EA_HH : x === 'H' || y === 'H' ? EA_XH : EA_XX;
+// органика с каркасом — связь углерода с тяжёлым атомом (C–C, C–O, C–N): шаг задания
+const ORGANIC = ['CH₃OH', 'C₂H₆', 'CH₃NH₂', 'C₂H₅OH'];
 const M_U = 5, M_VIEW = 78, M_DENS = .0012, M_CAP = 60, M_COST = 20;
 // соединения из одинарных связей (двойные модель не умеет) — {f: формула, n: название, c: состав}
 const COMP = [
@@ -102,41 +113,54 @@ const Mols = {
     b.a += angDiff(th, this.slotAng(b, best[0], best[1]));
     b.wp = b.atoms.map((_, i) => this.wpos(b, i));
   },
-  // Полёт брошенного: первый касающийся атом — и что выйдет
+  // Полёт брошенного: первый касающийся атом — и что выйдет. Цель за время полёта сдвигается и поворачивается
+  // (тепловое вращение, затухает) — пунктир считает её там и так, как она будет; допуски — те же, что при ударе.
+  // cone — свободная связь цели, ближайшая к удару: [x, y, угол, попал ли в допуск, радиус атома]; need — скорость броска для барьера
   predict(b, vx, vy) {
     if (!b.manRot) this.orient(b, vx, vy); // сам повернул Q / E или колесом — не перебиваем
-    const pts = [[b.x, b.y]], dt = 1 / 60, k = Math.exp(-this.damp(b) * dt);
+    const pts = [[b.x, b.y]], dt = 1 / 60, k = Math.exp(-this.damp(b) * dt), v0 = Math.hypot(vx, vy);
     let x = b.x, y = b.y, ux = vx, uy = vy;
     for (let n = 0; n < 240; n++) {
       x += ux * dt; y += uy * dt; ux *= k; uy *= k;
       if (n % 4 === 3) pts.push([x, y]);
-      const ox = x - b.x, oy = y - b.y;
+      const ox = x - b.x, oy = y - b.y, t = (n + 1) * dt;
       for (const T of this.m) {
-        if (T === b || T.dead || Math.hypot(T.x - x, T.y - y) > T.R + b.R) continue;
+        if (T === b || T.dead) continue;
+        const [Tx, Ty, Ta, Tvx, Tvy] = this.ahead(T, t);
+        if (Math.hypot(Tx - x, Ty - y) > T.R + b.R) continue;
         for (let ia = 0; ia < b.atoms.length; ia++) for (let ib = 0; ib < T.atoms.length; ib++) {
-          const pa = [b.wp[ia][0] + ox, b.wp[ia][1] + oy], pb = T.wp[ib], ra = CHEM[b.atoms[ia].el].r, rb = CHEM[T.atoms[ib].el].r;
+          const at = T.atoms[ib], [rx, ry] = rot(at.lx, at.ly, Ta);
+          const pa = [b.wp[ia][0] + ox, b.wp[ia][1] + oy], pb = [Tx + rx, Ty + ry], ra = CHEM[b.atoms[ia].el].r, rb = CHEM[at.el].r;
           const dx = pb[0] - pa[0], dy = pb[1] - pa[1], d = Math.hypot(dx, dy);
           if (d >= ra + rb) continue;
           pts.push([x, y]);
-          const th = Math.atan2(dy, dx), vn = ((ux - T.vx) * dx + (uy - T.vy) * dy) / (d || 1);
-          const sa = this.slotNear(b, ia, th, 1), sb = this.slotNear(T, ib, th + Math.PI, 1.6); // у цели связь доворачивается навстречу
-          const ea = EA(b.atoms[ia].el, T.atoms[ib].el), hit = [pa[0] + dx * ra / (ra + rb), pa[1] + dy * ra / (ra + rb)];
+          const th = Math.atan2(dy, dx), vn = ((ux - Tvx) * dx + (uy - Tvy) * dy) / (d || 1), da = Ta - T.a;
+          const sa = this.slotNear(b, ia, th, TOL_HIT), sb = this.slotNear(T, ib, th + Math.PI, TOL_AIM, da);
+          const ea = EA(b.atoms[ia].el, at.el), hit = [pa[0] + dx * ra / (ra + rb), pa[1] + dy * ra / (ra + rb)];
           let label, c;
           const free = this.freeSlots(T) && this.freeSlots(b);
-          if (free && sa >= 0 && sb >= 0 && vn >= ea) { label = `связь ${b.atoms[ia].el}–${T.atoms[ib].el}`; c = [120, 240, 160]; }
+          if (free && sa >= 0 && sb >= 0 && vn >= ea) { label = `связь ${b.atoms[ia].el}–${at.el}`; c = [120, 240, 160]; }
           else if (vn > BREAK_V && (b.bonds.length || T.bonds.length)) { label = 'порвёт связь'; c = [255, 90, 80]; }
           else if (!free) { label = 'насыщена, отскочит'; c = [170, 175, 195]; }
-          else if (sa >= 0 && sb >= 0) { label = 'слабо: нужно оттянуть сильнее'; c = [255, 200, 110]; }
-          else { label = 'мимо свободной связи'; c = [200, 205, 225]; }
-          return { pts, x: hit[0], y: hit[1], label, c, hit: true };
+          else if (sb < 0) { label = 'мимо свободной связи цели'; c = [200, 205, 225]; }
+          else if (sa < 0) { label = 'вскользь: бить в лоб'; c = [200, 205, 225]; }
+          else { label = 'слабо: барьер, оттянуть сильнее'; c = [255, 200, 110]; }
+          const near = this.slotNear(T, ib, th + Math.PI, 9, da), cone = near >= 0 && free ? [pb[0], pb[1], this.slotAng(T, ib, near) + da, sb >= 0, rb] : null;
+          return { pts, x: hit[0], y: hit[1], label, c, hit: true, cone, need: vn > .1 ? ea * v0 / vn : Infinity };
         }
       }
     }
     return { pts, x, y, label: '', c: [200, 205, 225] };
   },
-  slotNear(mol, i, th, tol) {
+  // где тело будет через t с: [x, y, угол, vx, vy] — без броска скорость и вращение затухают (.3/с), брошенное летит с damp()
+  ahead(T, t) {
+    if (T.held) return [T.x, T.y, T.a, 0, 0];
+    const fly = (T.thrown ?? 9) < 3, r = fly ? this.damp(T) : .3, e = Math.exp(-r * t), f = (1 - e) / r;
+    return [T.x + T.vx * f, T.y + T.vy * f, T.a + T.w * (fly ? t : f), T.vx * e, T.vy * e];
+  },
+  slotNear(mol, i, th, tol, da = 0) {
     const a = mol.atoms[i]; let best = -1, bd = tol;
-    for (let k = 0; k < a.b.length; k++) if (a.b[k] < 0) { const d = Math.abs(angDiff(this.slotAng(mol, i, k), th)); if (d < bd) { bd = d; best = k; } }
+    for (let k = 0; k < a.b.length; k++) if (a.b[k] < 0) { const d = Math.abs(angDiff(this.slotAng(mol, i, k) + da, th)); if (d < bd) { bd = d; best = k; } }
     return best;
   },
   newMol(el, x, y) {
@@ -144,11 +168,13 @@ const Mols = {
     const mol = { atoms: [{ el, lx: 0, ly: 0, base: Math.random() * TAU, b: d.s.map(() => -1) }], bonds: [], x, y, a: 0, vx: 0, vy: 0, w: randn() * .5, m: 1, I: 1, R: d.r, age: 0, dead: false, wp: null, hand: 0, auto: 0, mine: false, src: null };
     this.recompute(mol); this.m.push(mol); return mol;
   },
-  // какой атом принести: чего из нужного в кадре нет — то и несёт; иначе водорода больше всех (он почти в каждом соединении)
+  // какой атом принести: чего из нужного в кадре меньше всего (по доле от нужного) — то и несёт; иначе обычная смесь.
+  // По доле, а не по порядку: иначе C, N, O всегда шли первыми, и недостроенные каркасы оставались без водорода
   needEl() {
-    const one = el => this.m.filter(m => m.atoms.length === 1 && m.atoms[0].el === el && inView(m.x, m.y, 20)).length;
-    const need = [['C', 2], ['N', 2], ['O', 3], ['H', 10]].find(([el, n]) => one(el) < n);
-    return need ? need[0] : this.mixEl();
+    const one = (/** @type {string} */ el) => this.m.filter(m => m.atoms.length === 1 && m.atoms[0].el === el && inView(m.x, m.y, 20)).length;
+    let best = null, bq = 1;
+    for (const [el, n] of /** @type {[string, number][]} */ ([['C', 2], ['N', 2], ['O', 3], ['H', 10]])) { const q = one(el) / n; if (q < bq) { bq = q; best = el; } }
+    return best || this.mixEl();
   },
   // обычная смесь Вселенной (для ободка за краем: недостачу в кадре он не восполняет)
   mixEl() { const r = Math.random(); return r < .6 ? 'H' : r < .75 ? 'O' : r < .88 ? 'C' : 'N'; },
@@ -295,14 +321,14 @@ const Mols = {
     const vn = (vBx - vAx) * nx + (vBy - vAy) * ny;
     if (vn < 0) {
       const imp = -vn, th = Math.atan2(ny, nx);
-      // брошенный уже смотрит связью вперёд, у цели связь доворачивается навстречу — те же допуски, что у пунктира
+      // брошенный смотрит связью вперёд — бить в лоб (TOL_HIT); цель не доворачивается — удар в её свободную связь (TOL_AIM); как у пунктира
       const tA = A.hand > 0 || A.auto > 0, tB = B.hand > 0 || B.auto > 0, any = tA || tB;
-      const sa = this.bestSlot(A, ia, th, tA ? 1 : any ? 1.6 : TOL), sb = this.bestSlot(B, ib, th + Math.PI, tB ? 1 : any ? 1.6 : TOL);
+      const sa = this.bestSlot(A, ia, th, tA ? TOL_HIT : any ? TOL_AIM : TOL), sb = this.bestSlot(B, ib, th + Math.PI, tB ? TOL_HIT : any ? TOL_AIM : TOL);
       if (sa >= 0 && sb >= 0) {
         const src = A.hand > 0 || B.hand > 0 ? 'hand' : A.auto > 0 || B.auto > 0 ? 'auto' : null;
         // сами по себе (без броска) связи не возникают — иначе тепловая толчея лепит огромные цепи и съедает весь углерод
         if (src && imp >= EA(A.atoms[ia].el, B.atoms[ib].el)) { if (this.merge(A, ia, sa, B, ib, sb, src)) return true; }
-        else if (src === 'hand' && this.lowEMsgT <= 0) { this.lowEMsgT = 5; tipMsg('mols:lowE', 'Удар слабый: нужен бросок сильнее'); }
+        else if (src === 'hand' && this.lowEMsgT <= 0) { this.lowEMsgT = 5; tipMsg('mols:lowE', 'Барьер: связь рождается только от удара сильнее энергии активации'); }
       }
       if (imp > BREAK_V && (A.bonds.length || B.bonds.length)) {
         const victim = A.bonds.length && (!B.bonds.length || Math.random() < .5) ? [A, ia] : [B, ib];
@@ -339,7 +365,8 @@ const Mols = {
     }
     this.m = this.m.filter(m => !m.dead);
   },
-  // «магнетизм» свободных связей: у брошенного (тобой или Вселенной) почти совпавшие валентности доворачиваются друг к другу
+  // «магнетизм» свободных связей — только у бросков Вселенной (её «Синтез» доворачивает почти совпавшие валентности);
+  // у твоего броска — лишь пунктир-подсказка: геометрию решает прицел, а не притяжение
   magnet(dt) {
     this.hints = [];
     for (const pm of this.m) {
@@ -356,8 +383,8 @@ const Mols = {
             if (d > (ra + rb) * 2.2) continue;
             const phi = Math.atan2(dy, dx), dA = angDiff(th, phi), dB = angDiff(this.slotAng(o, j, l), phi + Math.PI);
             if (Math.abs(dA) > 1 || Math.abs(dB) > 1.6) continue;
-            o.a -= dB * 3 * dt; pm.a -= dA * 2 * dt;
-            if (pm.hand > 0) this.hints.push([pa[0] + Math.cos(th) * ra * 1.05, pa[1] + Math.sin(th) * ra * 1.05, pb[0], pb[1], Math.abs(dA) < TOL && Math.abs(dB) < TOL]);
+            if (!(pm.hand > 0)) { o.a -= dB * 3 * dt; pm.a -= dA * 2 * dt; }
+            else this.hints.push([pa[0] + Math.cos(th) * ra * 1.05, pa[1] + Math.sin(th) * ra * 1.05, pb[0], pb[1], Math.abs(dA) < TOL_HIT && Math.abs(dB) < TOL_AIM]);
           }
         }
       }
@@ -370,10 +397,14 @@ const Mols = {
     if (!goals.length || (this.autoCd -= dt) > 0) return;
     this.autoCd = 2.4; // не чаще — у игрока есть время собрать своё
     const f = this.m.filter(m => !m.dead && !m.held && m.age > 1 && !(m.hand > 0) && !(m.auto > 0) && !(this.t - (m.mineT ?? -99) < M_MINE) && this.freeSlots(m) && inRef(m.x, m.y, -5));
+    // последний водород — игроку: свободных атомов H в кадре не больше M_HKEEP — Вселенная их не берёт (иначе «Синтез H₂» съедал весь
+    // водород, и недостроенные каркасы оставались голыми)
+    const isH = (/** @type {any} */ m) => m.atoms.length === 1 && m.atoms[0].el === 'H', hLow = this.m.filter(m => !m.dead && isH(m) && inView(m.x, m.y, 10)).length <= M_HKEEP;
     let best = null, bs = -Infinity;
     for (const g of goals) for (let i = 0; i < f.length; i++) {
-      const ca = this.counts(f[i]); if (!fits(ca, g.c)) continue;
+      const ca = this.counts(f[i]); if (!fits(ca, g.c) || (hLow && isH(f[i]))) continue;
       for (let j = i + 1; j < f.length; j++) {
+        if (hLow && isH(f[j])) continue;
         const cb = this.counts(f[j]), sum = { ...ca }; for (const k in cb) sum[k] = (sum[k] || 0) + cb[k];
         if (!fits(sum, g.c)) continue;
         // не цель целиком — после связи должна остаться свободная валентность: H + H под «воду» дало бы тупиковый H₂
@@ -387,7 +418,7 @@ const Mols = {
     let [A, B, d] = best; if (A.m > B.m) [A, B] = [B, A];
     const dx = B.x - A.x, dy = B.y - A.y;
     this.orient(A, dx, dy); this.orient(B, -dx, -dy); A.w = B.w = 0;
-    const v = 16; d = d || 1; A.vx = B.vx + dx / d * v; A.vy = B.vy + dy / d * v; A.thrown = 0; A.auto = 3; B.auto = 3;
+    const v = M_AUTO_V; d = d || 1; A.vx = B.vx + dx / d * v; A.vy = B.vy + dy / d * v; A.thrown = 0; A.auto = 3; B.auto = 3;
   },
 
   update(dt, act) {
@@ -406,7 +437,7 @@ const Mols = {
       if (mol.held) { mol.vx = mol.vy = 0; mol.a += mol.w * dt; mol.wp = mol.atoms.map((_, i) => this.wpos(mol, i)); continue; }
       if (mol.thrown < 3) { const dr = Math.exp(-dt * this.damp(mol)); mol.vx *= dr; mol.vy *= dr; } // брошенный летит, как показал пунктир
       else {
-        const j = 3.2 * Math.sqrt(dt); mol.vx += randn() * j; mol.vy += randn() * j; mol.w += randn() * .6 * Math.sqrt(dt);
+        const j = 3.2 * Math.sqrt(dt); mol.vx += randn() * j; mol.vy += randn() * j; mol.w += randn() * .3 * Math.sqrt(dt); // вращение тихое: цель на прицеле не убегает
         const dr = Math.exp(-dt * .3); mol.vx *= dr; mol.vy *= dr; mol.w *= dr;
       }
       mol.x += mol.vx * dt; mol.y += mol.vy * dt; mol.a += mol.w * dt;
@@ -461,6 +492,7 @@ const Mols = {
       { t: 'Связать два атома', h: 'зажать атом, оттянуть и отпустить в другой', s: 'первая связь', d: this.st.bonds > 0 },
       { t: 'Собрать воду', h: 'кислороду нужны два водорода', s: 'вода H₂O', d: fd.includes('H₂O') },
       { t: 'Открыть 4 соединения', h: 'аммиак NH₃, метан CH₄, перекись H₂O₂…', items: fd.slice(0, 6).map(f => [f, true]), p: [Math.min(fd.length, 4), 4], s: '4 соединения', d: fd.length >= 4 },
+      { t: 'Собрать органику: связь C–C, C–O или C–N', h: 'метанол CH₃OH, этан C₂H₆, метиламин CH₃NH₂; тяжёлое в тяжёлое — бросок сильнее', s: 'органика', d: ORGANIC.some(f => fd.includes(f)) },
       { t: 'Сформировать законы', h: `${touch ? 'в лавке' : 'клавиши 1–4'}: «Синтез …»`, p: [Math.min(this.res.size, 2), 2], s: 'законы сформированы', d: this.res.size >= 2 },
       { t: 'Первичный бульон', h: 'Вселенная собирает открытое, рогатка ей помогает', p: [Math.min(this.st.soup, 10), 10], s: 'бульон готов', d: this.st.soup >= 10 },
     ];
@@ -475,7 +507,7 @@ const Mols = {
   },
   tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 10, '★ +10 ✦', [255, 215, 110], 17); }); },
   tally() { return { name: 'Молекулы', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['соединений открыто', this.found.length], ['собрано рогаткой', this.st.hand], ['собрано Вселенной', this.st.auto]], auto: [this.st.auto, this.st.auto + this.st.hand], stars: this.stars }; },
-  cheat() { this.cheated = true; for (const x of COMP.slice(0, 4)) if (!this.found.includes(x.f)) this.found.push(x.f); this.st.bonds++; this.res.add('H₂O'); this.res.add('H₂'); this.st.auto = this.st.soup = 10; },
+  cheat() { this.cheated = true; for (const x of [...COMP.slice(0, 4), COMP_BY[ckey({ C: 1, H: 4, O: 1 })]]) if (!this.found.includes(x.f)) this.found.push(x.f); this.st.bonds++; this.res.add('H₂O'); this.res.add('H₂'); this.st.auto = this.st.soup = 10; },
 
   // ---------- рисование ----------
   draw(al) {
@@ -509,9 +541,10 @@ const Mols = {
   drawPlayer(al) {
     ctx.globalAlpha = al;
     this.sl.draw(al);
+    this.drawAim(al);
     if (G.started && !G.paused && !G.prev && this.doneAt === null && this.sl.shots === 0 && !this.sl.held) {
       const o = this.m.filter(m => m.atoms.length === 1 && m.atoms[0].el === 'H' && m.age > .5).sort((u, v) => Math.hypot(u.x - P.x, u.y - P.y) - Math.hypot(v.x - P.x, v.y - P.y))[0];
-      if (o && Tips.ok('molecules:sling')) { const [sx, sy] = W2S(o.x, o.y), r = o.R * cam.z + 8 + 3 * Math.sin(G.T * 5); ring(sx, sy, r, GOLD, .8 * al, 2); label('зажать, оттянуть, отпустить в другой атом', sx, sy + r + 16, 13, [255, 255, 255], .85 * al, 700);
+      if (o && Tips.ok('molecules:sling')) { const [sx, sy] = W2S(o.x, o.y), r = o.R * cam.z + 8 + 3 * Math.sin(G.T * 5); ring(sx, sy, r, GOLD, .8 * al, 2); label('зажать, оттянуть, отпустить в свободную связь другого атома', sx, sy + r + 16, 13, [255, 255, 255], .85 * al, 700);
         // курсор сам бросает этот атом в ближайший другой
         const to = this.m.filter(m => m !== o && m.age > .5).sort((u, v) => Math.hypot(u.x - o.x, u.y - o.y) - Math.hypot(v.x - o.x, v.y - o.y))[0];
         if (to) { const [tx, ty] = W2S(to.x, to.y); if (onScreen(tx, ty, 0)) ghostSling(sx, sy, tx, ty, al); } }
@@ -519,6 +552,20 @@ const Mols = {
     else if (G.started && !G.paused && !G.prev && this.doneAt === null && !this.tore && !this.sl.held && (this.sl.shots >= 3 || this.st.auto > 0)) this.drawTearHint(al);
     for (const fl of this.floats) { const [fx, fy] = W2S(fl.x, fl.y); labelIn(fl.txt, fx, fy - 16 - fl.t * 26, fl.sz, fl.c, clamp(1.8 - fl.t, 0, 1), 700); }
     ctx.globalAlpha = 1;
+  },
+  // прицел рогатки: у цели — конус допуска её свободной связи (зелёный — удар в него, серый — мимо);
+  // на дуге натяжения — засечка барьера: досюда оттянуть, чтобы связь родилась при таком ударе (зелёная — хватает)
+  drawAim(al) {
+    const b = this.sl.held, a = this.sl.aim; if (!b || !a || !a.hit) return;
+    if (a.cone) {
+      const [cx, cy] = W2S(a.cone[0], a.cone[1]), r = a.cone[4] * cam.z * 2.2, c = a.cone[3] ? [140, 240, 170] : [200, 205, 225];
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, a.cone[2] - TOL_AIM, a.cone[2] + TOL_AIM); ctx.closePath();
+      ctx.fillStyle = rgb(c, .16 * al); ctx.fill(); ctx.strokeStyle = rgb(c, .55 * al); ctx.lineWidth = 1.2; ctx.stroke();
+    }
+    if (a.need < M_VMAX * 1.01) {
+      const kn = Math.min(1, (a.need / M_VMAX) ** (1 / SLING_POW)), q = -Math.PI / 2 + TAU * kn, ok = Math.hypot(...this.sl.pull) / this.full() >= kn, [bx, by] = W2S(b.x, b.y);
+      line(bx + Math.cos(q) * 11, by + Math.sin(q) * 11, bx + Math.cos(q) * 22, by + Math.sin(q) * 22, ok ? [140, 240, 170] : [255, 120, 100], .95 * al, 2.5);
+    }
   },
   // ещё не рвал связей: у ближайшей связанной молекулы — «двойной клик — разорвать» и курсор, который сам дважды кликает
   drawTearHint(al) {

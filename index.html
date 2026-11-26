@@ -27,6 +27,9 @@
   body.touch #tbar{display:flex;flex-direction:column;gap:8px;position:fixed;right:max(16px,env(safe-area-inset-right));bottom:166px;z-index:6}
   #tbar button{width:56px;height:44px;border-radius:12px;border:1px solid #ffffff33;background:#0b0f1ccc;color:#dde3f0;font:inherit;font-size:15px;touch-action:none;padding:0}
   body.touch #shop{left:12px;transform:none;max-width:calc(100vw - 136px);justify-content:flex-start}
+  /* узкий сенсорный экран: лавка — одна строка с прокруткой, а не 2–3 ряда поверх поля */
+  @media (max-width:700px){body.touch #shop{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;width:auto}body.touch #shop::-webkit-scrollbar{display:none}body.touch #shop button{flex:0 0 auto}}
+  #t-drop{border-color:#ff9a8a88!important;color:#ffb4a8!important}
   body.touch .mo{display:none}
   body:not(.touch) .to{display:none}
   .shadow{text-shadow:0 1px 3px #000,0 0 8px #0008}
@@ -211,6 +214,10 @@
   /* кадр-пауза важного знания: чёрные полосы, тёмная лента поперёк экрана, светлое пятно на детекторе */
   #cine{position:fixed;inset:0;z-index:25;display:none;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;opacity:0;transition:opacity .35s;background:radial-gradient(circle at var(--sx,50%) var(--sy,50%),#0000 60px,#000000b0 280px)}
   #cine.on{display:block}
+  /* лента без паузы (начало уровня, закон глюонов): ниже центра, без полос и затемнения, ввод проходит в игру */
+  #cine.free{pointer-events:none;background:none;cursor:default}
+  #cine.free .bar{display:none}
+  #cine.free .band{top:70%}
   #cine.show{opacity:1}
   #cine .bar{position:absolute;left:0;right:0;height:9vh;background:#000;transition:transform .5s cubic-bezier(.2,.8,.2,1)}
   #cine .bar.t{top:0;transform:translateY(-100%)}
@@ -433,6 +440,7 @@
 <div id="epoch"></div>
 <button id="act" aria-label="действие: снимок или поле"><span>◉</span><small></small></button>
 <div id="tbar">
+  <button id="t-drop" data-key="KeyX" aria-label="разжать без удара">✕</button>
   <button id="t-cx" data-key="KeyC" aria-label="кодекс">⚛</button>
   <button id="t-mute" data-key="KeyM" aria-label="звук">🔊</button>
   <button id="t-ff" data-key="Enter" aria-label="ускорить время">×4</button>
@@ -456,7 +464,7 @@
     <section id="ready">
       <p>Детектор сталкивает энергию и открывает, из чего сделан мир.</p>
       <p class="mo gests" id="gdesk" aria-label="Мышь: вести детектор. Клик: снимок. Зажать: притянуть кванты. Отпустить: столкнуть. Правая кнопка или X: разжать без удара. Колесо: зум. M: звук"></p>
-      <ul class="to gl"><li>Палец на экране: вести детектор</li><li>Тап по кнопке ◉: снимок</li><li>Держать ◉: притянуть кванты</li><li>Отпустить ◉: столкнуть</li><li>Коснуться вторым пальцем: разжать без удара</li><li>Два пальца: зум</li></ul>
+      <ul class="to gl"><li>Палец на экране: вести детектор</li><li>Тап по кнопке ◉: снимок</li><li>Держать ◉: притянуть кванты</li><li>Отпустить ◉: столкнуть</li><li>Кнопка ✕: разжать без удара</li><li>Два пальца: зум</li></ul>
       <div class="row">
         <button id="go">Начать</button>
         <button id="tutgo" class="alt">Обучение<small>1–2 мин</small></button>
@@ -475,20 +483,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=153"></script>
-<script src="js/gestures.js?v=153"></script>
-<script src="js/audio.js?v=153"></script>
-<script src="js/core.js?v=153"></script>
-<script src="js/universe.js?v=153"></script>
-<script src="js/codex.js?v=153"></script>
-<script src="js/sling.js?v=153"></script>
-<script src="js/s0_quarks.js?v=153"></script>
-<script src="js/s_particles.js?v=153"></script>
-<script src="js/s1_nuclei.js?v=153"></script>
-<script src="js/s_stars.js?v=153"></script>
-<script src="js/s2_atoms.js?v=153"></script>
-<script src="js/s3_molecules.js?v=153"></script>
-<script src="js/online.js?v=153"></script>
-<script src="js/main.js?v=153"></script>
+<script src="js/util.js?v=154"></script>
+<script src="js/gestures.js?v=154"></script>
+<script src="js/audio.js?v=154"></script>
+<script src="js/core.js?v=154"></script>
+<script src="js/universe.js?v=154"></script>
+<script src="js/codex.js?v=154"></script>
+<script src="js/sling.js?v=154"></script>
+<script src="js/s0_quarks.js?v=154"></script>
+<script src="js/s_particles.js?v=154"></script>
+<script src="js/s1_nuclei.js?v=154"></script>
+<script src="js/s_stars.js?v=154"></script>
+<script src="js/s2_atoms.js?v=154"></script>
+<script src="js/s3_molecules.js?v=154"></script>
+<script src="js/online.js?v=154"></script>
+<script src="js/main.js?v=154"></script>
 </body>
 </html>

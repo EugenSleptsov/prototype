@@ -1,5 +1,5 @@
-// Кадр-пауза важного знания: открытие впервые в жизни, первый закон и начало уровня останавливают время
-// на ленте поперёк экрана; повторное открытие в новом забеге — без паузы. Клик — дальше, но не сразу.
+// Кадр-пауза важного знания: время стоит только в поворотных моментах — первый свет, поле Хиггса, первый закон.
+// Прочие открытия — сцена без остановки; начало уровня и закон глюонов — лента без паузы (free). Клик — дальше, но не сразу.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadGame, PREP } from './harness.mjs';
@@ -11,13 +11,15 @@ const lit = (storage) => {
   return g;
 };
 const html = g => g.ev(`document.getElementById('cinein').innerHTML`);
+const card = g => g.ev(`document.getElementById('card').innerHTML`);
 
-test('кадр-пауза: открытие впервые в жизни — пауза с лентой, потом замедление; клик раньше 0,6 с не смахивает', () => {
+test('кадр-пауза: поле Хиггса впервые в жизни — пауза с лентой, потом замедление; клик раньше 0,6 с не смахивает', () => {
   const g = lit({});
-  g.ev(`Codex.see('e', G.stage.rxOf('e'))`);
+  g.ev(`Codex.see('H')`);
   assert.equal(g.ev('Cine.on'), true);
+  assert.equal(g.ev('Cine.stop'), true);
   assert.match(html(g), /Новое знание/);
-  assert.match(html(g), /электрон/);
+  assert.match(html(g), /Хиггс/);
   g.ev('Cine.skip()');
   assert.equal(g.ev('Cine.on'), true, 'тот же клик, что родил частицу, паузу не закрывает');
   g.ev('Cine.tick(.7); Cine.skip()');
@@ -25,17 +27,15 @@ test('кадр-пауза: открытие впервые в жизни — п�
   assert.ok(g.ev('G.slowT') > 0, 'после паузы время ещё миг идёт медленно');
 });
 
-test('кадр-пауза: уже знакомое (другой забег) — без паузы; два новых сразу — по очереди', () => {
+test('открытие впервые (не поворотное) — сцена «Новое знание» без остановки, с замедлением; знакомое — тоже без паузы', () => {
   const g = lit({ protoCodex: JSON.stringify(['ph', 'e']) });
   g.ev(`Codex.see('e', G.stage.rxOf('e'))`);
   assert.equal(g.ev('Cine.on'), false, 'знакомое — маленькая сцена, без остановки');
-  g.ev(`Codex.see('u'); Codex.see('g')`);
-  assert.equal(g.ev('Cine.on'), true);
-  assert.equal(g.ev('Cine.q.length'), 1, 'второе ждёт в очереди');
-  g.ev('Cine.tick(99)');
-  assert.equal(g.ev('Cine.on'), true, 'следующее открытие — сразу за первым');
-  g.ev('Cine.tick(99)');
-  assert.equal(g.ev('Cine.on'), false);
+  g.ev(`G.slowT = 0; Codex.see('u'); Codex.see('g')`);
+  assert.equal(g.ev('Cine.on'), false, 'новые кварк и глюон — игра не встаёт');
+  assert.match(card(g), /Новое знание/);
+  assert.match(card(g), /глюон/);
+  assert.ok(g.ev('G.slowT') > 0, 'время на миг замедлено — успеть прочесть');
 });
 
 test('кадр-пауза: первый закон — пауза, следующие — без неё', () => {
@@ -57,6 +57,8 @@ test('кадр-пауза: начало нового уровня — один �
   g.step(150, true);
   assert.equal(g.ev('Cine.on'), true);
   assert.match(html(g), /Адроны/);
+  assert.equal(g.ev('Cine.stop'), false, 'лента без паузы: игра идёт');
+  assert.equal(g.ev('Cine.tick(.1)'), false);
   assert.match(html(g), /class="on">Адроны/, 'на пути подсвечен текущий уровень');
   assert.match(html(g), /без них не будет ни одного ядра/);
   g.ev('Cine.tick(99)');
@@ -70,6 +72,7 @@ test('кадр-пауза: закон глюонов — пауза с тем, �
   g.ev(`Codex.see('g'); Cine.clear(); Cine.tick(99); document.getElementById('card').style.opacity = 0`);
   g.ev(`G.stage.buy(G.stage.shopItems().findIndex(it => it.r && it.r.k === 'g'))`);
   assert.equal(g.ev('Cine.on'), true, 'закон глюонов — важное знание');
+  assert.equal(g.ev('Cine.stop'), false, '…но лентой без паузы');
   const h = html(g);
   assert.match(h, /Закон сформирован/);
   assert.match(h, /Их можно сталкивать с фотонами и друг с другом/);
@@ -82,6 +85,6 @@ test('кадр-пауза: закон глюонов — пауза с тем, �
 test('карточка открытия глюона: дальше — закон глюонов', () => {
   const g = lit({ protoCodex: JSON.stringify(['ph']) });
   g.ev(`Codex.see('ph'); Cine.clear(); Cine.tick(99); Codex.see('g')`);
-  assert.match(html(g), /Дальше: закон глюонов/);
+  assert.match(card(g), /Дальше: закон глюонов/);
   assert.equal(g.ev(`G.stage.seeNext('e')`), '', 'у других — без этой строки');
 });

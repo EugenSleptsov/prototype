@@ -394,7 +394,7 @@ function hudBanner(b, kicker, name, sub, alpha, why) {
     bannerCine.add(name);
     const path = LADDER.map((n, i) => `<span class="${i < G.stageI ? 'was' : i === G.stageI ? 'on' : ''}">${n}</span>`).join('<i>→</i>');
     Cine.show(`<div class="ck">${kicker}</div><div class="cn lvl">${name}</div><div class="pth">${path}</div>` +
-      `<div class="cp">${sub}</div><div class="cg">${why}</div>`, 6.5);
+      `<div class="cp">${sub}</div><div class="cg">${why}</div>`, 6.5, 0, true); // начало уровня — лента без паузы: играть можно сразу
     return;
   }
   const a = smooth(0, .4, b) * (1 - smooth(end - 1.2, end, b)) * alpha, y = Math.max(G.H * .3, (G.T - (G.taskAt ?? -9) < .2 ? G.taskY : 0) + 62); // не на карточках задания
@@ -452,6 +452,11 @@ function tickStars(stars, end, onWin, failed = false) {
   }
 }
 const starsWon = (/** @type {Star[]} */ stars) => stars.filter(s => s.st === 1).length;
+// строка статуса внизу: над лавкой, сколько бы рядов она ни заняла (раньше — фиксированно G.H − 118, и на телефоне — поверх кнопок)
+function aboveShop() {
+  const el = byId('shop'); if (el.style.display !== 'flex') return G.H - 52;
+  const r = el.getBoundingClientRect(); return r.height > 0 ? Math.min(G.H - 52, r.top - 14) : G.H - 118;
+}
 // Текст слева (или справа) и обрезка с «…» по ширине
 /** @param {string} t @param {number} x @param {number} y @param {number} px @param {RGB} c @param {number} [a] @param {number} [weight] @param {CanvasTextAlign} [align] */
 function labelL(t, x, y, px, c, a = 1, weight = 600, align = 'left') {
