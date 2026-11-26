@@ -25,7 +25,7 @@
      Вселенная рождает сама только исследованное: H во всплесках поля — после «H сам»,
      в эпохе 3 тяжёлое для распада у горячей точки — после «X сам» (или когда руками уже не сделать). Пункт появляется в панели
      ✦ (до трёх сразу, клавиши 1–7) только после того, как сделал это руками; автоматическое в кодексе помечено ⟳. Пойманный фотон измерен: класс по энергии
-     (мягкий, тёплый — обычные; жёсткий — редкий; сверхжёсткий — легендарный) и ⚡ по классу.
+     (мягкий — обычный, жёсткий — редкий) и ⚡ по классу.
    Текста минимум: подсказка в одну строку у детектора, пока действие не освоено. */
 const C_LIGHT = 1.2, WORLD_R = 12, T_START = 1000, N_QUANTA = 22, PAIR_T = .8, VERT_T = 2.6, CHARGE_T = 3;
 // Детектор — один и тот же всю игру (прокачки нет: она путала и отвлекала от главного — законов Вселенной):
@@ -65,12 +65,15 @@ const PROF = [{ n: 'холодный', k: [.82, .92], c: [130, 195, 255], h: 0 }
 const INF = { A0: .2, w0: TAU / 1.8, wk: 1, f: .08, damp: .03, eta: .06, kap: .09, crit: 1, snapA: .15, life: 18, wait: 8, R: 2.6, deep: .75, low: .4 };
 // Классы фотонов по энергии относительно температуры (x = E/T, тепловой спектр): доля, ⚡, ✦ за первую находку (k)
 // и ✦ за каждый пойманный (kn) — главный «клик» экономики: больше света в мире → быстрее копятся ✦
+// Два класса: четыре оттенка жёсткости путали и ничего не давали игре
 const PH_CLS = [
-  { n: 'мягкий', r: 'обычный', x: 0, e: .5, k: 5, kn: 1, c: [255, 170, 110] },
-  { n: 'тёплый', r: 'обычный', x: 2, e: 1, k: 5, kn: 1, c: [255, 235, 160] },
-  { n: 'жёсткий', r: 'редкий', x: 5, e: 2, k: 10, kn: 4, c: [200, 225, 255] },
-  { n: 'сверхжёсткий', r: 'легендарный', x: 8, e: 4, k: 20, kn: 10, c: [210, 170, 255] },
+  { n: 'мягкий', r: 'обычный', x: 0, e: 1, k: 5, kn: 1, c: [255, 200, 130] },
+  { n: 'жёсткий', r: 'редкий', x: 4, e: 3, k: 15, kn: 5, c: [200, 225, 255] },
 ];
+const GLU_LOOPS = 4; // петель в пружинке глюона
+const PH_TOP = PH_CLS.length - 1, PH_XMAX = 11, PH_HARD_A = .55; // самый жёсткий класс; верх спектра (x = E/T); с какого размаха раскачки свет жёсткий
+/** верх класса c в долях T @param {number} c */
+const phHi = c => (c < PH_TOP ? PH_CLS[c + 1].x : PH_XMAX);
 // Цены исследований: новое в мире (новый вид частиц) — дорого, автоматизация уже имеющегося — дешевле
 // Цены «Сформировать закон». «Генерация X»: тяжелее X — дороже; каждое следующее «Генерация» — ещё на RES_UP дороже (их много,
 // а научённое приносит ✦ само — без роста цен Вселенная к концу эпохи 3 покупала бы себя сама).
@@ -220,26 +223,31 @@ function baryonTrios(list) {
   return 0;
 }
 
-// Волна вдоль направления движения: голова в (sx, sy), хвост сзади, к хвосту затухает.
-// cols — один цвет или два (у глюона цвет и антицвет чередуются по полупериодам).
-/** @param {number} sx @param {number} sy @param {number} dx @param {number} dy @param {number} L @param {number} per @param {number} amp @param {number} phase @param {RGB[]} cols @param {number} a @param {number} lw */
-function waveLine(sx, sy, dx, dy, L, per, amp, phase, cols, a, lw) {
-  const nx = -dy, ny = dx, steps = Math.max(8, Math.min(48, L / 2.5 | 0));
-  const pts = [];
+// Фотон — волновой пакет: синусоида, симметрично затухающая к обоим концам (без «головы» и «хвоста»).
+// Центр пакета — в (sx, sy), длина L вдоль направления (dx, dy); фаза — с мировой координаты, волна стоит в пространстве.
+/** @param {number} sx @param {number} sy @param {number} dx @param {number} dy @param {number} L @param {number} per @param {number} amp @param {number} phase @param {RGB} col @param {number} a @param {number} lw */
+function wavePacket(sx, sy, dx, dy, L, per, amp, phase, col, a, lw) {
+  const nx = -dy, ny = dx, steps = Math.max(16, Math.min(96, Math.ceil(L / per * 10)));
+  ctx.lineWidth = lw; ctx.strokeStyle = rgb(col, a); ctx.beginPath();
   for (let i = 0; i <= steps; i++) {
-    const s = i / steps * L, arg = s / per * TAU + phase, w = Math.sin(arg) * amp;
-    pts.push([sx - dx * s + nx * w, sy - dy * s + ny * w, Math.floor(arg / Math.PI) & 1]);
+    const u = i / steps - .5, s = u * L, env = Math.cos(u * Math.PI) ** 2, w = Math.sin(s / per * TAU + phase) * amp * env;
+    const x = sx + dx * s + nx * w, y = sy + dy * s + ny * w;
+    if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
   }
+  ctx.stroke();
+}
+// Глюон — пружинка из петель (как на диаграммах Фейнмана): у всех глюонов одна и та же форма, отличается только цвет.
+// Петли чередуют цвет и антицвет. Центр — в (sx, sy), ось — вдоль (dx, dy); размер — от зума, не от энергии.
+/** @param {number} sx @param {number} sy @param {number} dx @param {number} dy @param {RGB[]} cols @param {number} a @param {number} lw */
+function gluonCoil(sx, sy, dx, dy, cols, a, lw) {
+  const N = GLU_LOOPS, L = clamp(.95 * cam.z, 28, 64), k = L / (N * TAU), b = 2.4 * k, nx = -dy, ny = dx, per = 18;
   ctx.lineWidth = lw;
-  for (let ci = 0; ci < cols.length; ci++) {
-    const g = ctx.createLinearGradient(sx, sy, sx - dx * L, sy - dy * L);
-    g.addColorStop(0, rgb(cols[ci], a)); g.addColorStop(.55, rgb(cols[ci], a)); g.addColorStop(1, rgb(cols[ci], 0));
-    ctx.strokeStyle = g; ctx.beginPath();
-    let pen = false;
-    for (let i = 1; i < pts.length; i++) {
-      const on = cols.length === 1 || pts[i][2] === ci;
-      if (on) { if (!pen) ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]); }
-      pen = on;
+  for (let j = 0; j < N; j++) {
+    ctx.strokeStyle = rgb(cols[j % cols.length], a); ctx.beginPath();
+    for (let i = 0; i <= per; i++) {
+      const t = (j + i / per) * TAU, s = k * t - b * Math.sin(t) - L / 2, w = b * (1 - Math.cos(t)) - b;
+      const x = sx + dx * s + nx * w, y = sy + dy * s + ny * w;
+      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
     }
     ctx.stroke();
   }
@@ -272,7 +280,7 @@ const Particles = {
     this.p = []; this.t = 0; this.T = T_START; this.hig = 0; this.higT = -1; this.higC = { x: 0, y: 0 }; this.ripples = []; this.ripCd = 0; this.ff = 1;
     this.advanced = false;
     this.gOn = false; this.full = false; this.spCd = 0; // эволюция эпохи 1: сперва пустота, потом свет, потом глюоны
-    this.lit = false; this.litT = 0; this.rs = { ph: 0, g: 0, coll: 0, cp: 0 }; this.safe = []; this.saveCd = 0; this.autoT = 0; Codex.auto = new Set(); this.inf = this.mkInf(); this.heatBest = LB.best('heat'); this.heatRes = null; this.heatWorld = null; Online.top('heat', 1).then(l => { if (l && l[0]) this.heatWorld = l[0]; }); this.T0 = T_START; this.heat = 1; this.caught = [0, 0, 0, 0]; this.caughtFx = -1; this.caughtAt = -9; this.phSeen = new Set();
+    this.lit = false; this.litT = 0; this.rs = { ph: 0, g: 0, coll: 0, cp: 0 }; this.safe = []; this.saveCd = 0; this.autoT = 0; Codex.auto = new Set(); this.inf = this.mkInf(); this.heatBest = LB.best('heat'); this.heatRes = null; this.heatWorld = null; Online.top('heat', 1).then(l => { if (l && l[0]) this.heatWorld = l[0]; }); this.T0 = T_START; this.heat = 1; this.caught = PH_CLS.map(() => 0); this.caughtFx = -1; this.caughtAt = -9; this.phSeen = new Set();
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.epClock = 0; this.epKn0 = 0; this.doneAt = null; this.lvlTotal = 0; this.cheated = false;
     this.tut = null; this.inVoid = true; this.voidT = 0;
     this.focus = null; this.holding = false; this.hold = 0; this.shield = 1;
@@ -333,12 +341,11 @@ const Particles = {
     const a = Math.random() * TAU, p = p0 ?? this.phP(), made = [];
     for (const s of [0, Math.PI]) { const o = this.mk('ph', false, x, y, a + s, p); o.cd = .6; made.push(o); }
     if (fx) fxRing(x, y, .05, PH_C, .9, .6);
-    this.pingRare(made[0]);
     return made;
   },
   // ---------- пролог: резонанс инфлатона ----------
   /** @returns {Inf} */
-  mkInf() { return { A: INF.A0, th: -Math.PI / 2, H: 0, t: 0, idle: 0, go: false, hold: false, gain: 0, loss: 0, flash: 0, snapFx: 0, snaps: 0, good: 0, late: 0, pick: null, zone: 0, made: [0, 0, 0, 0] }; },
+  mkInf() { return { A: INF.A0, th: -Math.PI / 2, H: 0, t: 0, idle: 0, go: false, hold: false, gain: 0, loss: 0, flash: 0, snapFx: 0, snaps: 0, good: 0, late: 0, pick: null, zone: 0, made: PH_CLS.map(() => 0) }; },
   // Разогрев по шкале H (0…1): зона даёт имя и цвет, место внутри зоны — температуру k
   /** @param {number} H @returns {Heat} */
   profOf(H) {
@@ -384,9 +391,9 @@ const Particles = {
     const I = this.inf, A = Math.min(1, I.A); I.flash = 1;
     if (!I.go) return; // пока не тронул — шарик только показывает ритм
     I.H = Math.min(1, I.H + INF.kap * A * A / 2); I.A -= INF.eta / 2 * I.A;
-    const c0 = A < .3 ? 0 : A < .55 ? 1 : A < .8 ? 2 : 3, n = A > .7 ? 2 : 1, B = this.infBowl(), R = this.hr() * .4;
+    const c0 = A < PH_HARD_A ? 0 : 1, n = A > .7 ? 2 : 1, B = this.infBowl(), R = this.hr() * .4;
     for (let k = 0; k < n; k++) {
-      const c = Math.random() < .3 ? Math.max(0, c0 - 1) : c0, C = PH_CLS[c], hi = c < 3 ? PH_CLS[c + 1].x : 11;
+      const c = Math.random() < .3 ? Math.max(0, c0 - 1) : c0, C = PH_CLS[c], hi = phHi(c);
       if (!I.made[c]) this.float(P.x, P.y - this.hr() * 3, `создан свет: ${C.n} γ`, C.c, 15); // новый класс — его будет рождать Вселенная
       I.made[c]++;
       const a = Math.random() * TAU, p = this.T * rnd(Math.max(.6, C.x + .2), hi - .2);
@@ -412,7 +419,7 @@ const Particles = {
     this.lit = true; this.litT = 0; this.banner = 0; this.inf.pick = p; this.inf.hold = false; Sfx.hum(0); Sfx.play('ignite'); // одно событие — заголовок эпохи 1
     this.heat = p.heat;
     // свет не беднее тёплого: не попал в такт ни разу — Вселенная всё равно светит хотя бы тёплым (иначе мало ⚡ и ✦ на весь уровень)
-    if (!this.tut && !this.inf.made.slice(1).some(n => n > 0)) { this.inf.made[1] = 1; this.float(P.x, P.y - this.hr() * 3, 'Вселенная добавила тёплый свет', PH_CLS[1].c, 15); }
+    if (!this.inf.made.some(n => n > 0)) this.inf.made[0] = 1; // не раскачал вовсе — Вселенная светит мягким
     const T0 = this.T; this.T = this.T0 = T_START * p.k;
     if (T0 > 0) for (const o of this.p) if (!o.dead && !o.cap && this.isQ(o)) o.p *= this.T / T0;
     this.en = Math.max(this.en, E_START);
@@ -432,24 +439,16 @@ const Particles = {
   phP() {
     const w = this.inf.made.map(n => Math.sqrt(n)), sum = w.reduce((a, b) => a + b, 0);
     if (!sum) return this.thermalP(this.T);
-    let r = Math.random() * sum, c = 0; for (; c < 3; c++) if ((r -= w[c]) <= 0) break;
-    const hi = c < 3 ? PH_CLS[c + 1].x : 11;
-    return this.T * rnd(Math.max(.6, PH_CLS[c].x + .15), hi - .15);
+    let r = Math.random() * sum, c = 0; for (; c < PH_TOP; c++) if ((r -= w[c]) <= 0) break;
+    return this.T * rnd(Math.max(.6, PH_CLS[c].x + .15), phHi(c) - .15);
   },
-  madeCls() { return [0, 1, 2, 3].filter(c => this.inf.made[c] > 0); },
+  madeCls() { return PH_CLS.map((_, c) => c).filter(c => this.inf.made[c] > 0); },
   // верх самого жёсткого созданного класса: жарче этого свет Вселенной не бывает (и в горячей области)
-  phTop() { const L = this.madeCls(); if (!L.length) return Infinity; const c = L[L.length - 1]; return this.T * ((c < 3 ? PH_CLS[c + 1].x : 11) - .15); },
+  phTop() { const L = this.madeCls(); if (!L.length) return Infinity; const c = L[L.length - 1]; return this.T * (phHi(c) - .15); },
   // свой свет измерен: каждый созданный класс пойман хоть раз
   measured() { return this.lit && this.madeCls().every(c => this.phSeen.has(c)); },
   /** @param {{ p: number }} o */
   phClass(o) { const x = o.p / Math.max(this.T, 1e-9); let c = 0; for (let i = 0; i < PH_CLS.length; i++) if (x >= PH_CLS[i].x) c = i; return c; },
-  // Родился легендарный фотон — вспышка-метка, чтобы его заметили
-  /** @param {Q} o */
-  pingRare(o) {
-    if (!this.lit || this.phClass(o) < 3) return;
-    fxRing(o.x, o.y, .1, PH_CLS[3].c, 1.6, .9);
-    if (onScreen(...W2S(o.x, o.y), -20)) this.float(o.x, o.y, 'сверхжёсткий γ!', PH_CLS[3].c, 13);
-  },
   // что из квантов Вселенная сейчас рождает сама: свет — пока его закон не выключен; глюоны — открытые и не выключенные
   /** @returns {string[]} */
   qKinds() {
@@ -487,7 +486,7 @@ const Particles = {
       if (lo !== hi) { o.col = lo; o.col2 = hi; }
     }
     if (any) o.born = 1;
-    if (o.sp === 'ph') this.pingRare(o);
+
   },
   // пара частица + античастица разлетается из одной точки
   // col — цвет кварка, colB — антицвет антикварка (из глюона цвет и антицвет переходят в пару)
@@ -552,10 +551,10 @@ const Particles = {
     o.dead = true; this.en = Math.min(E_CAP, this.en + C.e); if (this.tut) this.tut.abs++; if (!this.learn.absorb) this.acted(); this.learn.absorb = true; // фотоны залетают и сами
     this.caught[c]++; this.caughtFx = c; this.caughtAt = G.T;
     fxRing(o.x, o.y, .05, C.c, .5 + .3 * c, .35 + .1 * c); Sfx.play('catch', c);
-    if (!this.measure(c)) { this.kn += C.kn; if (c >= 2) {
+    if (!this.measure(c)) { this.kn += C.kn; if (c >= 1) {
       this.float(P.x, P.y - this.hr() - .2, `${C.r}! ${C.n} γ · +${C.kn} ✦`, [255, 215, 110], 15);
     } else this.float(P.x + .5, P.y + this.hr() * .3, `+${C.kn} ✦ +${C.e}⚡`, C.c, 12); }
-    if (c === 3) fxFlash(P.x, P.y, this.hr() * 1.5, C.c, .5);
+    if (c === PH_TOP) fxFlash(P.x, P.y, this.hr() * 1.5, C.c, .4);
   },
   // Измерен фотон класса c: новый класс — событие и ✦. Возвращает true, если класс новый.
   /** @param {number} c */
@@ -564,7 +563,7 @@ const Particles = {
     const C = PH_CLS[c];
     this.phSeen.add(c); this.kn += C.k; Sfx.play('fresh');
     fxRing(P.x, P.y, this.hr(), C.c, this.hr() * 1.6, .8);
-    this.float(P.x, P.y - this.hr() - .2, `НОВЫЙ КЛАСС: ${C.n} γ · ${C.r} · +${C.k} ✦`, c >= 2 ? [255, 215, 110] : C.c, c >= 2 ? 17 : 15);
+    this.float(P.x, P.y - this.hr() - .2, `НОВЫЙ КЛАСС: ${C.n} γ · ${C.r} · +${C.k} ✦`, c >= 1 ? [255, 215, 110] : C.c, c >= 1 ? 17 : 15);
     return true;
   },
   // Больцмановский вес: сколько частиц этого сорта держит Вселенная при температуре T
@@ -1878,7 +1877,7 @@ const Particles = {
     const st = this.st, fast = (/** @type {number} */ sec) => ({ t: `быстрее ${fmtClock(sec)}`, bad: () => this.epClock > sec, atEnd: true });
     const clean = { t: 'без пустых снимков', bad: () => st.empty > 0, atEnd: true }, thr = { t: 'пара броском', ok: () => st.thr > 0 };
     switch (i) {
-      case 0: return [thr, fast(130), { t: 'горячий разогрев', ok: () => !!this.inf.pick && this.inf.pick.i === 2, bad: () => !!this.inf.pick && this.inf.pick.i < 2 }, { t: 'создать и поймать сверхжёсткий γ', ok: () => this.phSeen.has(3), bad: () => this.lit && !this.inf.made[3] }, { t: 'снимок с 3 видами', ok: () => st.kinds >= 3 }, { t: '6 столкновений', ok: () => st.pairs >= 6 },
+      case 0: return [thr, fast(130), { t: 'горячий разогрев', ok: () => !!this.inf.pick && this.inf.pick.i === 2, bad: () => !!this.inf.pick && this.inf.pick.i < 2 }, { t: 'создать и поймать жёсткий γ', ok: () => this.phSeen.has(PH_TOP), bad: () => this.lit && !this.inf.made[PH_TOP] }, { t: 'снимок с 3 видами', ok: () => st.kinds >= 3 }, { t: '6 столкновений', ok: () => st.pairs >= 6 },
         { t: 'открыть второе поколение', ok: () => ['c', 's', 'mu'].some(sp => Codex.has(sp)) }];
       case 1: return [thr, fast(45), { t: 'и W, и Z', ok: () => Codex.has('W') && Codex.has('Z') },
         { t: 'открыть t-кварк', ok: () => Codex.has('t'), can: () => !Codex.has('t') }, { t: 'не остаться без ⚡', bad: () => st.dry > 0, atEnd: true }];
@@ -2180,34 +2179,33 @@ const Particles = {
       const [sx, sy] = W2S(o.x, o.y); if (!onScreen(sx, sy, 40)) continue;
       const a = alpha * o.born, known = Codex.has(o.sp), c = this.dcol(o);
       if (this.isQ(o)) {
-        // Квант — волна: чем выше энергия, тем короче период (λ ~ 1/E)
-        const hot = clamp(o.p / (this.T * 6), 0, 1), L = 1.1 * z;
-        const per = clamp(.42 * z * this.T * 1.5 / Math.max(o.p, 1e-9), 4, .5 * z);
-        const amp = o.amp * clamp(.09 * z, 2.5, 6);
+        // Фотон — волновой пакет: чем выше энергия, тем короче период (λ ~ 1/E). Глюон — пружинка одной формы для всех.
+        const hot = clamp(o.p / (this.T * 6), 0, 1), L = 1.2 * z;
+        const per = clamp(.42 * z * this.T * 1.5 / Math.max(o.p, 1e-9), 7, .5 * z);
+        const amp = clamp(.08 * z, 3, 5.5);
         // Волна неподвижна в пространстве: фаза привязана к мировой координате вдоль луча
         const phase = o.ph - (o.x * o.dx + o.y * o.dy) * z / per * TAU;
-        // головка кванта сидит на самой волне (в её текущем отклонении), а не на оси
-        const hw = Math.sin(phase) * amp, hx = sx - o.dy * hw, hy = sy + o.dx * hw;
+        const glu = o.sp === 'g', gc = glu ? [c, QANTI[/** @type {number} */ (o.col2)]] : [c];
         if (o.thrown) { ctx.lineCap = 'round'; line(sx, sy, sx - o.dx * 34, sy - o.dy * 34, GOLD, .5 * a, 4); }
         if (!known) {
-          waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [c], .6 * a, 1.6);
+          if (glu) gluonCoil(sx, sy, o.dx, o.dy, gc, .6 * a, 1.6); else wavePacket(sx, sy, o.dx, o.dy, L, per, amp, phase, c, .6 * a, 1.6);
           ctx.globalAlpha = a; ctx.fillStyle = 'rgba(10,16,32,.85)'; ctx.beginPath(); ctx.arc(sx, sy, 7.5, 0, TAU); ctx.fill(); // кружок — на оси: волна бежит, а он стоит
           ring(sx, sy, 7.5, [235, 245, 255], .9, 1.3); label('?', sx, sy + .5, 10, [255, 255, 255], 1, 800); ctx.globalAlpha = 1;
           // нужный для задания квант (глюон третьей струи) — золотые дуги и что сделать
           if (this.wanted(o.sp, o)) { const s0 = G.T * 2; for (let k = 0; k < 4; k++) arc(sx, sy, 17, s0 + k * Math.PI / 2, s0 + k * Math.PI / 2 + .9, GOLD, .9 * a, 2.2); glow(sx, sy, 26, GOLD, .18 * a); this.wantTag(o, sx, sy, 17); }
         } else if (o.sp === 'ph' && this.ep === 3) { // аннигиляция: свет — фон, фокус на кварках и глюонах
-          waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [[220, 225, 240]], .18 * a, 1.2);
+          wavePacket(sx, sy, o.dx, o.dy, L, per, amp, phase, [220, 225, 240], .18 * a, 1.2);
         } else if (o.sp === 'ph') {
           const cc = mixc([255, 200, 120], [220, 235, 255], hot);
           if (ringPh && ringPh.has(o)) ring(sx, sy, 10 + 2 * Math.sin(G.T * 8 + o.ph), PH_C, .7 * a, 1.6);
-          // редкие классы — вращающиеся дуги цвета класса
+          // жёсткий, ещё не измеренный — вращающиеся дуги цвета класса
           const pc = this.lit ? this.phClass(o) : 0;
-          if (pc === 3 || (pc === 2 && !this.phSeen.has(2))) { const s0 = G.T * 3; for (let k = 0; k < 3; k++) arc(sx, sy, 15, s0 + k * TAU / 3, s0 + k * TAU / 3 + 1, PH_CLS[pc].c, .9 * a, 2); }
-          waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [cc], .75 * a, 1.8);
-          glow(hx, hy, 4 + 5 * hot, cc, .45 * a);
+          if (pc === PH_TOP && !this.phSeen.has(pc)) { const s0 = G.T * 3; for (let k = 0; k < 3; k++) arc(sx, sy, 15, s0 + k * TAU / 3, s0 + k * TAU / 3 + 1, PH_CLS[pc].c, .9 * a, 2); }
+          glow(sx, sy, 5 + 6 * hot, cc, .3 * a);
+          wavePacket(sx, sy, o.dx, o.dy, L, per, amp, phase, cc, .8 * a, 1.8);
         } else {
-          waveLine(sx, sy, o.dx, o.dy, L, per, amp, phase, [c, QANTI[/** @type {number} */ (o.col2)]], .8 * a, 1.8);
-          glow(hx, hy, 3 + 4 * hot, c, .4 * a);
+          glow(sx, sy, 7, c, .25 * a);
+          gluonCoil(sx, sy, o.dx, o.dy, gc, .85 * a, 2);
           // эпоха 4: что глюон сделает с кварком в детекторе — «антицвет → цвет»; полезный — в золотом кольце
           if (this.ep === 3 && !this.stockOut) {
             const help = this.helpGlu(o), y = sy - 15; // метка — на оси, чтобы не прыгала с волной
@@ -2441,7 +2439,7 @@ const Particles = {
     if (this.lit || this.ep || this.inVoid) return;
     const I = this.inf, A = Math.min(1.05, I.A), z = cam.z, B = this.infBowl(), w = B.w * z, d = B.d * z;
     const [bx, by] = W2S(B.bx, B.by), th = I.th, u = A * Math.cos(th), left = Math.sin(th) > 0;
-    const Y = (/** @type {number} */ v) => by - d * v * v, c = PH_CLS[A < .3 ? 0 : A < .55 ? 1 : A < .8 ? 2 : 3].c, dang = smooth(.6, 1, A);
+    const Y = (/** @type {number} */ v) => by - d * v * v, c = PH_CLS[A < PH_HARD_A ? 0 : 1].c, dang = smooth(.6, 1, A);
     // чаша
     ctx.beginPath();
     for (let k = 0; k <= 40; k++) { const v = -1.12 + 2.24 * k / 40; k ? ctx.lineTo(bx + w * v, Y(v)) : ctx.moveTo(bx + w * v, Y(v)); }
@@ -2577,7 +2575,7 @@ const Particles = {
       else if (!I.go) t = 'зажать, когда шарик покатится влево ←';
       else if (I.late >= 2 && I.late > I.good) t = 'отпускать на левом краю, не толкать вправо';
       else if (I.good < 2) t = 'держать, пока катится влево · отпустить на краю';
-      else if (this.madeCls().length < 3) t = 'сильнее размах, жёстче свет: нужны разные классы';
+      else if (this.madeCls().length < PH_CLS.length) t = 'сильнее размах, жёстче свет: нужны оба класса';
       else if (I.A > .8 && !I.snaps) t = 'у красной черты толчки короче';
     }
     else if (this.ep === 0 && this.lit && !this.rs.ph) { t = this.bal() >= RES_COST.ph[0] ? 'кнопка «Сформировать закон» внизу: свет станет законом' : null; g = 'shop'; }

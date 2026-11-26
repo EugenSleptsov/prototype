@@ -33,21 +33,21 @@ test('пустота: слишком раннее нажатие не счита
   assert.equal(g.ev('G.stage.inVoid'), true);
 });
 
-test('свет: вялая раскачка — Вселенная всё равно светит хотя бы тёплым, но жёсткого не рождает', () => {
+test('свет: два класса — мягкий и жёсткий; вялая раскачка — Вселенная светит только мягким', () => {
   const g = loadGame();
+  assert.equal(g.ev('PH_CLS.map(c => c.n).join()'), 'мягкий,жёсткий');
   g.ev(PREP.start); g.step(60 * 25);
   assert.equal(g.ev('G.stage.lit'), true);
-  assert.deepEqual(json(g, 'G.stage.madeCls()'), [0, 1], 'мягкий создан, тёплый — гарантия');
+  assert.deepEqual(json(g, 'G.stage.madeCls()'), [0], 'создан только мягкий');
   const cls = json(g, '[...Array(300)].map(() => G.stage.phClass({ p: G.stage.phP() }))');
-  assert.ok(cls.every(c => c <= 1), 'жёсткого и сверхжёсткого нет');
-  assert.ok(cls.includes(1), 'тёплый есть');
+  assert.ok(cls.every(c => c === 0), 'жёсткого нет');
 });
 
 test('свет: сильная раскачка создаёт несколько классов, Вселенная повторяет только созданные', () => {
   const g = loadGame({ seed: 3 });
   g.ev(PREP.start); g.ev(PREP.pump(.95));
   const made = json(g, 'G.stage.madeCls()');
-  assert.ok(made.length >= 3, `создано классов: ${made}`);
+  assert.deepEqual(made, [0, 1], `создано классов: ${made}`);
   const cls = new Set(json(g, '[...Array(400)].map(() => G.stage.phClass({ p: G.stage.phP() }))'));
   for (const c of cls) assert.ok(made.includes(c), `класс ${c} не создан игроком`);
 });
@@ -114,8 +114,8 @@ test('глюон создаётся тремя струями и не рожда
 
 test('счётчик «Поймано γ» растёт при поглощении', () => {
   const g = toField();
-  g.ev(`(() => { const S = G.stage; for (const c of [0, 1, 1, 2]) S.absorb(S.mk('ph', false, P.x + 3, P.y, 0, S.T * (PH_CLS[c].x + .5))); })()`);
-  assert.deepEqual(json(g, 'G.stage.caught'), [1, 2, 1, 0]);
+  g.ev(`(() => { const S = G.stage; for (const c of [0, 1, 1, 0, 0]) S.absorb(S.mk('ph', false, P.x + 3, P.y, 0, S.T * (PH_CLS[c].x + .5))); })()`);
+  assert.deepEqual(json(g, 'G.stage.caught'), [3, 2]);
 });
 
 // Вселенная умеет только то, что игрок создал сам: без его ударов тяжёлое (и закрытые поколения) в мире не появляется
