@@ -270,9 +270,11 @@ test('приток плазмы: после первого бариона — в
   assert.equal(add.map(a => a[1]).sort().join(), '0,0,0,0,0,1,1,1,1,1,2,2,2,2,2');
   assert.ok(add.every(a => a[0] === 'q' && a[2]), 'кварки — в горячем диске');
   const c1 = g.ev('G.stage.shopItems().find(x => x.k === "gen").c');
-  assert.equal(c1, c0 + g.ev('GEN_DC'));
+  assert.equal(c0, 8); assert.equal(c1, 12);
   g.ev(`G.stage.buy(G.stage.shopItems().findIndex(x => x.k === 'gen'))`);
   assert.equal(g.ev('G.stage.st.gen'), 2);
+  assert.equal(g.ev('[2, 3, 4, 5, 6].map(k => (G.stage.st.gen = k, G.stage.genCost())).join()'), '18,26,36,48,62', 'квадратично');
+  g.ev('G.stage.st.gen = 2');
   g.ev('G.stage.kn = G.stage.spent');
   const n2 = g.ev('G.stage.o.length');
   g.ev(`G.stage.buy(G.stage.shopItems().findIndex(x => x.k === 'gen'))`);

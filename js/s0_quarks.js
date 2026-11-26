@@ -27,8 +27,9 @@ const DELTA_T = 1.6, MESON_T = 2.6; // жизнь Δ и пиона
 const SQ_T = .5, SQ_K = .3, SQ_RAD = .3;
 // бильярд: готовый нуклон — шар; упругость удара (масса — число кварков), сбитое быстрее полной резинки не летит
 const Q_REST = .8;
-// «Приток плазмы» — повторяемое в лавке: по GEN_PER кварков каждого цвета из соседнего объёма; цена растёт с каждым разом
-const GEN_PER = 5, GEN_C0 = 8, GEN_DC = 3;
+// «Приток плазмы» — повторяемое в лавке: по GEN_PER кварков каждого цвета из соседнего объёма;
+// цена растёт квадратично: GEN_C0 + k·(k + 3) — 8, 12, 18, 26, 36, 48, 62…
+const GEN_PER = 5, GEN_C0 = 8;
 // цель, своих нуклонов в цели, нейтронов в цели, барионов рогаткой до закона, цена закона, как часто бросает Вселенная
 const GOAL_N = 12, OWN_N = 5, GOAL_NN = 2, HAND_Q = 2, CONF_COST = 25, AUTO_CD = 1.6;
 // «Адронный зоопарк» — ключи кодекса 'h:…'
@@ -538,7 +539,7 @@ const Quarks = {
     if (this.handN >= 1) it.push({ k: 'gen', ic: '≋', name: 'Приток плазмы', about: `+${GEN_PER} кварков каждого цвета`, c: this.genCost(), opt: true });
     return it;
   },
-  genCost() { return GEN_C0 + GEN_DC * this.st.gen; },
+  genCost() { const k = this.st.gen; return GEN_C0 + k * (k + 3); },
   keyOf(k) { const i = this.shopItems().findIndex(x => x.k === k); return i < 0 ? null : i + 1; },
   buy(i) {
     const it = this.shopItems()[i];
