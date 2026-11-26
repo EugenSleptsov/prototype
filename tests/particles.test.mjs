@@ -28,9 +28,12 @@ test('пустота: до нажатия нет поля, нажатие про
 test('пустота: слишком раннее нажатие не считается', () => {
   const g = loadGame();
   g.ev(`document.getElementById('go').onclick()`);
-  g.step(20);
+  g.step(10); // 0,17 с: нажатие «Начать» ещё не толчок
   g.ev('mouse.clicked = true; mouse.down = true'); g.step(1);
   assert.equal(g.ev('G.stage.inVoid'), true);
+  g.ev('mouse.down = false'); g.step(20); // через VOID_MIN — первое же нажатие проявляет поле (строки не держат)
+  g.ev('mouse.clicked = true; mouse.down = true'); g.step(1);
+  assert.equal(g.ev('G.stage.inVoid'), false);
 });
 
 test('свет: два класса — мягкий и жёсткий; вялая раскачка — жёсткий только редким тепловым хвостом', () => {

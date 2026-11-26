@@ -801,6 +801,7 @@ function msg(t, dur = 3.8) {
   const el = byId('msg');
   el.textContent = t; el.style.opacity = '1'; msgT = dur; lastMsg = t;
   el.style.top = Math.max(G.H * .2, (G.taskY || 0) + 14) + 'px'; // под панелью задания, не поверх
+  if (G.W <= 700 && Tally.t > 0) { const r = byId('tally').getBoundingClientRect(); if (r.height) el.style.top = Math.round(r.bottom + 8) + 'px'; } // и не поверх итогов
 }
 
 // ---------- «зачем это»: часть экрана появилась впервые — одна строка рядом с ней ----------

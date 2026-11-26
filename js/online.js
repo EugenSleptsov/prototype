@@ -22,9 +22,13 @@ const Online = {
     } finally { clearTimeout(tm); }
   },
   name() { return (LB.name() || 'Игрок').replace(/[<>]/g, '').trim().slice(0, 24) || 'Игрок'; },
+  /** @type {[string, number, number | null][]} результаты, пока имени нет: уйдут, когда его впишут (flush) */
+  pending: [],
+  flush() { const p = this.pending; this.pending = []; for (const [b, s, t] of p) this.send(b, s, t); },
   // отправить результат; true — принят
   send(board, score, secs = null) {
     if (!this.on()) return Promise.resolve(false);
+    if (!LB.named()) { this.pending.push([board, score, secs]); return Promise.resolve(false); } // безымянное в общую таблицу не шлём
     const body = { board, name: this.name(), score: Math.round(score), secs: secs == null ? null : Math.round(secs), v: ONLINE.v };
     return this.req('scores', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(body) }).then(() => true, () => false);
   },
@@ -39,6 +43,16 @@ const Online = {
 async function endBoard(el, score, secs, cheated, local = '') {
   if (!Online.on()) return;
   if (cheated) { el.innerHTML = '<div class="rk">отладка: в общую таблицу не попадает</div>'; return; }
+  if (!LB.named()) { // имя не спрашивали на входе — спросим здесь, когда есть что записать
+    el.innerHTML = '<div class="rk">общая таблица: впиши имя</div><form id="endname" class="row"><input maxlength="16" placeholder="Имя" autocomplete="nickname"><button type="submit">В таблицу</button></form>' + local;
+    const f = /** @type {HTMLFormElement} */ (el.querySelector('#endname')), inp = /** @type {HTMLInputElement} */ (f.querySelector('input'));
+    f.onsubmit = e => {
+      e.preventDefault(); const v = inp.value.trim(); if (!v) return;
+      try { localStorage.setItem('proto.name', v); } catch (err) { /* без хранилища */ }
+      LB.rename('Игрок', v); Online.flush(); endBoard(el, score, secs, cheated, local);
+    };
+    return;
+  }
   el.innerHTML = '<div class="rk">общая таблица · отправка…</div>';
   const ok = await Online.send('run', score, secs);
   const list = await Online.top('run', 100);

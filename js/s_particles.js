@@ -97,6 +97,14 @@ const LB_KEY = 'proto.lb.v1', LB_TOP = 5;
 const LB = {
   load() { try { return JSON.parse(localStorage.getItem(LB_KEY) || 'null') || {}; } catch (e) { return {}; } },
   name() { try { return localStorage.getItem('proto.name') || 'Игрок'; } catch (e) { return 'Игрок'; } },
+  /** игрок вписал имя (без него строки — «Игрок», в общую таблицу не уходят, пока не впишет) */
+  named() { try { return !!localStorage.getItem('proto.name'); } catch (e) { return false; } },
+  /** вписал имя позже — свои строки «Игрок» в таблице браузера переименовать @param {string} from @param {string} to */
+  rename(from, to) {
+    const all = this.load(); let n = 0;
+    for (const k of Object.keys(all)) for (const e of all[k]) if (e.n === from) { e.n = to; n++; }
+    if (n) try { localStorage.setItem(LB_KEY, JSON.stringify(all)); } catch (err) { /* без хранилища */ }
+  },
   /** @param {string} key @returns {LBEntry | null} */
   best(key) { const l = this.load()[key]; return l && l.length ? l[0] : null; },
   // добавляет результат, возвращает список и место (0 — первое)
@@ -182,7 +190,7 @@ const COACH_IDLE = 5, COACH_T = 2.8;
 const TUT_GOOD = 3, TUT_ABS = 4, TUT_IDLE = 2.5;
 // Пустота — шаг ноль: игра начинается с ничего. Строки предыстории проявляются по одной, «зажми» — с VOID_MIN с;
 // первое нажатие проявляет поле и сразу становится первым толчком.
-const VOID_MIN = 1.5, VOID_STEP = 1.3;
+const VOID_MIN = .3, VOID_STEP = 1.3; // .3 — только чтобы нажатие «Начать» не стало толчком: дальше старт по первому нажатию (разбор ревью)
 const VOID_TXT = ['Ничего нет. Ни частиц, ни света.', 'Только поле, растянутое инфляцией.', 'В нём вся энергия будущей Вселенной.', 'Из неё генерируется всё, что появится.', 'И только из этого будет строиться мир.'];
 // Сила удара — ступени: чем дольше держишь пару квантов, тем выше ступень (LV_T с на ступень), каждая ступень
 // стоит 1 ⚡ — удар на k ступеней стоит k ⚡. Отпустил до первой — слабый удар, ничего не родится.
@@ -2089,10 +2097,8 @@ const Particles = {
   reveal() {
     if (!G.started || this.inVoid) return;
     if (this.lit && Codex.has('ph')) {
-      Hint.once('kn', 'знания ✦: за открытия и снимки; на них формируются законы Вселенной', () => [G.W / 2 - 4, 40, 1]);
+      // только неочевидное: ⚡ — у детектора. Счётчик ✦, кодекс и лестница подписаны сами (было 7 пузырей подряд, ~30 с — ревью)
       Hint.once('en', 'энергия ⚡: на снимки и удары; её даёт пойманный свет', () => { const [sx, sy] = W2S(P.x, P.y); return [sx, sy + this.hr() * cam.z + 26, 1]; });
-      Hint.once('codex', 'кодекс: всё открытое · C', () => hintAtEl('codex', 1) || hintAtEl('t-cx', -1));
-      Hint.once('ladder', 'путь Вселенной: от частиц к жизни. Сейчас здесь', () => [lerp(24, G.W - 24, (G.ladP ?? 0) / (LADDER.length - 1)), G.H - 40, -1]);
     }
     if (byId('shop').style.display === 'flex') Hint.once('shop', 'лавка: знания ✦ на законы Вселенной', () => hintAtEl('shop', -1));
     if (this.enOn() && this.rs.ph && !this.measured()) Hint.once('caught', 'каждый класс света нужно поймать: так он измеряется', () => [70, 84 + this.leftTop() + 74, 1]);
@@ -2923,7 +2929,12 @@ const Particles = {
     }
   },
   /** @param {number} alpha */
-  overlay(alpha) { if (this.stockOut) return; this.drawVoid(alpha); this.drawHeat(alpha); this.drawClock(alpha); this.drawGauge(alpha); this.drawCaught(alpha); this.drawMeter(alpha); this.drawBanner(alpha); ctx.globalAlpha = 1; },
+  overlay(alpha) {
+    if (this.stockOut) return;
+    // узкий экран: итоги уровня встают под панель задания — туда же, где шкала остывания и трекеры; пока они видны — не рисуем
+    const crowd = G.W <= 700 && Tally.t > 0;
+    this.drawVoid(alpha); this.drawHeat(alpha); this.drawClock(alpha); if (!crowd) { this.drawGauge(alpha); this.drawCaught(alpha); this.drawMeter(alpha); } this.drawBanner(alpha); ctx.globalAlpha = 1;
+  },
   // метрика вида: сколько его сейчас в мире (частица и античастица вместе; гаснущие — уже нет) и номер корзины 0…bins.length
   /** @param {string} sp @returns {{ n: number, bin: number }} */
   metric(sp) {

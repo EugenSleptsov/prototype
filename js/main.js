@@ -161,7 +161,10 @@ function touchBar() {
   on('t-ff', G.started && s.enterKey); on('t-dash', G.started && s.dash);
   // «✕ разжать» — пока держишь взятое (частицы): раньше это было касание вторым пальцем поверх ◉ — третий палец
   on('t-drop', G.started && !G.paused && s.canDrop && s.canDrop());
-  on('t-cx', G.started && (!s.showCodex || s.showCodex() !== null)); on('t-rl', false); on('t-rr', false); on('t-x', false); // взятое само поворачивается по ходу броска
+  on('t-cx', G.started && (!s.showCodex || s.showCodex() !== null)); on('t-x', false);
+  // взятое само поворачивается по ходу броска; но у фрагмента из нескольких атомов к цели может встать не тот — ⟲ ⟳ (как Q / E)
+  const rot = s.key === 'molecules' && G.started && !G.paused && !!(s.sl && s.sl.held && s.sl.held.atoms && s.sl.held.atoms.length >= 2);
+  on('t-rl', rot); on('t-rr', rot);
   document.getElementById('t-mute').textContent = Sfx.muted ? '🔇' : '🔊';
 }
 // Колесо — зум: вглубь до ×2,2, наружу до ×0,55 от обзора этапа. Shift + колесо — действие этапа (вращение молекулы).
@@ -223,9 +226,11 @@ addEventListener('keyup', e => keys.delete(e.code));
 const pname = document.getElementById('pname');
 let savedName = ''; try { savedName = localStorage.getItem('proto.name') || ''; } catch (e) { /* без хранилища */ }
 pname.value = savedName;
-// Заставка по шагам. Нового игрока сперва спрашиваем имя; потом имя уезжает наверх, по центру крупно — вся
-// линия жизни Вселенной, и она уезжает вниз; остаются только управление и кнопки. Имя уже есть — сразу последнее.
+// Заставка по шагам. Новому игроку — по центру крупно вся линия жизни Вселенной, она уезжает вниз; остаются
+// управление и кнопки. Имя на входе не спрашиваем (разбор ревью: экран до первого действия): его можно вписать
+// фишкой «Игрок ✎» или на финальном экране — до того результаты для общей таблицы ждут (Online.pending).
 const intro = document.getElementById('intro');
+const tutSeen0 = () => { try { return !!localStorage.getItem('proto.tut'); } catch (e) { return true; } }; // уже играл — заставку не тянуть
 /** @param {'name' | 'line' | 'ready'} s */
 function introSt(s) {
   intro.classList.remove('st-name', 'st-line', 'st-ready'); intro.classList.add('st-' + s);
@@ -237,17 +242,18 @@ function nameDone() {
   if (!v) { pname.classList.remove('need'); void pname.offsetWidth; pname.classList.add('need'); return false; }
   try { localStorage.setItem('proto.name', v); } catch (e) { /* без хранилища */ }
   document.getElementById('whon').textContent = v;
-  if (intro.classList.contains('st-name') && !savedName) { // впервые: показать линию жизни, потом убрать её вниз
-    savedName = v; introSt('line'); drawPath(); clearTimeout(lineT); lineT = setTimeout(() => introSt('ready'), 3200);
-  } else { savedName = v; introSt('ready'); }
+  if (!savedName) { LB.rename('Игрок', v); Online.flush(); } // впервые: свои строки в таблице браузера — под именем
+  savedName = v; introSt('ready');
   return true;
 }
 document.getElementById('nameform').onsubmit = e => { e.preventDefault(); nameDone(); };
 document.getElementById('who').onclick = () => introSt('name');
 intro.onclick = e => { if (intro.classList.contains('st-line') && !/** @type {HTMLElement} */ (e.target).closest('#path')) { clearTimeout(lineT); introSt('ready'); } }; // клик — не ждать
-if (savedName) { document.getElementById('whon').textContent = savedName; intro.classList.add('quick'); introSt('ready'); } else introSt('name'); // вернулся — всё уже на местах, без полёта
+document.getElementById('whon').textContent = savedName || 'Игрок';
+if (savedName || tutSeen0()) { intro.classList.add('quick'); introSt('ready'); } // вернулся — всё уже на местах, без полёта
+else { introSt('line'); drawPath(); lineT = setTimeout(() => introSt('ready'), 3200); } // впервые: линия жизни, потом она уезжает вниз
 function startRun() {
-  try { localStorage.setItem('proto.name', pname.value.trim() || savedName || 'Игрок'); } catch (e) { /* без хранилища */ }
+  const v = pname.value.trim(); if (v && v !== savedName) nameDone(); // вписал и не нажал «Дальше» — тоже имя
   document.getElementById('intro').style.display = 'none'; G.started = true; G.runT0 = Date.now(); G.run = (G.run || 0) + 1;
   jumpTo(G.fromI);
 }
