@@ -231,13 +231,13 @@ function ghostSwipe(ex, ey, vx, vy, al = 1) {
   if (k > .2) line(x0, y0, x, y, SHOW_C, .7 * a, 3);
   ghostCursor(x, y, k > .2 && k < .75, a);
 }
-// двойной клик: курсор подлетает и дважды жмёт — от точки разлетаются две искры (разрыв)
-/** @param {number} x @param {number} y @param {number} [al] */
-function ghostDouble(x, y, al = 1) {
-  const k = (G.T % 2.2) / 2.2, a = al * .85 * smooth(0, .1, k) * (1 - smooth(.88, 1, k)), s = smooth(0, .3, k);
-  const press = (k > .36 && k < .42) || (k > .5 && k < .56);
-  if (k > .5) { const u = smooth(.5, .8, k); ring(x, y, 6 + 26 * u, [255, 170, 120], a * (1 - u), 2); line(x - 4 - 14 * u, y - 4 - 10 * u, x - 4, y - 4, [255, 170, 120], a * (1 - u), 2); line(x + 4, y + 4, x + 4 + 14 * u, y + 4 + 10 * u, [255, 170, 120], a * (1 - u), 2); }
-  ghostCursor(x + 40 * (1 - s), y + 34 * (1 - s), press, a);
+// зажми и держи: курсор нажат, кольцо заполняется — и вспышка (долгое нажатие)
+/** @param {number} x @param {number} y */
+function ghostLong(x, y, al = 1) {
+  const k = (G.T % 2.4) / 2.4, a = al * .85 * smooth(0, .1, k) * (1 - smooth(.9, 1, k)), s = smooth(0, .25, k), u = smooth(.3, .75, k);
+  if (k > .3) arc(x, y, 13, -Math.PI / 2, -Math.PI / 2 + TAU * u, [255, 170, 120], a, 3);
+  if (k > .75) { const w = smooth(.75, .9, k); ring(x, y, 13 + 20 * w, [255, 170, 120], a * (1 - w), 2); }
+  ghostCursor(x + 40 * (1 - s), y + 34 * (1 - s), k > .28 && k < .8, a);
 }
 // зажми и веди: курсор зажат и описывает круг (сгребает)
 /** @param {number} cx @param {number} cy @param {number} [al] */

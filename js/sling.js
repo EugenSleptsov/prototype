@@ -1,5 +1,5 @@
 "use strict";
-/* Рогатка — общий глагол уровней «Атомы» и «Молекулы»: зажми тело, оттяни назад, отпусти — оно полетит
+/* Рогатка — общий глагол игры (кварки, ядра, атомы, молекулы, ядра звезды; в прологе — толчок поля): зажми тело, оттяни назад, отпусти — оно полетит
    в обратную сторону, тем быстрее, чем длиннее резинка. Пока держишь — пунктир показывает путь, а у цели —
    что выйдет («связь C–H», «захват», «слабо», «порвёт»…). Отпустил с короткой резинкой — отмена.
    Уровень-хозяин даёт:
@@ -11,8 +11,12 @@
      launch(b, vx, vy)   — бросить: задать скорость, пометить брошенным
      predict(b, vx, vy)  — {pts: [[x, y]…], x, y, label, c, then?, c2?} — путь и вердикт у цели (или без цели);
                            then — путь сбитого после удара (бильярд «Адронов»), пунктиром потоньше цветом c2
-     tap2(x, y)          — необязательно: двойной клик или двойное касание в точке мира; true — съедено (не брать тело) */
+     tap2(x, y)          — необязательно: двойной клик или двойное касание в точке мира; true — съедено (не брать тело)
+     lpAt(b, x, y)       — необязательно: что рвётся/делается долгим нажатием в точке нажатия на взятом теле
+                           ({x, y} — где рисовать кольцо) или null; lp(b, x, y) — сделать (резинка не оттянута LP_T с)
+     noPan               — необязательно: мимо тела карту не тянуть (на пустом у уровня свой инструмент — след «Атомов») */
 const SLING_MIN = .12; // доля резинки, короче которой бросок отменяется
+const LP_T = .6; // долгое нажатие на взятом без резинки — действие уровня (у молекул — разорвать связь)
 const SLING_POW = 1.5; // скорость растёт быстрее длины: у слабых бросков больше хода резинки — мягкий удар легче отмерить
 class Sling {
   constructor(host) {
@@ -46,7 +50,7 @@ class Sling {
       if (t2 && this.h.tap2 && this.h.tap2(mx, my)) { this.eat = true; this.was = down; return; }
       this.held = this.pick(mx, my);
       if (this.held) { this.p0 = [mx, my]; this.h.hold && this.h.hold(this.held); Sfx.play('grab'); }
-      else this.pan = [mouse.x, mouse.y]; // мимо тела — тянем карту
+      else if (!this.h.noPan) this.pan = [mouse.x, mouse.y]; // мимо тела — тянем карту
     }
     this.was = down;
     if (this.eat) { if (!down) this.eat = false; return; }
@@ -59,6 +63,10 @@ class Sling {
     this.pull = [dx, dy];
     const v = this.kick();
     if (mouse.cancel) { this.held = null; mouse.cancel = false; this.h.launch(b, ...(this.h.carry ? this.h.carry(b) : [0, 0])); return; } // второй палец — отмена
+    // долгое нажатие без резинки — действие уровня в точке нажатия (порвать связь); тело отпускается, нажатие съедено
+    if (down && !v && this.h.lp && G.T - this.t0 >= LP_T && this.h.lpAt(b, ...this.p0)) {
+      this.held = null; this.h.launch(b, ...(this.h.carry ? this.h.carry(b) : [0, 0])); this.h.lp(b, ...this.p0); this.eat = true; return;
+    }
     if (!down) {
       this.held = null;
       if (v) { this.h.launch(b, v[0], v[1]); this.shots++; this.kickFx(b); Tips.did(this.h.key + ':sling'); } // подсказка броска гаснет по делу
@@ -102,8 +110,13 @@ class Sling {
       const [cx, cy] = this.h.carry(b), s = Math.hypot(cx, cy);
       if (s > .1) { const [tx, ty] = W2S(b.x + cx * .5, b.y + cy * .5); ctx.setLineDash([2, 3]); line(bx, by, tx, ty, [140, 200, 255], .7 * al, 2); ctx.setLineDash([]); }
     }
-    const a = this.aim;
-    if (!a) { if (k < SLING_MIN) label('оттянуть дальше', bx, by - 26, 12, [215, 220, 235], .8 * al, 700); return; }
+    const a = this.aim, lt = k < SLING_MIN && this.h.lpAt ? this.h.lpAt(b, ...this.p0) : null;
+    if (lt) { // долгое нажатие копится: кольцо заполняется у того, что сделается (связь — порвётся)
+      const [lx, ly] = W2S(lt.x, lt.y), u = clamp((G.T - this.t0) / LP_T, 0, 1);
+      arc(lx, ly, 13, -Math.PI / 2, -Math.PI / 2 + TAU * u, [255, 170, 120], .95 * al, 3);
+      if (G.T - this.t0 > .15) label(lt.label || 'держать', lx, ly - 22, 12, [255, 190, 150], .9 * al, 700);
+    }
+    if (!a) { if (k < SLING_MIN && !lt) label('оттянуть дальше', bx, by - 26, 12, [215, 220, 235], .8 * al, 700); return; }
     ctx.setLineDash([3, 5]); ctx.beginPath();
     a.pts.forEach(([x, y], i) => { const [sx, sy] = W2S(x, y); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy); });
     ctx.strokeStyle = rgb(a.c, .85 * al); ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);

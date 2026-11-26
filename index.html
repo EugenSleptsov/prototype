@@ -30,6 +30,7 @@
   /* узкий сенсорный экран: лавка — одна строка с прокруткой, а не 2–3 ряда поверх поля */
   @media (max-width:700px){body.touch #shop{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;width:auto}body.touch #shop::-webkit-scrollbar{display:none}body.touch #shop button{flex:0 0 auto}}
   #t-drop{border-color:#ff9a8a88!important;color:#ffb4a8!important}
+  #t-drop.hot{background:#ff9a8a55!important;border-color:#ffb4a8!important;transform:scale(1.12)}
   body.touch .mo{display:none}
   body:not(.touch) .to{display:none}
   .shadow{text-shadow:0 1px 3px #000,0 0 8px #0008}
@@ -44,7 +45,9 @@
   #laws b{display:block;font-size:11px;opacity:.6;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em}
   .bar{height:4px;background:#ffffff1c;margin:3px 0 8px;border-radius:2px;overflow:hidden}
   .bar>i{display:block;height:100%;background:#8fd0ff;transition:width .25s}
-  #controls{position:fixed;left:52px;bottom:52px;font-size:12px;opacity:.7;pointer-events:none}
+  #controls{position:fixed;left:52px;bottom:52px;font-size:12px;opacity:.75;pointer-events:none;max-width:min(560px,calc(100vw - 70px))}
+  #controls>div{display:grid;grid-template-columns:92px 1fr;gap:8px;line-height:1.45}
+  #controls b{font-weight:600;color:#ffd27a;opacity:.9;text-transform:uppercase;font-size:10px;letter-spacing:.06em;padding-top:1px}
   #help{position:fixed;left:max(16px,env(safe-area-inset-left));bottom:46px;width:28px;height:28px;border-radius:50%;border:1px solid #ffffff33;background:#0b0f1ccc;color:#dde3f0;font:700 14px system-ui,sans-serif;z-index:6;cursor:pointer;padding:0}
   #help:hover{border-color:#ffd27a88;color:#ffd27a}
   #msg{position:fixed;left:50%;top:20%;transform:translateX(-50%);font-size:18px;opacity:0;transition:opacity .5s;text-align:center;pointer-events:none;max-width:80vw}
@@ -464,7 +467,7 @@
     <section id="ready">
       <p>Детектор сталкивает энергию и открывает, из чего сделан мир.</p>
       <p class="mo gests" id="gdesk" aria-label="Мышь: вести детектор. Клик: снимок. Зажать: притянуть кванты. Отпустить: столкнуть. Правая кнопка или X: разжать без удара. Колесо: зум. M: звук"></p>
-      <ul class="to gl"><li>Палец на экране: вести детектор</li><li>Тап по кнопке ◉: снимок</li><li>Держать ◉: притянуть кванты</li><li>Отпустить ◉: столкнуть</li><li>Кнопка ✕: разжать без удара</li><li>Два пальца: зум</li></ul>
+      <ul class="to gl"><li>Палец на экране: вести детектор</li><li>Тап по кнопке ◉: снимок</li><li>Держать ◉: притянуть кванты</li><li>Отпустить ◉: столкнуть</li><li>Провести палец с ◉ на ✕: разжать без удара</li><li>Два пальца: зум</li></ul>
       <div class="row">
         <button id="go">Начать</button>
         <button id="tutgo" class="alt">Обучение<small>1–2 мин</small></button>
@@ -483,20 +486,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=155"></script>
-<script src="js/gestures.js?v=155"></script>
-<script src="js/audio.js?v=155"></script>
-<script src="js/core.js?v=155"></script>
-<script src="js/universe.js?v=155"></script>
-<script src="js/codex.js?v=155"></script>
-<script src="js/sling.js?v=155"></script>
-<script src="js/s0_quarks.js?v=155"></script>
-<script src="js/s_particles.js?v=155"></script>
-<script src="js/s1_nuclei.js?v=155"></script>
-<script src="js/s_stars.js?v=155"></script>
-<script src="js/s2_atoms.js?v=155"></script>
-<script src="js/s3_molecules.js?v=155"></script>
-<script src="js/online.js?v=155"></script>
-<script src="js/main.js?v=155"></script>
+<script src="js/util.js?v=156"></script>
+<script src="js/gestures.js?v=156"></script>
+<script src="js/audio.js?v=156"></script>
+<script src="js/core.js?v=156"></script>
+<script src="js/universe.js?v=156"></script>
+<script src="js/codex.js?v=156"></script>
+<script src="js/sling.js?v=156"></script>
+<script src="js/s0_quarks.js?v=156"></script>
+<script src="js/s_particles.js?v=156"></script>
+<script src="js/s1_nuclei.js?v=156"></script>
+<script src="js/s_stars.js?v=156"></script>
+<script src="js/s2_atoms.js?v=156"></script>
+<script src="js/s3_molecules.js?v=156"></script>
+<script src="js/online.js?v=156"></script>
+<script src="js/main.js?v=156"></script>
 </body>
 </html>

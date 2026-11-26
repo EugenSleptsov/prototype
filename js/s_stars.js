@@ -34,6 +34,8 @@ Object.assign(NUC_NAME, { '4,4': ['⁸Be', 'бериллий-8'], '6,6': ['¹²C
 const Stars = {
   key: 'stars', name: 'Звёзды', bg: [26, 10, 18], sling: true,
   get controls() { return this.phase === 'core' ? 'Зажать ядро, оттянуть, отпустить' : 'Зажать и вести: гравитация сгребает газ'; },
+  gest() { return this.phase === 'core' ? { obj: 'ядро: оттянуть, отпустить — в другое', empty: 'тянуть: карта' }
+    : { empty: 'держать и вести: яма сгребает газ · отпустить в золотой полосе: звезда' }; },
 
   // рогатка и броски — как на уровне ядер
   mk: Nuclei.mk, float: Nuclei.float, free: Nuclei.free, grabR: Nuclei.grabR, full: Nuclei.full, vmax: Nuclei.vmax,
@@ -137,10 +139,11 @@ const Stars = {
     const c = this.gas.length ? centroid(this.gas) : { x: P.x, y: P.y };
     let w = null;
     if (live && mouse.down && !G.paused) { const [wx, wy] = S2W(mouse.x, mouse.y); w = { x: wx, y: wy }; this.learn.grab = true; }
-    const was = this.well;
+    const was = this.well, cancel = !w && mouse.cancel; // второй палец (щипок) — отмена, а не «отпустил»
+    if (cancel) mouse.cancel = false;
     if (w && !was) Tips.did('stars:gas'); // зажал — сделал то, о чём подсказка
     this.well = w;
-    if (was && !w && live && this.release(was)) return; // отпустил в золотой полосе — звезда зажглась
+    if (was && !w && live && !cancel && this.release(was)) return; // отпустил в золотой полосе — звезда зажглась
     const hold = (this.blowT -= dt) > 0 ? .25 : 1; // свет перебора ещё дует — яма держит слабо
     let near = 0;
     for (const g of this.gas) {

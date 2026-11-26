@@ -108,9 +108,14 @@ export function loadGame({ seed = 1, touch = false, storage = {} } = {}) {
 export const PREP = {
   // старт забега: «Начать», пустота, первое нажатие
   start: `document.getElementById('go').onclick(); __step(110); mouse.clicked = true; mouse.down = true; __step(1); mouse.down = false;`,
-  // раскачка в такт до вспышки (maxA — какой размах держать: от него классы света)
+  // раскачка рогаткой до вспышки (maxA — какой размах держать: от него классы света): у края — зажать,
+  // у дна — отпустить, резинка против хода шарика (толчок по ходу); размах набран — отпустить без резинки
   pump: (maxA = .9, secs = 40) => `(() => { const S = G.stage, I = S.inf;
-    for (let i = 0; i < 60 * ${secs} && !S.lit; i++) { const want = Math.sin(I.th) > .15 && I.A < ${maxA}; if (want && !mouse.down) mouse.clicked = true; mouse.down = want; update(1 / 60); }
+    for (let i = 0; i < 60 * ${secs} && !S.lit; i++) {
+      const mv = -Math.sin(I.th) > 0 ? 1 : -1;
+      if (!I.hold && Math.abs(Math.cos(I.th)) > .6) { mouse.x = G.W / 2; mouse.clicked = true; mouse.down = true; }
+      else if (I.hold && Math.abs(Math.cos(I.th)) < .15) { mouse.x = I.p0[0] - (I.A < ${maxA} ? mv * slingFullPx() * .7 : 0); mouse.down = false; }
+      update(1 / 60); }
     mouse.down = false; })()`,
   // свет исследован и измерен — поле открыто
   light: `(() => { const S = G.stage; S.kn += 500; S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); for (const c of S.madeCls()) S.measure(c); })()`,

@@ -101,7 +101,7 @@ addEventListener('pointerdown', e => {
   touchMode();
   if (e.target !== cv) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; markDbl(e); if (G.stage.sling) { mouse.down = true; mouse.clicked = true; } } // рогатка: палец — сам жест
+  if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; markDbl(e); if (G.stage.sling || G.stage.finger) { mouse.down = true; mouse.clicked = true; } } // рогатка: палец — сам жест
   else if (ptrs.size === 2) { tap2 = { id: e.pointerId, t: performance.now(), x: e.clientX, y: e.clientY }; const [p, q] = [...ptrs.values()]; pinch0 = { d: Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)), z: G.zoom || 1, mx: (p.x + q.x) / 2, my: (p.y + q.y) / 2 }; mouse.idle = true; if (G.stage.sling && mouse.down) { mouse.cancel = true; mouse.down = false; } }
 }, true);
 /** @param {PointerEvent} e @param {boolean} [cancel] система отняла жест (входящий звонок, жест ОС) — отмена, а не бросок */
@@ -114,7 +114,7 @@ function ptrUp(e, cancel = false) {
     G.started && !G.paused && G.stage.drop && G.stage.drop() && pinch0) G.zoom = pinch0.z;
   if (tap2 && tap2.id === e.pointerId) tap2 = null;
   if (ptrs.size < 2) pinch0 = null;
-  if (e.pointerId === steerId) { steerId = null; mouse.idle = true; if (G.stage.sling) { if (cancel && mouse.down) mouse.cancel = true; mouse.down = false; } } // отпустил — детектор тормозит (рогатка — бросок)
+  if (e.pointerId === steerId) { steerId = null; mouse.idle = true; if (G.stage.sling || G.stage.finger) { if (cancel && mouse.down) mouse.cancel = true; mouse.down = false; } } // отпустил — детектор тормозит (рогатка — бросок)
   // щипок кончился, один палец остался — он снова ведёт (без нажатия: жест — новым касанием)
   if (wasPinch && ptrs.size === 1) { const [[id, p]] = [...ptrs]; steerId = id; mouse.x = p.x; mouse.y = p.y; mouse.idle = false; }
 }
@@ -131,8 +131,18 @@ cv.addEventListener('mousedown', e => { if (e.button === 2 && G.started && !G.pa
 // Кнопка действия: тап — как клик, удержание — как зажатая кнопка мыши
 const actBtn = document.getElementById('act');
 actBtn.addEventListener('pointerdown', e => { e.preventDefault(); try { actBtn.setPointerCapture(e.pointerId); } catch (err) { /* без захвата */ } mouse.down = true; if (G.started) mouse.clicked = true; actBtn.classList.add('on'); });
-const actUp = () => { mouse.down = false; actBtn.classList.remove('on'); };
+// разжать без удара на сенсоре: провести палец с ◉ на ✕ и отпустить там (разбор дизайна: оторвать палец от ◉,
+// чтобы нажать ✕, — это уже «отпустить», то есть удар; третьего пальца нет)
+/** @param {PointerEvent} e */
+const overDrop = e => { const b = document.getElementById('t-drop'); if (!b || b.style.display === 'none') return false; const r = b.getBoundingClientRect(); return r.width > 0 && e.clientX > r.left - 14 && e.clientX < r.right + 14 && e.clientY > r.top - 14 && e.clientY < r.bottom + 14; };
+/** @param {PointerEvent} [e] */
+const actUp = e => {
+  const s = G.stage, tDrop = document.getElementById('t-drop');
+  if (e && e.type === 'pointerup' && mouse.down && overDrop(e) && s.drop && s.canDrop && s.canDrop()) s.drop(); // взятое разжато — отпускание ◉ уже не удар
+  mouse.down = false; actBtn.classList.remove('on'); if (tDrop) tDrop.classList.remove('hot');
+};
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => actBtn.addEventListener(ev, actUp));
+actBtn.addEventListener('pointermove', e => { const b = document.getElementById('t-drop'); if (b && mouse.down) b.classList.toggle('hot', overDrop(e)); });
 actBtn.addEventListener('contextmenu', e => e.preventDefault());
 // Кнопки вместо клавиш: тап — нажатие; ⟲ ⟳ держатся, пока держишь
 const fakeKey = code => dispatchEvent(new KeyboardEvent('keydown', { code }));
@@ -146,7 +156,7 @@ function touchBar() {
   if (!isTouch()) return;
   const s = G.stage, on = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
   const hold = s.key === 'particles';
-  on('act', G.started && hold && !G.paused);
+  on('act', G.started && hold && !G.paused && !s.finger); // пролог — рогатка шарика пальцем, ◉ не нужна
   actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держать' : s.ep === 3 ? 'держать: щит' : 'тап: снимок · держать: поле') : '';
   on('t-ff', G.started && s.enterKey); on('t-dash', G.started && s.dash);
   // «✕ разжать» — пока держишь взятое (частицы): раньше это было касание вторым пальцем поверх ◉ — третий палец
@@ -354,11 +364,16 @@ function hud() {
   put('lines', h.lines.map(([a, b]) => `<div class="k">${a}</div><div>${b}</div>`).join(''), true);
   put('goal', h.goal, true);
   const S = G.stage, pan = !S.sling ? '' : isTouch() ? 'два пальца: сдвинуть карту' : 'WASD или правая кнопка: сдвинуть карту';
+  // словарь жестов — один на всю игру (разбор дизайна: 8 схем на 6 уровней): по предмету · по пустому · карта;
+  // уровень меняет только смысл, строки и порядок те же
+  const gs = S.gest ? S.gest() : null, mapT = gs && (gs.map ?? (!S.sling ? '' : isTouch() ? 'два пальца' : 'WASD или правая кнопка'));
+  const gRow = (/** @type {string} */ k, /** @type {string | undefined} */ v) => v ? `<div><b>${k}</b>${v}</div>` : '';
+  const ctlHtml = gs ? gRow('по предмету', gs.obj) + gRow('по пустому', gs.empty) + gRow('карта', mapT || undefined) : [S.controls, pan].filter(Boolean).join(' · ');
   // строка управления внизу — только при первом визите на уровень и первые CTL_T секунд (потом игрок знает сам)
   const ctlOn = !Known.has('ctl:' + S.key) && (S.clock ?? S.t ?? 0) < CTL_T || G.T < (G.ctlT || 0); // ctlT — «?» вернул строку
   const hb = document.getElementById('help'); if (hb) hb.style.display = G.started && !G.ended && !G.tutor && !G.paused ? '' : 'none';
   if (G.started && !ctlOn && (S.clock ?? S.t ?? 0) >= CTL_T) Known.add('ctl:' + S.key);
-  put('controls', ctlOn ? [S.controls, pan].filter(Boolean).join(' · ') : '');
+  put('controls', ctlOn ? ctlHtml : '', true);
   document.getElementById('laws').style.display = h.laws.length ? '' : 'none';
   document.getElementById('codex').style.top = h.laws.length ? '190px' : '12px';
   const key = G.stage.key;

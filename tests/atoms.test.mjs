@@ -97,6 +97,7 @@ test('атомы: каскад — фотон линии осаживает та
 test('атомы: туман — по доле нейтральных, а не по времени', () => {
   const g = atoms();
   g.ev(ionAt('__o', 8, 0, 0));
+  g.ev('G.stage.zFloor = () => 0'); // один ион в кадре — здесь проверяем туман, а не пустоту (её — в logic)
   const fog = () => g.ev('G.stage.fog()');
   const f0 = fog();
   assert.ok(f0 > .1, 'голые ионы — мутно: ' + f0);
@@ -120,58 +121,69 @@ test('атомы: «Разлёт туманности» — после перв�
   assert.equal(g.ev('G.stage.st.cut'), 1, 'это не перехват игрока');
 });
 
-test('атомы: зажал на ионе — держишь его: атом идёт за пальцем, но сам не тормозит и не осаживает', () => {
+test('атомы: атом — рогаткой: зажал — стоит, сам не тормозит и не осаживает; оттянул, отпустил — встал в конце пунктира', () => {
   const g = atoms();
   g.ev(ionAt('__c', 6, 0, 0));
   // быстрый электрон рядом с ионом
   g.ev(`G.stage.el.push({ x: __c.x + 1.5, y: __c.y, vx: 0, vy: 9, k: 1, slow: 0, brk: 0, by: null, age: 1 })`);
   g.ev(`(() => { const [x, y] = W2S(__c.x + .3, __c.y); mouse.x = x; mouse.y = y; mouse.down = true; })()`);
   g.ev('G.stage.update(1 / 60, true)');
-  assert.equal(g.ev('G.stage.hold === __c'), true, 'нажал на атом — держишь его, а не ведёшь след');
+  assert.equal(g.ev('G.stage.grab === __c'), true, 'нажал на атом — его взяла рогатка, а не след');
   assert.equal(g.ev('G.stage.tr.length'), 0);
   assert.equal(g.ev('G.stage.st.held'), 1);
-  assert.equal(g.ev('G.stage.st.brakes'), 0, 'зажатый атом электрон не тормозит');
-  // дрожащий электрон зажатого атома сам не осаживается — это делает след
+  assert.equal(g.ev('G.stage.st.brakes'), 0, 'взятый атом электрон не тормозит');
+  // дрожащий электрон взятого атома сам не осаживается — это делает след; атом стоит
   g.ev(catchE('__c'));
+  const x0 = g.ev('__c.x');
   for (let i = 0; i < 40; i++) g.ev('G.stage.update(1 / 60, true)');
   assert.equal(g.ev('__c.ex'), 1, 'подержал — всё ещё дрожит');
   assert.equal(g.ev('G.stage.st.relaxed'), 0);
-  // тащишь: атом идёт за пальцем
-  const x0 = g.ev('__c.x');
-  g.ev(`(() => { const [x, y] = W2S(__c.x + 3, __c.y); mouse.x = x; mouse.y = y; })()`);
-  for (let i = 0; i < 60; i++) g.ev('G.stage.update(1 / 60, true)');
-  assert.ok(g.ev('__c.x') - x0 > 2, `атом протащен: ${g.ev('__c.x') - x0}`);
-  assert.equal(g.ev('G.stage.st.best'), 0, '«один росчерк — 3 электрона» — только следом');
+  assert.ok(Math.abs(g.ev('__c.x') - x0) < 1e-6, 'пока держишь — стоит');
+  // оттянул влево — пунктир вправо, у конца — где встанет
+  g.ev(`(() => { const [x, y] = W2S(__c.x - G.stage.full() * .8, __c.y); mouse.x = x; mouse.y = y; })()`);
+  g.ev('G.stage.update(1 / 60, true)');
+  const aim = g.ev('G.stage.sl.aim && { x: G.stage.sl.aim.x, n: G.stage.sl.aim.pts.length, label: G.stage.sl.aim.label }');
+  assert.ok(aim && aim.n > 5 && aim.x - x0 > 3, 'пунктир вправо: ' + JSON.stringify(aim));
+  assert.match(aim.label, /встанет|ловить нечего/);
   g.ev('mouse.down = false; G.stage.update(1 / 60, true)');
-  assert.equal(g.ev('G.stage.hold'), null, 'отпустил');
+  assert.equal(g.ev('G.stage.grab'), null, 'отпустил');
+  assert.ok(g.ev('__c.vx') > 3, 'полетел вправо');
+  g.ev('randn = () => 0'); // без тепловой дрожи: сравниваем сам бросок с пунктиром
+  for (let i = 0; i < 60 * 8; i++) g.ev('G.stage.update(1 / 60, true)');
+  assert.ok(Math.abs(g.ev('__c.x') - aim.x) < .4, `встал у конца пунктира: ${g.ev('__c.x')} ≈ ${aim.x}`);
+  assert.equal(g.ev('G.stage.st.best'), 0, '«один росчерк — 3 электрона» — только следом');
 });
 
-test('атомы: зажатый голый ион сквозь быстрые электроны — не ловит их; заторможенный следом рядом — садится', () => {
+test('атомы: брошенный голый ион сквозь быстрые электроны — не ловит их; заторможенный следом у взятого — садится', () => {
   const g = atoms();
   g.ev(ionAt('__c', 8, 0, 0));
   // строй быстрых электронов навстречу иону
   g.ev(`for (let i = 1; i <= 6; i++) G.stage.el.push({ x: __c.x + 1.5 * i, y: __c.y + (i % 2 ? .2 : -.2), vx: -9, vy: 0, k: 1, slow: 0, brk: 0, by: null, age: 1 })`);
   g.ev(`(() => { const [x, y] = W2S(__c.x + .2, __c.y); mouse.x = x; mouse.y = y; mouse.down = true; })()`);
   g.ev('G.stage.update(1 / 60, true)');
-  assert.equal(g.ev('G.stage.hold === __c'), true);
-  // тащишь сквозь строй
+  assert.equal(g.ev('G.stage.grab === __c'), true);
+  const x0 = g.ev('__c.x');
+  g.ev(`(() => { const [x, y] = W2S(__c.x - G.stage.full(), __c.y); mouse.x = x; mouse.y = y; })()`);
+  g.ev('G.stage.update(1 / 60, true)');
+  g.ev('mouse.down = false; G.stage.update(1 / 60, true)');
   let dmin = 99;
   for (let i = 0; i < 90; i++) {
-    g.ev(`(() => { const [x, y] = W2S(P.x + ${(i / 90 * 7).toFixed(3)}, P.y); mouse.x = x; mouse.y = y; })()`);
     g.ev('G.stage.update(1 / 60, true)');
     dmin = Math.min(dmin, g.ev('Math.min(...G.stage.el.filter(e => !e.dead).map(e => Math.hypot(e.x - __c.x, e.y - __c.y)), 99)'));
   }
   assert.ok(dmin < 1, 'электроны прошли сквозь ион: ' + dmin);
-  assert.ok(g.ev('__c.x - P.x') > 4, 'атом прошёл сквозь строй: ' + g.ev('__c.x - P.x'));
-  assert.equal(g.ev('__c.ne'), 0, 'быстрые не садятся на протащенный ион');
+  assert.ok(g.ev('__c.x') - x0 > 4, 'атом пролетел сквозь строй: ' + (g.ev('__c.x') - x0));
+  assert.equal(g.ev('__c.ne'), 0, 'быстрые не садятся на брошенный ион');
   assert.equal(g.ev('G.stage.st.brakes'), 0, 'и не тормозят');
   assert.equal(g.ev('G.stage.el.filter(e => !e.dead && e.slow > 0).length'), 0);
-  // заторможенный следом электрон рядом с зажатым ионом — садится на него, засчитан как твой
+  // взял снова — стоит; заторможенный следом электрон рядом садится на него, засчитан как твой
   g.ev('G.stage.el = []');
+  g.ev(`(() => { const [x, y] = W2S(__c.x, __c.y); mouse.x = x; mouse.y = y; mouse.down = true; })()`);
+  g.ev('G.stage.update(1 / 60, true)');
+  assert.equal(g.ev('G.stage.grab === __c'), true);
   g.ev(`G.stage.el.push(globalThis.__e = { x: __c.x + 1.6, y: __c.y, vx: 3, vy: 0, k: 1, slow: 0, brk: 0, by: null, age: 1 }); G.stage.brake(__e, 'hand')`);
-  g.ev(`(() => { const [x, y] = W2S(__c.x, __c.y); mouse.x = x; mouse.y = y; })()`);
   for (let i = 0; i < 120 && g.ev('__c.ne') === 0; i++) g.ev('G.stage.update(1 / 60, true)');
-  assert.equal(g.ev('__c.ne'), 1, 'заторможенный сел на зажатый ион');
+  assert.equal(g.ev('__c.ne'), 1, 'заторможенный сел на взятый ион');
   assert.equal(g.ev('G.stage.caps.hand'), 1, 'электрон — твой (тормозил след)');
   assert.equal(g.ev('G.stage.st.best'), 0, 'торможение вызовом — не росчерк');
 });
@@ -181,6 +193,6 @@ test('атомы: нажал мимо атомов — обычный след',
   g.ev(ionAt('__c', 6, 0, 0));
   g.ev(`(() => { const [x, y] = W2S(__c.x + 3, __c.y); mouse.x = x; mouse.y = y; mouse.down = true; })()`);
   g.ev('G.stage.update(1 / 60, true)');
-  assert.equal(g.ev('G.stage.hold'), null);
+  assert.equal(g.ev('G.stage.grab'), null);
   assert.equal(g.ev('G.stage.tr.length'), 1);
 });

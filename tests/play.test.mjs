@@ -1,4 +1,4 @@
-// Играбельность: рогатка бросает быстро и с отдачей, молекулу можно разорвать двойным кликом,
+// Играбельность: рогатка бросает быстро и с отдачей, связь молекулы рвётся долгим нажатием на неё,
 // ✦ переходят на следующий уровень (остаток ÷ 10), электроны садятся на ионы только заторможенными.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,37 +27,46 @@ test('рогатка: бросок в 1,75 раза быстрее, пороги
 const pairH = `(() => { const S = G.stage, A = S.newMol('H', P.x, P.y), B = S.newMol('H', P.x + 3, P.y); A.age = B.age = 2;
   S.merge(A, 0, 0, B, 0, 0, 'hand'); return S.m.filter(m => !m.dead && m.bonds.length).length; })()`;
 
-test('молекулы: двойной клик по связи рвёт её (рогатка не берёт тело)', () => {
+test('молекулы: зажать на связи — рвётся (кольцо копится LP_T), тело отпущено; короткое нажатие и двойной клик — нет', () => {
   const g = toStage('molecules');
   g.ev('for (const m of G.stage.m) m.dead = true; G.stage.m = []');
   assert.equal(g.ev(pairH), 1, 'связались');
   g.ev(`globalThis.__mol = G.stage.m.find(m => m.bonds.length); const [i, j] = __mol.bonds[0];
     const [sx, sy] = W2S((__mol.wp[i][0] + __mol.wp[j][0]) / 2, (__mol.wp[i][1] + __mol.wp[j][1]) / 2); mouse.x = sx; mouse.y = sy; mouse.has = true`);
-  const tap = (down) => g.ev(`mouse.down = ${down}; G.stage.sl.update()`);
-  tap(true); tap(false); // первый тап — взял и отпустил без резинки
-  assert.equal(g.ev('G.stage.st.tear'), 0);
-  tap(true); // второй — разрыв
-  assert.equal(g.ev('G.stage.st.tear'), 1);
-  assert.equal(g.ev('G.stage.sl.held'), null, 'двойной клик не берёт тело');
-  tap(false);
+  const press = (down, dt = 0) => g.ev(`G.T += ${dt}; mouse.down = ${down}; G.stage.sl.update()`);
+  // короткое нажатие и двойной клик — ничего не рвут (двойной клик больше не глагол)
+  press(true); press(false, .1); press(true, .05); press(false, .1);
+  assert.equal(g.ev('G.stage.st.tear'), 0, 'короткие нажатия не рвут');
+  press(true, 1);
+  assert.equal(g.ev('G.stage.sl.held === __mol'), true, 'зажал — взял молекулу');
+  assert.match(g.ev('G.stage.lpAt(__mol, ...G.stage.sl.p0).label'), /разорвать H–H/);
+  press(true, .3);
+  assert.equal(g.ev('G.stage.st.tear'), 0, 'кольцо ещё не дошло');
+  press(true, .35);
+  assert.equal(g.ev('G.stage.st.tear'), 1, 'держал ≥ LP_T без резинки — связь порвалась');
+  assert.equal(g.ev('G.stage.sl.held'), null, 'тело отпущено');
+  press(false, .02);
+  assert.equal(g.ev('G.stage.sl.eat'), false, 'нажатие съедено и кончилось');
   assert.equal(g.ev('G.stage.m.filter(m => !m.dead && m.bonds.length).length'), 0, 'связи нет');
   assert.equal(g.ev('G.stage.m.filter(m => !m.dead).length'), 2, 'два атома');
   assert.ok(g.ev('G.stage.floats.some(f => /✂ H–H/.test(f.txt))'));
-  assert.equal(g.ev('G.stage.tore'), true, 'подсказка «двойной клик» больше не нужна');
+  assert.equal(g.ev('G.stage.tore'), true, 'подсказка «зажать на связи» больше не нужна');
 });
 
-test('молекулы: двойной клик быстрее кадра (оба нажатия между кадрами) — тоже разрыв', () => {
+test('молекулы: зажал на атоме (не на связи) и держишь — не рвёт; оттянул — бросок, а не разрыв', () => {
   const g = toStage('molecules');
   g.ev('for (const m of G.stage.m) m.dead = true; G.stage.m = []');
-  g.ev(pairH);
-  g.ev(`const mol = G.stage.m.find(m => m.bonds.length), [i, j] = mol.bonds[0];
-    const [sx, sy] = W2S((mol.wp[i][0] + mol.wp[j][0]) / 2, (mol.wp[i][1] + mol.wp[j][1]) / 2); mouse.x = sx; mouse.y = sy; mouse.has = true`);
-  // два pointerdown и два pointerup пришли до кадра: кнопка уже отпущена, но защёлка и «второе подряд» стоят
-  g.ev('mouse.down = false; mouse.clicked = true; mouse.dbl = true; G.stage.sl.update()');
-  assert.equal(g.ev('G.stage.st.tear'), 1);
-  assert.equal(g.ev('mouse.dbl'), false, 'двойной клик съеден');
-  g.ev('G.stage.sl.update()');
-  assert.equal(g.ev('G.stage.sl.eat'), false);
+  assert.equal(g.ev(pairH), 1);
+  g.ev(`globalThis.__mol = G.stage.m.find(m => m.bonds.length); const c = __mol.wp[0];
+    const [sx, sy] = W2S(c[0], c[1]); mouse.x = sx; mouse.y = sy; mouse.has = true`);
+  g.ev('G.T += 1; mouse.down = true; G.stage.sl.update()');
+  assert.equal(g.ev('G.stage.sl.held === __mol'), true, 'держишь молекулу');
+  assert.equal(g.ev('G.stage.lpAt(__mol, ...G.stage.sl.p0)'), null, 'нажал на атом — это не связь');
+  g.ev('G.T += 1; G.stage.sl.update()');
+  assert.equal(g.ev('G.stage.st.tear'), 0);
+  g.ev('mouse.x -= 200; G.stage.sl.update(); mouse.down = false; G.stage.sl.update()');
+  assert.equal(g.ev('G.stage.st.tear'), 0);
+  assert.ok(g.ev('Math.hypot(__mol.vx, __mol.vy)') > 1, 'бросок');
 });
 
 test('молекулы: «связал — разорвал — связал» не фармит очки', () => {

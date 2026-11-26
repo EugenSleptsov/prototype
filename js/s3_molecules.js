@@ -52,7 +52,8 @@ const fits = (c, t) => Object.keys(c).every(k => (t[k] || 0) >= c[k]);
 const Mols = {
   key: 'molecules', name: 'Молекулы', bg: [6, 24, 44], sling: true,
   // взятое поворачивают Q / E или Shift + колесо (на сенсоре оно поворачивается само по ходу броска)
-  get controls() { return 'Зажать атом, оттянуть, отпустить · ' + (isTouch() ? 'двойное касание связи: разорвать' : 'двойной клик по связи: разорвать · Q / E или Shift + колесо: повернуть'); },
+  get controls() { return 'Зажать атом, оттянуть, отпустить · зажать на связи: разорвать' + (isTouch() ? '' : ' · Q / E или Shift + колесо: повернуть'); },
+  gest() { return { obj: 'атом: оттянуть, отпустить в свободную связь · связь: зажать — разорвать', empty: 'тянуть: карта' }; },
 
   enter(prev) {
     this.m = []; this.t = 0; this.clock = 0; this.hints = []; this.lowEMsgT = 0; this.floats = []; this.tk = {}; this.banner = -1.5;
@@ -86,16 +87,22 @@ const Mols = {
   hold(b) { b.held = true; b.vx = b.vy = 0; b.w = 0; b.mineT = this.t; b.manRot = false; },
   launch(b, vx, vy) { b.held = false; b.vx = vx; b.vy = vy; b.thrown = 0; if (Math.hypot(vx, vy) > 1) b.hand = 3; },
   damp() { return .22; },
-  // двойной клик (касание) по молекуле — рвётся связь, ближайшая к пальцу
-  tap2(x, y) {
-    if (this.doneAt !== null) return false;
+  // зажать на связи (долгое нажатие, резинка не оттянута) — связь рвётся: та, к середине которой нажатие ближе,
+  // чем к любому атому (иначе это просто взятая молекула, а не связь). Был двойной клик — разбор дизайна: свой глагол
+  // на один уровень; теперь «зажать» везде значит «взять», а держать без броска — действие с тем, что держишь.
+  /** @returns {{x: number, y: number, label: string, bi: number} | null} */
+  lpAt(mol, x, y) {
+    if (this.doneAt !== null || mol.dead || !mol.bonds.length) return null;
     let best = null, bd = Infinity;
-    for (const mol of this.m) {
-      if (mol.dead || !mol.bonds.length || Math.hypot(mol.x - x, mol.y - y) > mol.R + 14 / cam.z) continue;
-      mol.bonds.forEach((b, bi) => { const p = mol.wp[b[0]], q = mol.wp[b[1]], d = Math.hypot((p[0] + q[0]) / 2 - x, (p[1] + q[1]) / 2 - y); if (d < bd) { bd = d; best = [mol, bi]; } });
-    }
-    if (!best) return false;
-    const [mol, bi] = best, [i, j] = mol.bonds[bi], s = `${mol.atoms[i].el}–${mol.atoms[j].el}`;
+    mol.bonds.forEach((b, bi) => { const p = mol.wp[b[0]], q = mol.wp[b[1]], d = Math.hypot((p[0] + q[0]) / 2 - x, (p[1] + q[1]) / 2 - y); if (d < bd) { bd = d; best = bi; } });
+    const da = Math.min(...mol.wp.map(p => Math.hypot(p[0] - x, p[1] - y)));
+    if (best === null || bd >= da) return null;
+    const [i, j] = mol.bonds[best], p = mol.wp[i], q = mol.wp[j];
+    return { x: (p[0] + q[0]) / 2, y: (p[1] + q[1]) / 2, label: `разорвать ${mol.atoms[i].el}–${mol.atoms[j].el}`, bi: best };
+  },
+  lp(mol, x, y) {
+    const t = this.lpAt(mol, x, y); if (!t) return false;
+    const bi = t.bi, [i, j] = mol.bonds[bi], s = `${mol.atoms[i].el}–${mol.atoms[j].el}`;
     const mx = (mol.wp[i][0] + mol.wp[j][0]) / 2, my = (mol.wp[i][1] + mol.wp[j][1]) / 2;
     const other = this.splitBond(mol, bi);
     mol.mineT = this.t; if (other) other.mineT = this.t;
@@ -573,8 +580,8 @@ const Mols = {
     if (!o || !Tips.ok('mols:tear')) return;
     const [i, j] = o.bonds[0], [bx, by] = W2S((o.wp[i][0] + o.wp[j][0]) / 2, (o.wp[i][1] + o.wp[j][1]) / 2), r = o.R * cam.z + 10;
     const [sx, sy] = W2S(o.x, o.y);
-    label(isTouch() ? 'двойное касание по связи: разорвать' : 'двойной клик по связи: разорвать', sx, sy + r + 18, 13, [255, 255, 255], .8 * al, 700);
-    ghostDouble(bx, by, al);
+    label('зажать на связи: разорвать', sx, sy + r + 18, 13, [255, 255, 255], .8 * al, 700);
+    ghostLong(bx, by, al);
   },
   overlay(al) {
     if (!G.started) return;

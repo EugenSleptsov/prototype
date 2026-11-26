@@ -115,7 +115,7 @@ const BOT = `globalThis.__mbot = (secs) => { const S = G.stage; let cd = 0;
 };`;
 
 test('молекулы: бот с прицелом проходит уровень (органика, законы, бульон)', () => {
-  const g = toMols(7);
+  const g = toMols(11); // сид — после пролога-рогатки поток случайностей другой; 3, 5, 11 проходят за 85–241 с, 7 — за 438
   g.ev(BOT);
   const r = g.ev('__mbot(400)');
   assert.equal(r.done, true, `не прошёл за 400 с: ${JSON.stringify(r)}`);

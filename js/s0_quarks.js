@@ -74,6 +74,7 @@ const qGlyph = (/** @type {any} */ o) => (QGLYPH[o.fl] || QGLYPH.u)[o.anti ? 1 :
 const Quarks = {
   key: 'quarks', name: 'Адроны', bg: [34, 6, 26], sling: true,
   controls: 'Зажать кварк, оттянуть, отпустить',
+  gest() { return { obj: 'кварк: оттянуть, отпустить — в другой цвет', empty: 'тянуть: карта' }; },
 
   enter(prev) {
     this.o = []; this.pi = []; this.floats = []; this.id = 1; this.t = 0; this.cool = 0; this.clock = 0; this.doneAt = null; this.endCd = -1;

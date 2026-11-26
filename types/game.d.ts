@@ -71,6 +71,12 @@ interface Stage {
   clock?: number; t?: number;
   /** уровень управляется рогаткой: палец — сам жест */
   sling?: unknown;
+  /** палец на сенсоре — сам жест (как у рогатки), хотя уровень без рогатки: пролог «Частиц» */
+  finger?: boolean;
+  /** строка управления (старая, одной строкой) */
+  controls?: string;
+  /** словарь жестов уровня (разбор дизайна: один словарь на игру) — что значит жест по предмету и по пустому */
+  gest?(): { obj?: string; empty?: string; map?: string };
   enter(prev?: Stage | null): void;
   update(dt: number, active: boolean): void;
   viewR(): number;
@@ -152,7 +158,7 @@ type Heat = Omit<Prof, 'k'> & { i: number; k: number; heat: number };
 /** Пролог: инфлатон в чаше (mkInf) */
 interface Inf {
   A: number; th: number; H: number; t: number; idle: number; go: boolean; hold: boolean;
-  gain: number; loss: number; flash: number; snapFx: number; snaps: number; good: number; late: number;
+  p0: [number, number]; pull: number; flash: number; snapFx: number; snaps: number; good: number; late: number;
   pick: Heat | null; zone: number;
   /** сколько пар создано каждого класса света */
   made: number[];

@@ -17,8 +17,9 @@
    - туман — рассеяние света на свободных электронах туманности: чем больше нейтральных, тем она прозрачнее.
    Глагол — след (палец или мышь с зажатой кнопкой): поперёк электрона — тормозит (ион его ловит),
    через дрожащий атом — осаживает электрон, поперёк луча УФ — рассеивает его в безвредный свет.
-   Второй жест — зажать на атоме: атом идёт за пальцем, и только — это расстановка, а не пылесос: подведи его
-   под уже заторможенные следом электроны, уведи из-под луча УФ, выстрой атомы в ряд для каскада.
+   Второй жест — атом рогаткой, как предметы на всех уровнях (разбор дизайна: один глагол на игру): зажал — атом стоит
+   (заторможенные рядом садятся), оттянул и отпустил — полетел и встаёт, где кончился разгон (пунктир). Это расстановка,
+   а не пылесос: брось его под уже заторможенные следом электроны, из-под луча УФ, в ряд для каскада.
    Тормозит, осаживает и рассеивает по-прежнему только след.
    Исследование «Рекомбинация»: электроны у ионов тормозят сами (излучают), туманность нейтрализуется без тебя.
    Необязательный закон «Разлёт туманности» (ключ 'red', после первого перечёркнутого луча): туманность расширяется
@@ -26,7 +27,9 @@
    Мир без края: ионы — ядра твоей сверхновой там, куда их вынесло; Вселенная приносит ионы, электроны и свет из-за края кадра. */
 // обзор; ионы Вселенной: плотность и предел в кадре; электронов в кадре — не больше
 const A_RED = 25, RED_P = .55; // «Разлёт туманности»: цена и доля УФ, которая уходит сама
-const HOLD_R = 3, HOLD_PICK = 1, HOLD_CAP = 1.5; // зажатый атом: круг, где его тянут заторможенные электроны (показ); как близко к атому нажать; поблажка захвату на ходу (только заторможенным)
+const HOLD_R = 3, HOLD_PICK = .45, HOLD_CAP = 1.5; // взятый атом: круг, где его тянут заторможенные электроны (показ); как близко к атому нажать (чуть шире ядра: след рядом с атомом — след, а не захват); поблажка захвату (только заторможенным)
+const A_VMAX = 7, ION_DRAG = .6; // рогатка атома: скорость при полной резинке; торможение иона в туманности (1/с) — бросок встаёт через ~v/0,6
+const A_SPARSE = .7; // в кадре меньше этой доли обычного числа ионов — пустота: недостающие считаются голыми
 const REC_TOP = .65; // «Рекомбинация» нейтрализует сама лишь до этой доли — остальное до прозрачности доводишь ты
 const A_VIEW = 14.5, A_DENS = .025, A_CAP = 40, A_ECAP = 30, A_COST = 30, A_GOAL = .9, TR_LIFE = 1.1, TR_W = .55; // TR_W — полуширина следа (мир)
 const AT_EL = { 1: ['H', [235, 235, 240]], 2: ['He', [200, 250, 255]], 3: ['Li', [200, 120, 255]], 6: ['C', [150, 150, 165]], 7: ['N', [110, 145, 255]], 8: ['O', [250, 95, 80]] };
@@ -48,12 +51,35 @@ const UV_C = [215, 190, 255];
 
 const Atoms = {
   key: 'atoms', name: 'Атомы', bg: [10, 14, 42], sling: true, // sling — палец сам рисует след (без кнопки действия)
-  controls: 'След поперёк электрона тормозит его, через дрожащий атом осаживает, поперёк УФ рассеивает · Зажать атом и тащить: подвести его под заторможенные электроны',
+  controls: 'След поперёк электрона тормозит его, через дрожащий атом осаживает, поперёк УФ рассеивает · Зажать атом, оттянуть, отпустить: под заторможенные электроны',
+  gest() { return { obj: 'атом: оттянуть, отпустить — встанет в конце пунктира; держишь — стоит', empty: 'вести: след тормозит e⁻, осаживает атом, рассеивает УФ' }; },
+  // рогатка атома (sling.js): хозяин даёт тела, радиус, резинку; мимо атома — не карта, а след (noPan)
+  noPan: true,
+  bodies() { return this.ions; },
+  /** @param {{x: number, y: number, vx: number, vy: number, Z: number, ne: number}} b */ grabR(b) { return HOLD_PICK + .06 * b.Z; },
+  full() { return slingFullPx() / cam.z; },
+  vmax() { return A_VMAX; },
+  /** @param {{x: number, y: number, vx: number, vy: number, Z: number, ne: number}} b */
+  hold(b) {
+    b.vx = b.vy = 0; this.st.held++; Tips.did('atoms:hold');
+    this.once('hold', 'Атом — рогаткой, как везде: оттянуть и отпустить — встанет в конце пунктира. Пока держишь — стоит, заторможенные рядом садятся. Тормозит и осаживает — след');
+  },
+  /** @param {{x: number, y: number, vx: number, vy: number, Z: number, ne: number}} b @param {number} vx @param {number} vy */
+  launch(b, vx, vy) { b.vx = vx; b.vy = vy; },
+  // путь броска: ион тормозится туманностью (ION_DRAG) и встаёт; у точки остановки — сколько там заторможенных e⁻
+  /** @param {{x: number, y: number, vx: number, vy: number, Z: number, ne: number}} b @param {number} vx @param {number} vy */
+  predict(b, vx, vy) {
+    const pts = [[b.x, b.y]]; let x = b.x, y = b.y, ux = vx, uy = vy;
+    for (let t = 0; t < 6 && Math.hypot(ux, uy) > .25; t += 1 / 30) { const k = Math.exp(-ION_DRAG / 30); x += ux / 30; y += uy / 30; ux *= k; uy *= k; pts.push([x, y]); }
+    const n = b.Z - b.ne > 0 ? this.el.filter(e => !e.dead && e.slow > 0 && Math.hypot(e.x - x, e.y - y) < HOLD_R).length : 0;
+    return { pts, x, y, hit: n > 0, label: b.Z - b.ne <= 0 ? 'нейтральный: ловить нечего' : n ? `встанет у ${n} заторм. e⁻` : 'встанет здесь', c: n ? [170, 255, 210] : [215, 220, 235] };
+  },
 
   enter(prev) {
     this.t = 0; this.clock = 0; this.Ta = 1; this.ions = []; this.el = []; this.ph = []; this.tr = []; this.floats = [];
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.rs = { rec: 0, red: 0 }; this.banner = -1.5; this.tk = {}; this.doneAt = null; this.endCd = -1;
-    this.advanced = false; this.cheated = false; this.seenN = new Set(); this.phT = 0; this.was = false; this.stroke = 0; this.hold = null;
+    this.advanced = false; this.cheated = false; this.seenN = new Set(); this.phT = 0; this.was = false; this.stroke = 0; this.grab = null; this.trOn = false;
+    this.sl = new Sling(this);
     this.st = { brakes: 0, ionized: 0, best: 0, relaxed: 0, cascade: 0, cut: 0, shield: 0, held: 0 }; this.caps = { hand: 0, auto: 0 }; this.msgs = new Set();
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     this.fromStars = !!(prev && prev.o);
@@ -130,19 +156,23 @@ const Atoms = {
   },
   // доля нейтральных — по ионам в кадре и рядом: электроны живут только здесь, и улетевшие далеко ядра сверхновой не держат уровень
   recOn() { return !!this.rs.rec && !Uni.off(this, 'rec'); },
-  neutral() { let n = 0, z = 0; for (const i of this.ions) if (!i.dead && inRef(i.x, i.y, 4)) { n += Math.min(i.ne, i.Z); z += i.Z; } return z ? n / z : 0; },
+  // знаменатель — не меньше A_SPARSE обычного числа ионов кадра: увёл камеру в пустоту, где пара нейтральных, —
+  // это не «туманность прозрачна», недостающие ионы считаются голыми (игрок: «отодвинул где ничего нет — 100 %»)
+  neutral() { let n = 0, z = 0; for (const i of this.ions) if (!i.dead && inRef(i.x, i.y, 4)) { n += Math.min(i.ne, i.Z); z += i.Z; } return n / Math.max(z, this.zFloor(), 1); },
+  zFloor() { return A_SPARSE * popWant(A_DENS, A_CAP, refZ()); },
+  sparse() { let z = 0; for (const i of this.ions) if (!i.dead && inRef(i.x, i.y, 4)) z += i.Z; return z < this.zFloor(); },
 
   // ---------- след ----------
   tickTrail(live) {
     const down = live && mouse.down && !G.paused && this.doneAt === null;
-    if (down && !this.was) {
+    if (down && !this.was) { // нажал на атом — его берёт рогатка (sl), мимо — новый росчерк следа
       const [x, y] = S2W(mouse.x, mouse.y);
-      this.hold = this.ionAt(x, y); // нажал на атом — держишь его, а не ведёшь след
-      if (this.hold) { this.st.held++; Tips.did('atoms:hold'); } else { this.stroke++; this.strokeN = 0; this.tr = []; }
+      this.trOn = !this.ionAt(x, y);
+      if (this.trOn) { this.stroke++; this.strokeN = 0; this.tr = []; }
     }
-    if (!down && this.hold) { this.hold.vx *= .3; this.hold.vy *= .3; this.hold = null; } // отпустил — атом плывёт дальше сам
+    if (!down) this.trOn = false;
     this.was = down;
-    if (down && !this.hold) {
+    if (down && this.trOn) {
       const [x, y] = S2W(mouse.x, mouse.y), l = this.tr[this.tr.length - 1];
       if (!l || Math.hypot(l.x - x, l.y - y) > .12) this.tr.push({ x, y, t: G.T });
     }
@@ -155,21 +185,12 @@ const Atoms = {
     for (const io of this.ions) { if (io.dead) continue; const d = Math.hypot(io.x - x, io.y - y) - .06 * io.Z; if (d < HOLD_PICK && d < bd) { bd = d; best = io; } }
     return best;
   },
-  // зажатый атом: только идёт за пальцем — сам не тормозит и не осаживает (это делает след)
-  tickHold(dt) {
-    const io = this.hold; if (!io) return;
-    if (io.dead) { this.hold = null; return; }
-    const [x, y] = S2W(mouse.x, mouse.y), k = Math.min(1, dt * 12);
-    io.vx += ((x - io.x) * 7 - io.vx) * k; io.vy += ((y - io.y) * 7 - io.vy) * k;
-    const s = Math.hypot(io.vx, io.vy); if (s > 9) { io.vx *= 9 / s; io.vy *= 9 / s; }
-    this.once('hold', 'Зажатый атом только идёт за пальцем: подведи его под заторможенные электроны или уведи из-под УФ. Тормозит и осаживает — след');
-  },
   brake(e, by) {
     const s = Math.hypot(e.vx, e.vy) || 1, ns = Math.max(.7, s * .22);
     e.vx *= ns / s; e.vy *= ns / s; e.slow = 4.5; e.brk = .6; e.by = by;
     fxFlash(e.x, e.y, .5, [255, 240, 170], .3);
     if (by === 'hand') {
-      this.st.brakes++; Tips.did('atoms:brake'); if (!this.hold) { this.strokeN = (this.strokeN || 0) + 1; this.st.best = Math.max(this.st.best, this.strokeN); } // «росчерк» — только след
+      this.st.brakes++; Tips.did('atoms:brake'); if (!this.grab) { this.strokeN = (this.strokeN || 0) + 1; this.st.best = Math.max(this.st.best, this.strokeN); } // «росчерк» — только след
       if (this.st.brakes === 1) tipMsg('atoms:brake', 'Электрон отдал энергию фотоном и замедлился. Теперь ион его поймает');
     }
   },
@@ -184,11 +205,12 @@ const Atoms = {
     for (const f of this.floats) f.t += dt;
     this.floats = this.floats.filter(f => f.t < 1.6);
     this.tickTrail(live);
-    if (live) this.tickHold(dt);
+    if (live && this.doneAt === null) this.sl.update(); else if (this.sl.held) this.sl.held = null;
+    this.grab = this.sl.held && !this.sl.held.dead ? this.sl.held : null; // взятый рогаткой — стоит
     const vth = this.vth();
     for (const io of this.ions) {
       io.age += dt; io.rot += dt * 2;
-      if (io !== this.hold) { const j = .25 * Math.sqrt(dt); io.vx += randn() * j; io.vy += randn() * j; const k = Math.exp(-dt * .6); io.vx *= k; io.vy *= k; } // зажатый — идёт за пальцем
+      if (io !== this.grab) { const j = .25 * Math.sqrt(dt); io.vx += randn() * j; io.vy += randn() * j; const k = Math.exp(-dt * ION_DRAG); io.vx *= k; io.vy *= k; } // взятый — стоит
       io.x += io.vx * dt; io.y += io.vy * dt;
       if (io.src && G.prev) { const [px, py] = toPrev(io.x, io.y); io.src.x = px; io.src.y = py; io.src.vx = io.src.vy = 0; } // ядро гаснет там, где проявляется ион
       if (act && io.ex > 0 && (io.exT -= dt) <= 0) this.relax(io, 'self'); // спрыгнул на основную сам
@@ -213,7 +235,7 @@ const Atoms = {
         const d = Math.sqrt(d2) || 1e-6, f = (e.slow > 0 ? 9 : 5) * Q / (d2 + .6); // медленного кулон дотягивает издалека
         ax += dx / d * f; ay += dy / d * f;
         // захват: заторможенный, близко и медленно
-        if (act && e.slow > 0 && d < .95 + .08 * Q && Math.hypot(e.vx - io.vx, e.vy - io.vy) < 2.4 + .3 * Q + (io === this.hold ? HOLD_CAP : 0)) { this.capture(io, e); break; } // зажатый на ходу ловит чуть легче — но только заторможенных
+        if (act && e.slow > 0 && d < .95 + .08 * Q && Math.hypot(e.vx - io.vx, e.vy - io.vy) < 2.4 + .3 * Q + (io === this.grab ? HOLD_CAP : 0)) { this.capture(io, e); break; } // зажатый на ходу ловит чуть легче — но только заторможенных
         // «Рекомбинация»: у иона электрон излучает и тормозит сам
         if (act && recAuto && d < 4 && e.brk <= 0 && Math.random() < dt * .5) this.brake(e, e.by === 'hand' ? 'hand' : 'auto');
       }
@@ -386,7 +408,7 @@ const Atoms = {
       { t: 'Осадить пойманный электрон', h: 'он дрожит на внешней орбите: провести следом через атом', s: 'спектральная линия', d: this.st.relaxed > 0 },
       { t: 'Одеть ядра электронами', h: 'заторможенные электроны садятся на ион; зажать ион — подвести его к ним · гелий и закрытую K-оболочку жёсткий свет не берёт', items: AT_NEED.map(Z => [atSym(Z), this.seenN.has(Z)]), s: 'H, He, C, N, O', d: AT_NEED.every(Z => this.seenN.has(Z)) },
       { t: 'Сформировать закон «Рекомбинация»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${A_COST} ✦`, s: 'рекомбинация', d: this.rs.rec > 0, res: 'rec' },
-      { t: 'Сделать туманность прозрачной', h: `свет рассеивают её свободные электроны: нужно нейтрализовать 90 %${this.rs.rec ? `. Закон «Рекомбинация» даёт до ${REC_TOP * 100} %, остальное следом` : ''}`, p: [Math.min(90, Math.round(n * 100)), 90], s: 'туманность прозрачна', d: n >= A_GOAL },
+      { t: 'Сделать туманность прозрачной', h: this.sparse() ? 'в кадре пусто — это не туманность: вернись туда, где ионы' : `свет рассеивают её свободные электроны: нужно нейтрализовать 90 %${this.rs.rec ? `. Закон «Рекомбинация» даёт до ${REC_TOP * 100} %, остальное следом` : ''}`, p: [Math.min(90, Math.round(n * 100)), 90], s: 'туманность прозрачна', d: n >= A_GOAL },
     ];
   },
   starPool() {
@@ -427,7 +449,7 @@ const Atoms = {
     for (const io of this.ions) {
       const [sx, sy] = W2S(io.x, io.y); if (!onScreen(sx, sy, 60)) continue;
       const ka = appear(io.age), a = al * ka, c = atCol(io.Z), r = (.3 + .06 * io.Z) * z * popIn(ka), Q = io.Z - io.ne;
-      if (io === this.hold) { // держишь: где его тянут заторможенные — зелёный пунктир (и нити к ним), сам атом — в золотом кольце
+      if (io === this.grab) { // держишь: где его тянут заторможенные — зелёный пунктир (и нити к ним), сам атом — в золотом кольце
         ring(sx, sy, HOLD_R * z, [170, 255, 210], (Q > 0 ? .4 : .15) * a, 1.5, [6, 6]);
         if (Q > 0) for (const e of this.el) if (!e.dead && e.slow > 0 && Math.hypot(e.x - io.x, e.y - io.y) < HOLD_R) { const [ex, ey] = W2S(e.x, e.y); line(sx, sy, ex, ey, [170, 255, 210], .25 * a, 1); }
         ring(sx, sy, r + 6 + 2 * Math.sin(G.T * 8), GOLD, .9 * a, 2.5);
@@ -476,9 +498,11 @@ const Atoms = {
       else if (p) { if (Tips.ok('atoms:cut')) { const [sx, sy] = W2S(p.x, p.y); ring(sx, sy, 16 + 3 * Math.sin(G.T * 5), UV_C, .8 * al, 2); label('перечеркнуть луч', sx, sy + 32, 13, [255, 255, 255], .85 * al, 700); ghostSwipe(sx, sy, p.vx, p.vy, al); } }
       else if (this.st.held === 0 && this.st.relaxed > 0) { // и второй жест: зажать на голом ионе
         const h = this.ions.filter(i => i.Z - i.ne > 0 && i.age > 1 && clear(i)).sort((u, v) => near(u) - near(v))[0];
-        if (h && Tips.ok('atoms:hold')) { const [sx, sy] = W2S(h.x, h.y); ring(sx, sy, HOLD_R * cam.z, [170, 255, 210], .3 * al, 1.5, [6, 6]); label('зажать атом — подвести под заторможенные', sx, sy + .9 * cam.z + 22, 13, [255, 255, 255], .85 * al, 700); hintIcons('hold', sx, sy + .9 * cam.z + 22); }
+        if (h && Tips.ok('atoms:hold')) { const [sx, sy] = W2S(h.x, h.y); ring(sx, sy, HOLD_R * cam.z, [170, 255, 210], .3 * al, 1.5, [6, 6]); label('зажать атом, оттянуть, отпустить — под заторможенные', sx, sy + .9 * cam.z + 22, 13, [255, 255, 255], .85 * al, 700);
+          const e = this.el.find(e => !e.dead && e.slow > 0 && onScreen(...W2S(e.x, e.y), -40)); if (e) { const [ex, ey] = W2S(e.x, e.y); ghostSling(sx, sy, ex, ey, al); } else hintIcons('hold', sx, sy + .9 * cam.z + 22); }
       }
     }
+    this.sl.draw(al); // рогатка атома: резинка, пунктир до остановки, вердикт
     for (const fl of this.floats) { const [fx, fy] = W2S(fl.x, fl.y); labelIn(fl.txt, fx, fy - 16 - fl.t * 26, fl.sz, fl.c, clamp(1.6 - fl.t, 0, 1), 700); }
     ctx.globalAlpha = 1;
   },

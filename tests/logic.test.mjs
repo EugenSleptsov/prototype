@@ -23,12 +23,17 @@ test('ядра: ⁴He + ⁴He — не реакция (без «нового» �
   assert.equal(g.ev(`G.stage.o.filter(o => o.thrown === 'auto').length`), 0);
 });
 
-test('атомы: доля нейтральных — по ионам у кадра, улетевшее далеко голое ядро её не держит', () => {
+test('атомы: доля нейтральных — по ионам у кадра, улетевшее далеко голое ядро её не держит; пустой кадр — не 100 %', () => {
   const g = toStage('atoms');
   g.ev(`for (const i of G.stage.ions) i.dead = true; G.stage.ions = [];
     const a = G.stage.ion(8, P.x, P.y, 1); a.ne = 8; G.stage.ions.push(a);
     const far = G.stage.ion(8, P.x + viewRadius() * 6, P.y, 1); far.mine = true; G.stage.ions.push(far)`);
-  assert.equal(g.ev('G.stage.neutral()'), 1);
+  const one = g.ev('G.stage.neutral()');
+  assert.ok(one > 0 && one < .5, 'один нейтральный атом в пустом кадре — не прозрачная туманность: ' + one);
+  assert.equal(g.ev('G.stage.sparse()'), true);
+  g.ev(`for (let k = 0; G.stage.ions.filter(i => inRef(i.x, i.y)).reduce((s, i) => s + i.Z, 0) < G.stage.zFloor() + 1; k++) {
+    const i = G.stage.ion(1, P.x + (k % 9) * .8 - 3, P.y + Math.floor(k / 9) * .8, 1); i.ne = 1; G.stage.ions.push(i); }`);
+  assert.equal(g.ev('G.stage.neutral()'), 1, 'кадр полон — все нейтральны');
   g.ev('P.x += viewRadius() * 6; cam.x = P.x');
   assert.equal(g.ev('G.stage.neutral()'), 0, 'там, где голое ядро, — 0');
 });

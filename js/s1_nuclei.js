@@ -33,6 +33,12 @@ const NUC_NAME = {
   '1,0': ['p', 'протон'], '0,1': ['n', 'нейтрон'], '1,1': ['²H', 'дейтерий'], '1,2': ['³H', 'тритий'], '2,1': ['³He', 'гелий-3'],
   '2,2': ['⁴He', 'гелий-4'], '3,3': ['⁶Li', 'литий-6'], '3,4': ['⁷Li', 'литий-7'], '4,3': ['⁷Be', 'бериллий-7'],
 };
+// ореол элемента: у каждого ядра (A ≥ 2) свой цвет — в недрах звезды по нему видно, где гелий, где углерод.
+// H, He, Li — как облачка газа «Звёзд»; N и O — как атомы «Атомов»; C — белый (в недрах самый важный)
+const NUC_HALO = { 1: [170, 200, 255], 2: [255, 220, 110], 3: [200, 150, 255], 4: [120, 240, 150], 5: [255, 150, 210], 6: [245, 245, 250],
+  7: [110, 150, 255], 8: [255, 100, 80], 9: [200, 255, 120], 10: [255, 150, 60], 11: [255, 235, 90], 12: [90, 220, 230] };
+const nucHalo = Z => NUC_HALO[Z] || [220, 220, 230];
+const NUC_PACK = .8; // ядро рисуется плотнее, чем раскладка для столкновений: нуклоны касаются — шарик, а не россыпь
 const N_BIND = { '1,1': 1, '1,2': 2.6, '2,1': 2.4 }; // энергия связи хрупких ядер: γ (или удар) сильнее — разбивает
 const nkey = o => o.Z + ',' + o.N;
 const nsym = k => (NUC_NAME[k] || ['?'])[0];
@@ -42,6 +48,7 @@ const N_OK = [120, 240, 160], N_BAR = [255, 190, 100], N_BAD = [255, 120, 110], 
 const Nuclei = {
   key: 'nuclei', name: 'Ядра', bg: [22, 8, 40], sling: true,
   controls: 'Зажать ядро, оттянуть, отпустить',
+  gest() { return { obj: 'ядро: оттянуть, отпустить — в другое', empty: 'тянуть: карта' }; },
 
   enter(prev) {
     this.o = []; this.g = []; this.el = []; this.floats = []; this.t = 0; this.clock = 0; this.doneAt = null; this.endCd = -1;
@@ -453,10 +460,18 @@ const Nuclei = {
       line(sx, sy, sx - o.vx * .12 * z, sy - o.vy * .12 * z, c, .5 * a, Math.max(2, o.rad * z * .8));
     }
     ctx.globalAlpha = a;
-    const c = Math.cos(o.rot), s = Math.sin(o.rot);
-    for (const p of o.lay) drawNucleon(sx + (p.lx * c - p.ly * s) * zs, sy + (p.lx * s + p.ly * c) * zs, NU_R * zs, p.t, G.T * .8);
+    const c = Math.cos(o.rot), s = Math.sin(o.rot), A = o.Z + o.N, hc = nucHalo(o.Z);
+    if (A === 1) drawNucleon(sx, sy, NU_R * zs, o.lay[0].t, G.T * .8); // одиночный протон или нейтрон — как был, с кварками
+    else { // ядро — шарик из нуклонов: плотная укладка, дальние темнее (объём), под ним — ореол цвета элемента
+      const pts = o.lay.map(p => { const lx = p.lx * NUC_PACK, ly = p.ly * NUC_PACK; return { t: p.t, x: lx * c - ly * s, y: lx * s + ly * c, d: Math.hypot(lx, ly) }; }).sort((u, v) => v.d - u.d);
+      const dm = Math.max(...pts.map(p => p.d), 1e-6), pr = NU_R * zs * 1.12, R = dm * zs + pr * .92;
+      glow(sx, sy, R * 2.1, hc, .4);
+      ball(sx, sy, R, mixc(hc, [0, 0, 0], .3)); // тело шарика — тоже цвета элемента (ball затемняет край)
+      for (const p of pts) ball(sx + p.x * zs, sy + p.y * zs, pr, mixc(NUC_C[p.t], [0, 0, 0], .38 * p.d / dm));
+      ring(sx, sy, R + 1, hc, .85, 2);
+    }
     ctx.globalAlpha = 1;
-    if (o.Z + o.N > 1) label(nsym(nkey(o)), sx, sy - (o.rad + .3) * z, 12, [255, 255, 255], .8 * a, 700);
+    if (A > 1) label(nsym(nkey(o)), sx, sy - (o.rad + .3) * z, 13, mixc(hc, [255, 255, 255], .35), .95 * a, 700);
     // свободный нейтрон: дуга оставшейся жизни, последние 15 с — красная
     if (o.Z === 0 && o.life < Infinity) {
       const k = clamp(o.life / 100, 0, 1), warn = o.life < 15;

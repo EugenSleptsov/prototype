@@ -34,7 +34,8 @@ test('кадр: доля нейтральных атомов не меняетс
   // свои ионы: нейтральные в центре, голые — у края кадра-эталона и за ним
   g.ev(`(() => { const S = G.stage; for (const i of S.ions) i.dead = true; S.ions = []; S.el = []; S.ph = []; S.phT = -1e9; S.tide = () => {};
     const [hw] = halfView(refZ());
-    for (let k = 0; k < 6; k++) { const i = S.ion(1, P.x + k * .3, P.y, 1); i.vx = i.vy = 0; i.ne = 1; S.ions.push(i); }
+    const n = Math.ceil(S.zFloor()) + 2; // кадр не пуст: иначе недостающие ионы считаются голыми
+    for (let k = 0; k < n; k++) { const i = S.ion(1, P.x + (k % 8) * .3, P.y + Math.floor(k / 8) * .3, 1); i.vx = i.vy = 0; i.ne = 1; S.ions.push(i); }
     for (let k = 0; k < 6; k++) { const i = S.ion(1, P.x + hw * 1.6 + k * .3, P.y, 1); i.vx = i.vy = 0; i.ne = 0; S.ions.push(i); } })()`);
   const at = z => { g.ev(`G.zoom = ${z}`); g.ev('for (let i = 0; i < 240; i++) { cam.z += (zoomFor(G.stage) - cam.z) * .1; }'); return g.ev('G.stage.neutral()'); };
   const n1 = at(1), n2 = at(g.ev('ZOOM_MIN')), n3 = at(g.ev('ZOOM_MAX'));
