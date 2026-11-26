@@ -97,6 +97,10 @@ test('адроны: цветное за краем плазмы вымерзае
   assert.equal(g.ev('__q.dead'), true);
   assert.equal(g.ev('G.stage.st.frozen'), 1);
   assert.ok(g.ev("G.stage.pi.some(p => p.pk === 'pi+')"), 'u с антикварком из вакуума — π⁺');
+  // второй из вакуумной пары — d того же цвета — остался и идёт внутрь: один кварк не превращается в один пион
+  const left = g.ev(`(() => { const o = G.stage.o.find(o => !o.dead && o.m.length === 1 && o !== __q); return o && { col: o.m[0].col, fl: o.m[0].fl, anti: o.m[0].anti, d: Math.hypot(o.x - G.stage.C.x, o.y - G.stage.C.y), in: (o.x - G.stage.C.x) * o.vx < 0 }; })()`);
+  assert.ok(left, 'в плазме остался кварк');
+  assert.deepEqual([left.col, left.fl, left.anti], [0, 'd', false], 'того же цвета, u → d (заряд: u = π⁺ + d)');
   assert.equal(g.ev('__p.dead'), false, 'белому холод не страшен');
 });
 

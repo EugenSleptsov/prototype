@@ -33,17 +33,18 @@ test('пустота: слишком раннее нажатие не счита
   assert.equal(g.ev('G.stage.inVoid'), true);
 });
 
-test('свет: два класса — мягкий и жёсткий; вялая раскачка — Вселенная светит только мягким', () => {
+test('свет: два класса — мягкий и жёсткий; вялая раскачка — жёсткий только редким тепловым хвостом', () => {
   const g = loadGame();
   assert.equal(g.ev('PH_CLS.map(c => c.n).join()'), 'мягкий,жёсткий');
   g.ev(PREP.start); g.step(60 * 25);
   assert.equal(g.ev('G.stage.lit'), true);
   assert.deepEqual(json(g, 'G.stage.madeCls()'), [0], 'создан только мягкий');
-  const cls = json(g, '[...Array(300)].map(() => G.stage.phClass({ p: G.stage.phP() }))');
-  assert.ok(cls.every(c => c === 0), 'жёсткого нет');
+  const cls = json(g, '[...Array(2000)].map(() => G.stage.phClass({ p: G.stage.phP() }))');
+  const hard = cls.filter(c => c === 1).length / cls.length;
+  assert.ok(hard > 0 && hard < .1, `жёсткий — хвост, но есть: ${hard}`);
 });
 
-test('свет: сильная раскачка создаёт несколько классов, Вселенная повторяет только созданные', () => {
+test('свет: сильная раскачка создаёт оба класса, Вселенная повторяет созданные', () => {
   const g = loadGame({ seed: 3 });
   g.ev(PREP.start); g.ev(PREP.pump(.95));
   const made = json(g, 'G.stage.madeCls()');

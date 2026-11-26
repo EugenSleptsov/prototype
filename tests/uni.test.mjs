@@ -30,7 +30,7 @@ test('законы Вселенной: лавка говорит, сколько
   g.ev('G.stage.renderShop(document.getElementById("shop"))');
   assert.match(g.ev('document.getElementById("shop").innerHTML'), /\+\d+ ✦\/мин/);
   const e = buy(g, 'e'), q1 = buy(g, 'q1');
-  assert.equal(e, 25); assert.equal(q1, 25, 'кварки — один закон на поколение: «Кварки I» вместо u и d; цена после «Лептонов I» та же');
+  assert.equal(e, 20); assert.equal(q1, 20, 'кварки — один закон на поколение: «Кварки I» вместо u и d; цена после «Лептонов I» та же');
   assert.equal(buy(g, 'coll'), null, '«Столкновения» в лавке не продаются: пришли с первым законом вещества');
   g.ev("Codex.see('c'); Codex.run.add('c')");
   assert.ok(g.ev(`G.stage.resList().find(r => r.k === 'q2').cost[0]`) > q1, '«Кварки II» дороже «Кварков I»');

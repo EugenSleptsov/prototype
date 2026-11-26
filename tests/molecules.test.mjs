@@ -121,3 +121,39 @@ test('молекулы: бот с прицелом проходит уровен
   assert.equal(r.done, true, `не прошёл за 400 с: ${JSON.stringify(r)}`);
   assert.ok(g.ev('ORGANIC.some(f => G.stage.found.includes(f))'), r.found);
 });
+
+test('молекулы: кратные связи — сильнее удар, выше кратность: O=O — кислород, N≡N — азот; рвутся по одной', () => {
+  const g = toMols(); g.ev(quiet);
+  let r = g.ev(duel('O', 'O', 35, 0));
+  assert.equal(r.label, 'связь O–O', 'над барьером, но ниже двойной — одинарная');
+  assert.equal(fly(g), true);
+  assert.equal(g.ev('G.stage.m.find(m => !m.dead && m.bonds.length).bonds.length'), 1);
+  assert.equal(g.ev(`G.stage.found.includes('O₂')`), false, 'O–O с двумя свободными — ещё не кислород');
+  r = g.ev(duel('O', 'O', 48, 0));
+  assert.equal(r.label, 'двойная связь O=O');
+  assert.equal(fly(g), true);
+  const mol = 'G.stage.m.find(m => !m.dead && m.bonds.length)';
+  assert.equal(g.ev(`${mol}.bonds.length`), 2, 'две связи между теми же атомами');
+  assert.equal(g.ev(`G.stage.freeSlots(${mol})`), 0);
+  assert.equal(g.ev(`G.stage.found.includes('O₂')`), true, 'O₂ открыт');
+  // долгое нажатие ослабляет двойную до одинарной — молекула цела
+  g.ev(`globalThis.__mol = ${mol}`);
+  assert.match(g.ev(`(() => { const [i, j] = __mol.bonds[0]; const p = __mol.wp[i], q = __mol.wp[j]; return G.stage.lpAt(__mol, (p[0] + q[0]) / 2, (p[1] + q[1]) / 2).label; })()`), /ослабить O=O → –/);
+  g.ev(`(() => { const [i, j] = __mol.bonds[0]; const p = __mol.wp[i], q = __mol.wp[j]; G.stage.lp(__mol, (p[0] + q[0]) / 2, (p[1] + q[1]) / 2); })()`);
+  assert.equal(g.ev('__mol.dead'), false); assert.equal(g.ev('__mol.bonds.length'), 1, 'O=O → O–O');
+  assert.equal(g.ev('G.stage.freeSlots(__mol)'), 2);
+  r = g.ev(duel('N', 'N', 60, 0));
+  assert.equal(r.label, 'тройная связь N≡N');
+  assert.equal(fly(g), true);
+  assert.equal(g.ev(`G.stage.found.includes('N₂')`), true, 'N₂ открыт');
+  r = g.ev(duel('H', 'O', 60, 0));
+  assert.doesNotMatch(r.label, /двойная|тройная/, 'у водорода одна связь — только одинарная');
+});
+
+test('молекулы: Вселенная, научившись соединению с кратной связью, бьёт под неё (CO₂: O=C=O)', () => {
+  const g = toMols(); g.ev('G.stage.tide = () => {}'); // не quiet: G.stage — это сам Mols, quiet затёр бы его autoChem
+  g.ev(`(() => { const S = G.stage; for (const m of S.m) m.dead = true; S.m = []; S.res.add('CO₂');
+    for (const [e, dx] of [['C', 0], ['O', -40], ['O', 40]]) { const m = S.newMol(e, P.x + dx, P.y); m.age = 2; m.w = 0; } })()`);
+  for (let i = 0; i < 60 * 30 && !g.ev(`G.stage.found.includes('CO₂')`); i++) g.ev('G.stage.tide = () => {}; update(1 / 60)');
+  assert.equal(g.ev(`G.stage.found.includes('CO₂')`), true, 'Вселенная собрала O=C=O');
+});

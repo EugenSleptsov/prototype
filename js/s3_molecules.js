@@ -8,6 +8,9 @@
    - Энергия активации — заметная доля рогатки: H–H слабее всего, связь с водородом сильнее, тяжёлое с тяжёлым
      (C–C, C–O, C–N) — сильнее всех; слабый бросок отскакивает. Геометрия: брошенное смотрит связью вперёд
      (доворачивает рука), но цель не доворачивается — бить надо в её свободную связь (конус у цели на прицеле).
+   - Кратные связи: удар сильнее барьера на EA_N[2] — двойная (O=O, C=O, C=C), на EA_N[3] — тройная (N≡N, C≡N, C≡C),
+     если у обоих атомов столько свободных связей; лишние связи берутся соседние по углу (рисунок — параллельные линии).
+     Рвётся кратная по одной: O=O → O–O. Так собираются O₂, N₂, CO₂, H₂CO, HCN, C₂H₄, C₂H₂ (раньше модель их не умела).
    - Очень сильный удар рвёт связь. Насыщенная молекула больше не растёт.
    Игра — по всему полю, своего атома нет. Рогатка: зажми атом или молекулу, оттяни, отпусти;
    взятое само поворачивается свободной связью по ходу броска; цель — как лежит (её вращение пунктир учитывает).
@@ -35,15 +38,23 @@ const TOL_HIT = .5, TOL_AIM = .7;
 // 26 %, 31 % и 39 % полной рогатки M_VMAX; Вселенная («Синтез») бросает со скоростью M_AUTO_V — выше любого барьера, ниже BREAK_V
 const EA_HH = 18, EA_XH = 22, EA_XX = 27, M_AUTO_V = 38, M_HKEEP = 6;
 const EA = (/** @type {string} */ x, /** @type {string} */ y) => x === 'H' && y === 'H' ? EA_HH : x === 'H' || y === 'H' ? EA_XH : EA_XX;
+// кратная связь — удар сильнее барьера ещё на столько: двойная X–X от 39, тройная от 46 (Вселенная бьёт 38 — только одинарные,
+// пока её не научили соединению с кратной связью: тогда ставит нужную кратность сама, A.mb)
+const EA_N = [0, 0, 12, 19], BOND_SYM = ['', '–', '=', '≡'];
+/** кратность связи при ударе со скоростью vn (по линии центров): не больше свободных связей у обоих атомов @param {number} vn @param {number} ea @param {number} mx */
+const bondN = (vn, ea, mx) => mx >= 3 && vn >= ea + EA_N[3] ? 3 : mx >= 2 && vn >= ea + EA_N[2] ? 2 : 1;
 // органика с каркасом — связь углерода с тяжёлым атомом (C–C, C–O, C–N): шаг задания
-const ORGANIC = ['CH₃OH', 'C₂H₆', 'CH₃NH₂', 'C₂H₅OH'];
+const ORGANIC = ['CH₃OH', 'C₂H₆', 'CH₃NH₂', 'C₂H₅OH', 'H₂CO', 'HCN', 'C₂H₄', 'C₂H₂'];
 const M_U = 5, M_VIEW = 78, M_DENS = .0012, M_CAP = 60, M_COST = 20;
-// соединения из одинарных связей (двойные модель не умеет) — {f: формула, n: название, c: состав}
+// соединения — {f: формула, n: название, c: состав, mb: кратная связь в ней (2 — двойная, 3 — тройная)}
 const COMP = [
   { f: 'H₂', n: 'водород', c: { H: 2 } }, { f: 'H₂O', n: 'вода', c: { H: 2, O: 1 } }, { f: 'NH₃', n: 'аммиак', c: { N: 1, H: 3 } },
   { f: 'CH₄', n: 'метан', c: { C: 1, H: 4 } }, { f: 'H₂O₂', n: 'перекись водорода', c: { H: 2, O: 2 } }, { f: 'CH₃OH', n: 'метанол', c: { C: 1, H: 4, O: 1 } },
   { f: 'C₂H₆', n: 'этан', c: { C: 2, H: 6 } }, { f: 'CH₃NH₂', n: 'метиламин', c: { C: 1, N: 1, H: 5 } }, { f: 'N₂H₄', n: 'гидразин', c: { N: 2, H: 4 } },
   { f: 'NH₂OH', n: 'гидроксиламин', c: { N: 1, O: 1, H: 3 } }, { f: 'C₂H₅OH', n: 'этанол', c: { C: 2, H: 6, O: 1 } },
+  { f: 'O₂', n: 'кислород', c: { O: 2 }, mb: 2 }, { f: 'N₂', n: 'азот', c: { N: 2 }, mb: 3 }, { f: 'CO₂', n: 'углекислый газ', c: { C: 1, O: 2 }, mb: 2 },
+  { f: 'H₂CO', n: 'формальдегид', c: { C: 1, H: 2, O: 1 }, mb: 2 }, { f: 'HCN', n: 'циановодород', c: { H: 1, C: 1, N: 1 }, mb: 3 },
+  { f: 'C₂H₄', n: 'этилен', c: { C: 2, H: 4 }, mb: 2 }, { f: 'C₂H₂', n: 'ацетилен', c: { C: 2, H: 2 }, mb: 3 },
 ];
 const ckey = c => Object.keys(c).filter(k => c[k]).sort().map(k => k + c[k]).join('');
 const COMP_BY = Object.fromEntries(COMP.map(x => [ckey(x.c), x]));
@@ -97,12 +108,12 @@ const Mols = {
     mol.bonds.forEach((b, bi) => { const p = mol.wp[b[0]], q = mol.wp[b[1]], d = Math.hypot((p[0] + q[0]) / 2 - x, (p[1] + q[1]) / 2 - y); if (d < bd) { bd = d; best = bi; } });
     const da = Math.min(...mol.wp.map(p => Math.hypot(p[0] - x, p[1] - y)));
     if (best === null || bd >= da) return null;
-    const [i, j] = mol.bonds[best], p = mol.wp[i], q = mol.wp[j];
-    return { x: (p[0] + q[0]) / 2, y: (p[1] + q[1]) / 2, label: `разорвать ${mol.atoms[i].el}–${mol.atoms[j].el}`, bi: best };
+    const [i, j] = mol.bonds[best], p = mol.wp[i], q = mol.wp[j], n = this.order(mol, i, j);
+    return { x: (p[0] + q[0]) / 2, y: (p[1] + q[1]) / 2, label: n > 1 ? `ослабить ${mol.atoms[i].el}${BOND_SYM[n]}${mol.atoms[j].el} → ${BOND_SYM[n - 1]}` : `разорвать ${mol.atoms[i].el}–${mol.atoms[j].el}`, bi: best };
   },
   lp(mol, x, y) {
     const t = this.lpAt(mol, x, y); if (!t) return false;
-    const bi = t.bi, [i, j] = mol.bonds[bi], s = `${mol.atoms[i].el}–${mol.atoms[j].el}`;
+    const bi = t.bi, [i, j] = mol.bonds[bi], s = `${mol.atoms[i].el}${BOND_SYM[this.order(mol, i, j)]}${mol.atoms[j].el}`;
     const mx = (mol.wp[i][0] + mol.wp[j][0]) / 2, my = (mol.wp[i][1] + mol.wp[j][1]) / 2;
     const other = this.splitBond(mol, bi);
     mol.mineT = this.t; if (other) other.mineT = this.t;
@@ -145,15 +156,19 @@ const Mols = {
           const sa = this.slotNear(b, ia, th, TOL_HIT), sb = this.slotNear(T, ib, th + Math.PI, TOL_AIM, da);
           const ea = EA(b.atoms[ia].el, at.el), hit = [pa[0] + dx * ra / (ra + rb), pa[1] + dy * ra / (ra + rb)];
           let label, c;
-          const free = this.freeSlots(T) && this.freeSlots(b);
-          if (free && sa >= 0 && sb >= 0 && vn >= ea) { label = `связь ${b.atoms[ia].el}–${at.el}`; c = [120, 240, 160]; }
+          const free = this.freeSlots(T) && this.freeSlots(b), mx = Math.min(this.freeAt(b, ia), this.freeAt(T, ib), 3);
+          if (free && sa >= 0 && sb >= 0 && vn >= ea) {
+            const n = bondN(vn, ea, mx), bs = `${b.atoms[ia].el}${BOND_SYM[n]}${at.el}`;
+            label = n === 3 ? `тройная связь ${bs}` : n === 2 ? `двойная связь ${bs}` : `связь ${bs}`; c = n > 1 ? [130, 220, 255] : [120, 240, 160];
+          }
           else if (vn > BREAK_V && (b.bonds.length || T.bonds.length)) { label = 'порвёт связь'; c = [255, 90, 80]; }
           else if (!free) { label = 'насыщена, отскочит'; c = [170, 175, 195]; }
           else if (sb < 0) { label = 'мимо свободной связи цели'; c = [200, 205, 225]; }
           else if (sa < 0) { label = 'вскользь: бить в лоб'; c = [200, 205, 225]; }
           else { label = 'слабо: барьер, оттянуть сильнее'; c = [255, 200, 110]; }
           const near = this.slotNear(T, ib, th + Math.PI, 9, da), cone = near >= 0 && free ? [pb[0], pb[1], this.slotAng(T, ib, near) + da, sb >= 0, rb] : null;
-          return { pts, x: hit[0], y: hit[1], label, c, hit: true, cone, need: vn > .1 ? ea * v0 / vn : Infinity };
+          const sc = vn > .1 ? v0 / vn : Infinity, needN = free && sa >= 0 && sb >= 0 ? [2, 3].filter(n => n <= mx).map(n => (ea + EA_N[n]) * sc) : [];
+          return { pts, x: hit[0], y: hit[1], label, c, hit: true, cone, need: ea * sc, needN };
         }
       }
     }
@@ -211,6 +226,9 @@ const Mols = {
   wpos(mol, i) { const a = mol.atoms[i], [x, y] = rot(a.lx, a.ly, mol.a); return [mol.x + x, mol.y + y]; },
   slotAng(mol, i, k) { const a = mol.atoms[i]; return mol.a + a.base + CHEM[a.el].s[k] * DEG; },
   freeSlots(mol) { let n = 0; for (const a of mol.atoms) for (const b of a.b) if (b < 0) n++; return n; },
+  freeAt(mol, i) { return mol.atoms[i].b.filter(x => x < 0).length; },
+  /** кратность связи между атомами i и j @param {any} mol @param {number} i @param {number} j */
+  order(mol, i, j) { return mol.bonds.filter(b => (b[0] === i && b[1] === j) || (b[0] === j && b[1] === i)).length; },
   counts(mol) { const c = {}; for (const a of mol.atoms) c[a.el] = (c[a.el] || 0) + 1; return c; },
   formula(mol) { // порядок Хилла: C, H, затем по алфавиту
     const c = this.counts(mol), keys = Object.keys(c).sort((a, b) => {
@@ -250,7 +268,7 @@ const Mols = {
   },
 
   // ---------- реакции ----------
-  merge(A, ia, sa, B, ib, sb, src) {
+  merge(A, ia, sa, B, ib, sb, src, n = 1) {
     let host = A, ih = ia, sh = sa, gu = B, ig = ib, sg = sb;
     if (B.m > A.m) { host = B; ih = ib; sh = sb; gu = A; ig = ia; sg = sa; }
     const ha = host.atoms[ih], ga = gu.atoms[ig];
@@ -275,6 +293,13 @@ const Mols = {
     for (const bd of gu.bonds) host.bonds.push([bd[0] + off, bd[1] + off, bd[2], bd[3]]);
     host.bonds.push([ih, off + ig, sh, sg]);
     host.atoms[ih].b[sh] = off + ig; host.atoms[off + ig].b[sg] = ih;
+    // кратная связь: ещё n − 1 пар свободных связей — у каждого атома соседняя по углу к первой
+    const near = (/** @type {any} */ at, /** @type {number} */ s0) => { const S = CHEM[at.el].s; let best = -1, bd = Infinity;
+      at.b.forEach((x, k) => { if (x < 0) { const d = Math.abs(angDiff(S[k] * DEG, S[s0] * DEG)); if (d < bd) { bd = d; best = k; } } }); return best; };
+    for (let k = 1; k < n; k++) {
+      const s1 = near(host.atoms[ih], sh), s2 = near(host.atoms[off + ig], sg); if (s1 < 0 || s2 < 0) break;
+      host.bonds.push([ih, off + ig, s1, s2]); host.atoms[ih].b[s1] = off + ig; host.atoms[off + ig].b[s2] = ih;
+    }
     this.recompute(host);
     host.vx = vx; host.vy = vy; host.w = Lw / host.I;
     gu.dead = true;
@@ -334,7 +359,9 @@ const Mols = {
       if (sa >= 0 && sb >= 0) {
         const src = A.hand > 0 || B.hand > 0 ? 'hand' : A.auto > 0 || B.auto > 0 ? 'auto' : null;
         // сами по себе (без броска) связи не возникают — иначе тепловая толчея лепит огромные цепи и съедает весь углерод
-        if (src && imp >= EA(A.atoms[ia].el, B.atoms[ib].el)) { if (this.merge(A, ia, sa, B, ib, sb, src)) return true; }
+        const ea = EA(A.atoms[ia].el, B.atoms[ib].el);
+        const mx = Math.min(this.freeAt(A, ia), this.freeAt(B, ib), 3), want = src === 'auto' ? Math.max(A.auto > 0 ? A.mb || 1 : 1, B.auto > 0 ? B.mb || 1 : 1) : 1;
+        if (src && imp >= ea) { if (this.merge(A, ia, sa, B, ib, sb, src, Math.min(mx, Math.max(bondN(imp, ea, mx), want)))) return true; }
         else if (src === 'hand' && this.lowEMsgT <= 0) { this.lowEMsgT = 5; tipMsg('mols:lowE', 'Барьер: связь рождается только от удара сильнее энергии активации'); }
       }
       if (imp > BREAK_V && (A.bonds.length || B.bonds.length)) {
@@ -381,15 +408,20 @@ const Mols = {
       for (const o of this.m) {
         if (o === pm || o.dead || o.held) continue;
         if (Math.hypot(o.x - pm.x, o.y - pm.y) > pm.R + o.R + 25) continue;
-        for (let i = 0; i < pm.atoms.length; i++) for (let k = 0; k < pm.atoms[i].b.length; k++) {
-          if (pm.atoms[i].b[k] >= 0) continue;
-          const pa = pm.wp[i], th = this.slotAng(pm, i, k), ra = CHEM[pm.atoms[i].el].r;
-          for (let j = 0; j < o.atoms.length; j++) for (let l = 0; l < o.atoms[j].b.length; l++) {
-            if (o.atoms[j].b[l] >= 0) continue;
+        // для пары атомов — только ближайшая по углу свободная связь каждого: если тянуть все, у углерода (4 связи под 90°)
+        // соседние тянут в разные стороны и атом встаёт повёрнутым на 30–45° — удар Вселенной в углерод отскакивал
+        const nearest = (/** @type {any} */ mol, /** @type {number} */ i, /** @type {number} */ phi) => { let best = null, bd = Infinity;
+          mol.atoms[i].b.forEach((x, k) => { if (x < 0) { const d = angDiff(this.slotAng(mol, i, k), phi); if (Math.abs(d) < Math.abs(bd)) { bd = d; best = k; } } }); return best === null ? null : bd; };
+        for (let i = 0; i < pm.atoms.length; i++) {
+          if (!pm.atoms[i].b.some(x => x < 0)) continue;
+          const pa = pm.wp[i], ra = CHEM[pm.atoms[i].el].r;
+          for (let j = 0; j < o.atoms.length; j++) {
+            if (!o.atoms[j].b.some(x => x < 0)) continue;
             const pb = o.wp[j], rb = CHEM[o.atoms[j].el].r, dx = pb[0] - pa[0], dy = pb[1] - pa[1], d = Math.hypot(dx, dy);
             if (d > (ra + rb) * 2.2) continue;
-            const phi = Math.atan2(dy, dx), dA = angDiff(th, phi), dB = angDiff(this.slotAng(o, j, l), phi + Math.PI);
-            if (Math.abs(dA) > 1 || Math.abs(dB) > 1.6) continue;
+            const phi = Math.atan2(dy, dx), dA = nearest(pm, i, phi), dB = nearest(o, j, phi + Math.PI);
+            if (dA === null || dB === null || Math.abs(dA) > 1 || Math.abs(dB) > 1.6) continue;
+            const th = phi + dA;
             if (!(pm.hand > 0)) { o.a -= dB * 3 * dt; pm.a -= dA * 2 * dt; }
             else this.hints.push([pa[0] + Math.cos(th) * ra * 1.05, pa[1] + Math.sin(th) * ra * 1.05, pb[0], pb[1], Math.abs(dA) < TOL_HIT && Math.abs(dB) < TOL_AIM]);
           }
@@ -418,14 +450,15 @@ const Mols = {
         if (ckey(sum) !== ckey(g.c) && this.freeSlots(f[i]) + this.freeSlots(f[j]) - 2 < 1) continue;
         const d = Math.hypot(f[i].x - f[j].x, f[i].y - f[j].y); if (d > 70) continue;
         const sc = f[i].atoms.length + f[j].atoms.length + (ckey(sum) === ckey(g.c) ? 4 : 0) - d / 20 + Math.random();
-        if (sc > bs) { bs = sc; best = [f[i], f[j], d]; }
+        if (sc > bs) { bs = sc; best = [f[i], f[j], d, g.mb || 1]; }
       }
     }
     if (!best) return;
-    let [A, B, d] = best; if (A.m > B.m) [A, B] = [B, A];
+    let [A, B, d, mb] = best; if (A.m > B.m) [A, B] = [B, A];
     const dx = B.x - A.x, dy = B.y - A.y;
     this.orient(A, dx, dy); this.orient(B, -dx, -dy); A.w = B.w = 0;
-    const v = M_AUTO_V; d = d || 1; A.vx = B.vx + dx / d * v; A.vy = B.vy + dy / d * v; A.thrown = 0; A.auto = 3; B.auto = 3;
+    // соединение с кратной связью — Вселенная знает, что варит (как доворачивает «магнитом»): ставит нужную кратность (mb)
+    const v = M_AUTO_V; d = d || 1; A.mb = B.mb = mb; A.vx = B.vx + dx / d * v; A.vy = B.vy + dy / d * v; A.thrown = 0; A.auto = 3; B.auto = 3;
   },
 
   update(dt, act) {
@@ -524,7 +557,13 @@ const Mols = {
       const ka = appear(mol.age), a = al * ka, sat = !this.freeSlots(mol) && mol.atoms.length > 1;
       const pts = mol.wp.map(p => W2S(p[0], p[1]));
       if (sat && COMP_BY[ckey(this.counts(mol))]) glow(cx, cy, mol.R * z * 1.4, [140, 235, 170], .12 * a); // готовое соединение
-      for (const [i, j] of mol.bonds) line(pts[i][0], pts[i][1], pts[j][0], pts[j][1], [220, 230, 245], .85 * a, Math.max(1.5, 2.2 * z));
+      const seen = new Map();
+      for (const [i, j] of mol.bonds) {
+        const key = Math.min(i, j) * 999 + Math.max(i, j), n = this.order(mol, i, j), k = seen.get(key) || 0; seen.set(key, k + 1);
+        const dx = pts[j][0] - pts[i][0], dy = pts[j][1] - pts[i][1], L = Math.hypot(dx, dy) || 1, gap = Math.max(2.5, 3.2 * z), o = (k - (n - 1) / 2) * gap;
+        const ox = -dy / L * o, oy = dx / L * o;
+        line(pts[i][0] + ox, pts[i][1] + oy, pts[j][0] + ox, pts[j][1] + oy, n > 1 ? [190, 230, 255] : [220, 230, 245], .85 * a, Math.max(1.2, (n > 1 ? 1.5 : 2.2) * z));
+      }
       mol.atoms.forEach((at, i) => {
         const d = CHEM[at.el], [sx, sy] = pts[i], r = d.r * z * popIn(ka);
         glow(sx, sy, r * 1.25, [150, 190, 255], .1 * a);
@@ -572,6 +611,11 @@ const Mols = {
     if (a.need < M_VMAX * 1.01) {
       const kn = Math.min(1, (a.need / M_VMAX) ** (1 / SLING_POW)), q = -Math.PI / 2 + TAU * kn, ok = Math.hypot(...this.sl.pull) / this.full() >= kn, [bx, by] = W2S(b.x, b.y);
       line(bx + Math.cos(q) * 11, by + Math.sin(q) * 11, bx + Math.cos(q) * 22, by + Math.sin(q) * 22, ok ? [140, 240, 170] : [255, 120, 100], .95 * al, 2.5);
+      for (const nd of a.needN || []) { // засечки двойной и тройной: досюда — кратная связь
+        if (nd > M_VMAX) continue;
+        const k2 = (nd / M_VMAX) ** (1 / SLING_POW), q2 = -Math.PI / 2 + TAU * k2, ok2 = Math.hypot(...this.sl.pull) / this.full() >= k2;
+        line(bx + Math.cos(q2) * 13, by + Math.sin(q2) * 13, bx + Math.cos(q2) * 20, by + Math.sin(q2) * 20, ok2 ? [130, 220, 255] : [150, 160, 190], .9 * al, 2);
+      }
     }
   },
   // ещё не рвал связей: у ближайшей связанной молекулы — «двойной клик — разорвать» и курсор, который сам дважды кликает

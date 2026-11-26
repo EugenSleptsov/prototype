@@ -51,15 +51,16 @@ test('лавка: «Лептоны II» — +2 e⁻ к атомам сразу; 
   assert.equal(g.ev('G.stage.udRes.length'), 3 * g.ev('NOW_UD'), 'кузница каждого поколения — сразу +3 ◉');
 });
 
-test('лавка: «Свет» II — кванты у детектора сразу; «Свет» III — разогретая горячая область в кадре сразу', () => {
+test('лавка: «Свет» — два уровня; II — разогретая горячая область в кадре сразу и областей вдвое больше', () => {
   const g = lit();
-  const n0 = g.ev(`G.stage.p.filter(o => o.sp === 'ph' && ${inView}(o)).length`);
-  buy(g, 'ph');
-  assert.ok(g.ev(`G.stage.p.filter(o => o.sp === 'ph' && ${inView}(o)).length`) >= n0 + g.ev('NOW_PH') - 1, 'свет — сразу в кадре');
+  assert.equal(g.ev('RES_COST.ph.length'), 2);
   g.ev('G.stage.hz = []');
+  const n0 = g.ev('G.stage.hzN()');
   buy(g, 'ph');
-  assert.equal(g.ev('G.stage.rs.ph'), 3);
+  assert.equal(g.ev('G.stage.rs.ph'), 2);
+  assert.equal(g.ev('G.stage.hzN()'), 2 * n0, 'горячих областей вдвое больше');
   assert.ok(g.ev(`G.stage.hz.some(z => G.stage.hzK(z) > .5 && onScreen(...W2S(z.x, z.y), 0))`), 'горячая область уже кипит в кадре');
+  assert.equal(g.ev(`G.stage.shopItems().some(it => it.r && it.r.k === 'ph')`), false, '«Свет» III нет');
 });
 
 test('лавка: эпоха 3 — закон для задания: горячая точка рождает его вид через ~2 с, а не через 45', () => {
