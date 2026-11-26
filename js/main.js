@@ -4,7 +4,7 @@ const LADDER = ['Частицы', 'Адроны', 'Ядра', 'Звёзды', '�
 const TRANS_DUR = 3, CTL_T = 15; // CTL_T — сколько секунд в первый визит видна строка управления
 // Управление на заставке: значок жеста и что он делает, каждый жест в своей строке
 document.getElementById('gdesk').innerHTML = [[GEST.move(), 'Мышь: вести детектор'], [GEST.click(), 'Клик: снимок'], [GEST.hold(), 'Зажать: притянуть кванты'],
-  [GEST.release(), 'Отпустить: столкнуть'], [GEST.wheel(), 'Колесо: зум'], [GEST.key('M'), 'M: звук']].map(([s, l]) => gestItem(s, l)).join('');
+  [GEST.release(), 'Отпустить: столкнуть'], [GEST.rclick(), 'Правая кнопка или X: разжать без удара'], [GEST.wheel(), 'Колесо: зум'], [GEST.key('M'), 'M: звук']].map(([s, l]) => gestItem(s, l)).join('');
 // Путь Вселенной на заставке: где ты сейчас и куда идёшь (дальше «Молекул» — ещё в разработке)
 // путь Вселенной в заставке; готовые уровни можно нажать — забег начнётся с него (проверить уровень, не проходя всё заново)
 G.fromI = 0;
@@ -77,6 +77,10 @@ addEventListener('pointermove', e => {
   }
   if (e.pointerId === steerId) { mouse.x = e.clientX; mouse.y = e.clientY; }
 });
+// второй палец: короткое касание (до TAP2_T мс) поверх ведущего — «разжать»
+const TAP2_T = 300;
+/** @type {{ id: number, t: number, x: number, y: number } | null} */
+let tap2 = null;
 // двойной клик или касание: второе нажатие рядом с первым в пределах 0,4 с — ловим здесь, а не по кадрам (быстрый дабл-клик короче кадра)
 let lastDown = { t: -1e9, x: 0, y: 0 };
 /** @param {PointerEvent} e */
@@ -98,13 +102,17 @@ addEventListener('pointerdown', e => {
   if (e.target !== cv) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (ptrs.size === 1) { steerId = e.pointerId; mouse.x = e.clientX; mouse.y = e.clientY; mouse.has = true; mouse.idle = false; markDbl(e); if (G.stage.sling) { mouse.down = true; mouse.clicked = true; } } // рогатка: палец — сам жест
-  else if (ptrs.size === 2) { const [p, q] = [...ptrs.values()]; pinch0 = { d: Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)), z: G.zoom || 1, mx: (p.x + q.x) / 2, my: (p.y + q.y) / 2 }; mouse.idle = true; if (G.stage.sling && mouse.down) { mouse.cancel = true; mouse.down = false; } }
+  else if (ptrs.size === 2) { tap2 = { id: e.pointerId, t: performance.now(), x: e.clientX, y: e.clientY }; const [p, q] = [...ptrs.values()]; pinch0 = { d: Math.max(20, Math.hypot(p.x - q.x, p.y - q.y)), z: G.zoom || 1, mx: (p.x + q.x) / 2, my: (p.y + q.y) / 2 }; mouse.idle = true; if (G.stage.sling && mouse.down) { mouse.cancel = true; mouse.down = false; } }
 }, true);
 /** @param {PointerEvent} e @param {boolean} [cancel] система отняла жест (входящий звонок, жест ОС) — отмена, а не бросок */
 function ptrUp(e, cancel = false) {
   if (e.pointerType === 'mouse') { if (e.button !== 0) { mpan = null; return; } if (cancel && G.stage.sling && mouse.down) mouse.cancel = true; mouse.down = false; return; }
+  const pt = ptrs.get(e.pointerId);
   if (!ptrs.delete(e.pointerId)) return;
   const wasPinch = !!pinch0;
+  if (tap2 && tap2.id === e.pointerId && pt && !cancel && performance.now() - tap2.t < TAP2_T && Math.hypot(pt.x - tap2.x, pt.y - tap2.y) < 24 &&
+    G.started && !G.paused && G.stage.drop && G.stage.drop() && pinch0) G.zoom = pinch0.z;
+  if (tap2 && tap2.id === e.pointerId) tap2 = null;
   if (ptrs.size < 2) pinch0 = null;
   if (e.pointerId === steerId) { steerId = null; mouse.idle = true; if (G.stage.sling) { if (cancel && mouse.down) mouse.cancel = true; mouse.down = false; } } // отпустил — детектор тормозит (рогатка — бросок)
   // щипок кончился, один палец остался — он снова ведёт (без нажатия: жест — новым касанием)
@@ -118,6 +126,8 @@ addEventListener('blur', () => {
   mouse.down = false; keys.clear(); ptrs.clear(); steerId = null; pinch0 = null; mpan = null; mouse.idle = true;
 });
 cv.addEventListener('contextmenu', e => e.preventDefault());
+// правая кнопка — разжать взятое без удара (если этап это умеет и что-то держишь)
+cv.addEventListener('mousedown', e => { if (e.button === 2 && G.started && !G.paused && G.stage.drop) G.stage.drop(); });
 // Кнопка действия: тап — как клик, удержание — как зажатая кнопка мыши
 const actBtn = document.getElementById('act');
 actBtn.addEventListener('pointerdown', e => { e.preventDefault(); try { actBtn.setPointerCapture(e.pointerId); } catch (err) { /* без захвата */ } mouse.down = true; if (G.started) mouse.clicked = true; actBtn.classList.add('on'); });

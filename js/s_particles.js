@@ -683,13 +683,13 @@ const Particles = {
       let q = Math.min(1, f.q + dt * (1 + .6 * this.hzAt(P.x, P.y)) / (LV_N * LV_T)); const lv = f.lv || 0, nk = Math.min(LV_N, Math.floor(q * LV_N + 1e-9));
       if (nk > lv) {
         if (this.enOn() && this.en < 1) { q = Math.min(q, (lv + 1) / LV_N - 1e-4); if (!f.dry) { f.dry = true; this.noEnergy(); } }
-        else { if (this.enOn()) this.en -= 1; f.lv = nk; Sfx.play('pert', nk - 1); fxRing(P.x, P.y, this.hr() * .9, nk === LV_N ? GOLD : FIELD_C, this.hr() * 1.15, .3); }
+        else { if (this.enOn()) { this.en -= 1; f.spent = (f.spent || 0) + 1; } f.lv = nk; Sfx.play('pert', nk - 1); fxRing(P.x, P.y, this.hr() * .9, nk === LV_N ? GOLD : FIELD_C, this.hr() * 1.15, .3); }
       }
       f.q = q; f.E = this.chargeE(f.q);
     } else if (two) { // вещество разгоняется, только когда пара в поле
       const bd = this.band(f), inB = bd && f.E > bd[0] && f.E < bd[1];
       let dq = Math.min(dt / CHARGE_T * (inB ? .3 : 1), 1 - f.q); // на резонансе стрелка замедляется — успей отпустить
-      if (this.enOn()) { dq = Math.min(dq, this.en / E_FIELD); this.en -= dq * E_FIELD; if (dq <= 0 && f.q < 1 && !f.dry) { f.dry = true; this.noEnergy(); } }
+      if (this.enOn()) { dq = Math.min(dq, this.en / E_FIELD); this.en -= dq * E_FIELD; f.spent = (f.spent || 0) + dq * E_FIELD; if (dq <= 0 && f.q < 1 && !f.dry) { f.dry = true; this.noEnergy(); } }
       f.q += dq; f.E = this.chargeE(f.q, f);
     }
     if (two) { f.t2 = (f.t2 || 0) + dt; if (f.t2 > .4) this.learn.hold = true; if (!this.isQ(f.cap[0])) this.learn.pair2 = true; }
@@ -717,6 +717,23 @@ const Particles = {
   // √s столкновения, если отпустить сейчас (у массивных лоб в лоб: 2·√(p² + m²))
   /** @param {Focus} f */
   rsOf(f) { const a = f.cap[0]; return f.cap.length === 2 && !this.isQ(a) ? 2 * Math.hypot(f.E / 2, this.meff(a)) : f.E; },
+  // Разжать без удара (правая кнопка, второй палец, X): взятое разлетается от детектора, ничего не сталкивается;
+  // ⚡, потраченная на это зажатие, возвращается. Возвращает true, если было что разжимать.
+  drop() {
+    const f = this.focus; if (!f || !this.holding || this.ep === 3) return false;
+    this.focus = null; this.holding = false;
+    const c = f.cap.filter(o => !o.dead);
+    if (this.enOn() && f.spent) this.en = Math.min(E_CAP, this.en + f.spent);
+    for (const o of c) {
+      const dx = o.x - P.x, dy = o.y - P.y, d = Math.hypot(dx, dy) || 1;
+      o.cap = false; o.dx = dx / d; o.dy = dy / d; o.p = o.p0 ?? o.p; o.mate = null; o.thrown = false; o.sib = null;
+      o.flung = .6; o.v = C_LIGHT * 1.2 / (1 + this.heavy(o)); o.cd = .8; // отлетают, не сталкиваясь и не поглощаясь детектором
+    }
+    if (c.length) { fxRing(P.x, P.y, this.hr() * .9, [200, 210, 230], this.hr() * .4, .3); Sfx.play('grab'); this.learn.drop = true; }
+    return true;
+  },
+  // X с клавиатуры — то же, что правая кнопка
+  detach() { this.drop(); },
   // Отпустил — захваченные летят навстречу друг другу и сталкиваются лоб в лоб (√s = E)
   release() {
     const f = this.focus; this.focus = null; if (!f) return;
@@ -2621,6 +2638,8 @@ const Particles = {
       [t, g] = this.focus.cap.every(o => o.sp === 'g') ? ((this.focus.lv || 0) < LV_N ? [`держать до ${LV_N} ⚡: H`, 'hold'] : ['отпустить: H', 'release']) : ['для H нужны два глюона', ''];
     else if (this.ep === 1 && Codex.has('H') && !this.learn.heavy && this.hig >= 1)
       [t, g] = this.p.some(o => !o.dead && !this.isQ(o) && this.grabbable(o) && onScreen(...W2S(o.x, o.y), 0)) ? ['зажать возле частицы: с массой её можно удержать', 'hold'] : ['вещества нет: нужна пара из столкновения квантов', 'holdrel'];
+    else if (this.focus && this.focus.cap.length === 2 && this.learn.smash && !this.learn.drop && this.focus.t > 4)
+      [t, g] = [isTouch() ? 'второй палец: разжать без удара' : 'правая кнопка или X: разжать без удара', ''];
     else if (this.focus && this.focus.cap.length && this.learn.smash && !this.learn.throw && this.epT > 6) [t, g] = this.thrownReady() ? ['отпустить на ходу: бросок', 'release'] : ['разогнаться с квантами', 'move'];
     else if (!this.learn.hold && this.ep === 0 && this.fieldOn()) [t, g] = ['зажать: притянуть кванты', 'holdrel'];
     else if (this.ep === 0 && this.pairs > 0 && !this.rs.coll && this.canBuy()) [t, g] = ['из сделанного вручную можно сформировать закон: лавка внизу', 'shop'];

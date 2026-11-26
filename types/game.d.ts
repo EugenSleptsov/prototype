@@ -83,6 +83,8 @@ interface Stage {
   dash?(): void;
   enterKey?(): void;
   detach?(): void;
+  /** разжать взятое без удара; true — было что разжимать */
+  drop?(): boolean;
   pick?(i: number): void;
   buy?(i: number): void;
   closeCard?(): void;
@@ -134,7 +136,7 @@ interface Cell { c: string; glu?: boolean }
 type Hit = (Cell & { k: number; why: string }) | { c: null; glu?: undefined; k: number; why: string };
 
 /** Поле детектора: захваченные, заряд q (0…1), энергия E, ступень lv */
-interface Focus { cap: Q[]; q: number; E: number; lv: number; ang: number; t: number; t2?: number; dry?: boolean; cand?: Q | null; candT?: number }
+interface Focus { cap: Q[]; q: number; E: number; lv: number; ang: number; t: number; t2?: number; dry?: boolean; spent?: number; cand?: Q | null; candT?: number }
 
 type Prof = typeof PROF[number];
 /** Разогрев: зона PROF, температура k (T = k·1 ТэВ), сколько света (heat) */
@@ -173,7 +175,7 @@ interface CoachPick { kind: string; o?: Q; o2?: Q; el?: HTMLElement }
 interface Coach { idle: number; t: number; kind: string | null; o?: Q | null; o2?: Q | null; el?: HTMLElement | null }
 /** Освоенные жесты (подсказки гаснут) */
 interface Learn {
-  absorb?: boolean; snap?: boolean; snapNew?: boolean; hold?: boolean; smash?: boolean; lv?: boolean; throw?: boolean;
+  absorb?: boolean; snap?: boolean; snapNew?: boolean; hold?: boolean; smash?: boolean; lv?: boolean; throw?: boolean; drop?: boolean;
   hit?: boolean; heavy?: boolean; pair2?: boolean; ann?: boolean; buy?: boolean; shield?: boolean; pulse?: boolean; recol?: boolean;
   /** первая покупка в лавке показана сценой обучения */
   taught?: boolean;

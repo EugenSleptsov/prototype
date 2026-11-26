@@ -27,6 +27,10 @@ const GEST = {
   // отпустить: кнопка отжата (бледная) и стрелка вверх — палец поднят
   release: () => gestSvg(gestMouse('soft', false, false) +
     `<path d="M9 20 V4 M9 4 l-3.5 3.5 M9 4 l3.5 3.5" stroke="${GEST_Y}" stroke-width="2.4"/>`),
+  // правая кнопка: правая половина жёлтым, стрелки в стороны — «разжать»
+  rclick: () => gestSvg(gestMouse('', false, false) + `<path d="M24 18 H33 V16 A9 9 0 0 0 24 7 Z" fill="${GEST_Y}"/>` +
+    `<path d="M24 7 V18 M15 18 H33" stroke="${GEST_INK}" stroke-width="1.3" fill="none"/>` +
+    `<path d="M39 10 l5 -4 M40 17 H46 M39 24 l5 4" stroke="${GEST_Y}" stroke-width="2.2"/>`),
   // колесо: колесо жёлтым и стрелки вверх-вниз
   wheel: () => gestSvg(gestMouse('', true, false) +
     `<path d="M37.5 11 l3.5 -3.5 l3.5 3.5 M37.5 17 l3.5 3.5 l3.5 -3.5" stroke="${GEST_Y}" stroke-width="2.2"/>`),
