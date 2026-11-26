@@ -187,9 +187,33 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) addEve
 addEventListener('keyup', e => keys.delete(e.code));
 // имя для таблицы рекордов запоминается в браузере
 const pname = document.getElementById('pname');
-try { pname.value = localStorage.getItem('proto.name') || ''; } catch (e) { /* без хранилища */ }
+let savedName = ''; try { savedName = localStorage.getItem('proto.name') || ''; } catch (e) { /* без хранилища */ }
+pname.value = savedName;
+// Заставка по шагам. Нового игрока сперва спрашиваем имя; потом имя уезжает наверх, по центру крупно — вся
+// линия жизни Вселенной, и она уезжает вниз; остаются только управление и кнопки. Имя уже есть — сразу последнее.
+const intro = document.getElementById('intro');
+/** @param {'name' | 'line' | 'ready'} s */
+function introSt(s) {
+  intro.classList.remove('st-name', 'st-line', 'st-ready'); intro.classList.add('st-' + s);
+  if (s === 'name') { intro.classList.remove('quick'); try { pname.focus(); pname.select(); } catch (e) { /* заглушка */ } }
+}
+let lineT = 0;
+function nameDone() {
+  const v = pname.value.trim();
+  if (!v) { pname.classList.remove('need'); void pname.offsetWidth; pname.classList.add('need'); return false; }
+  try { localStorage.setItem('proto.name', v); } catch (e) { /* без хранилища */ }
+  document.getElementById('whon').textContent = v;
+  if (intro.classList.contains('st-name') && !savedName) { // впервые: показать линию жизни, потом убрать её вниз
+    savedName = v; introSt('line'); drawPath(); clearTimeout(lineT); lineT = setTimeout(() => introSt('ready'), 3200);
+  } else { savedName = v; introSt('ready'); }
+  return true;
+}
+document.getElementById('nameform').onsubmit = e => { e.preventDefault(); nameDone(); };
+document.getElementById('who').onclick = () => introSt('name');
+intro.onclick = e => { if (intro.classList.contains('st-line') && !/** @type {HTMLElement} */ (e.target).closest('#path')) { clearTimeout(lineT); introSt('ready'); } }; // клик — не ждать
+if (savedName) { document.getElementById('whon').textContent = savedName; intro.classList.add('quick'); introSt('ready'); } else introSt('name'); // вернулся — всё уже на местах, без полёта
 function startRun() {
-  try { localStorage.setItem('proto.name', pname.value.trim() || 'Игрок'); } catch (e) { /* без хранилища */ }
+  try { localStorage.setItem('proto.name', pname.value.trim() || savedName || 'Игрок'); } catch (e) { /* без хранилища */ }
   document.getElementById('intro').style.display = 'none'; G.started = true; G.runT0 = Date.now();
   jumpTo(G.fromI);
 }

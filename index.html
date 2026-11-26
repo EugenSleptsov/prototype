@@ -56,6 +56,28 @@
   #tutgo small,#go small{opacity:.7;font-size:12px;margin-left:6px}
   /* «ради чего»: одна фраза и путь Вселенной — от частиц к жизни */
   #intro .why{font-size:19px;line-height:1.45;margin:10px 0 4px}
+  /* заставка по шагам: st-name — имя; st-line — линия жизни крупно в центре; st-ready — она внизу, в центре только управление */
+  #intro .ibox{max-width:560px;padding:24px;line-height:1.55;transition:opacity .5s}
+  #intro section{display:none}
+  #intro.st-name #askname,#intro.st-ready #ready{display:block;animation:pathIn .5s both}
+  #intro.st-line .ibox{opacity:0;pointer-events:none}
+  #intro.st-ready h1{display:none}
+  #intro label{display:block;margin:16px 0 4px;font-size:15px;opacity:.85}
+  #nameform button{margin-top:0}
+  #who{position:fixed;top:max(14px,env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));margin:0;padding:5px 12px;font-size:14px;border-radius:999px;background:#ffffff14;color:#e8f2ff;border:1px solid #ffffff26;display:flex;gap:8px;align-items:center;opacity:0;transform:translate(-30vw,30vh) scale(1.6);transition:opacity .4s,transform .8s cubic-bezier(.3,.8,.3,1);pointer-events:none}
+  #who i{font-style:normal;opacity:.6}
+  #intro.st-line #who,#intro.st-ready #who{opacity:1;transform:none;pointer-events:auto}
+  #life{position:fixed;left:50%;width:min(920px,calc(100vw - 32px));transform:translate(-50%,-50%);top:50%;text-align:center;transition:top 1s cubic-bezier(.5,0,.2,1),transform 1s cubic-bezier(.5,0,.2,1);display:none}
+  #intro.st-line #life,#intro.st-ready #life{display:block}
+  #intro.st-ready #life{top:100%;transform:translate(-50%,calc(-100% - 18px))}
+  #lifecap{font-size:18px;margin:0 0 14px;transition:opacity .5s,font-size .5s}
+  #intro.st-ready #lifecap{opacity:0;font-size:0;margin:0}
+  #life #path{justify-content:center;font-size:14px;transition:font-size .8s}
+  #intro.st-ready #life #path{font-size:12px}
+  #intro #life{max-width:none;padding:0}
+  #intro.quick #who,#intro.quick #life{transition:none}
+  #pname.need{animation:need .4s;border-color:#ff9a8a}
+  @keyframes need{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
   #intro .why b{color:#ffd27a}
   #path{display:flex;flex-wrap:wrap;gap:6px 0;align-items:center;margin:10px 0 14px;font-size:12px}
   #path span{padding:3px 9px;border-radius:999px;background:#ffffff10;border:1px solid #ffffff1c;animation:pathIn .5s both}
@@ -409,19 +431,28 @@
 </div>
 
 <button id="tutskip">Пропустить обучение<kbd>Esc</kbd></button>
-<div id="intro" class="overlay"><div>
-  <h1>PROTO // TYPE</h1>
-  <p class="why">Большой взрыв. Из этого света должна появиться жизнь.<br><b>Доведи Вселенную до неё.</b></p>
-  <div id="path" aria-label="путь Вселенной"></div>
-  <p>Ты — детектор: сталкивай энергию и открывай, из чего сделан мир.</p>
-  <p class="mo gests" id="gdesk" aria-label="Мышь — вести · клик — снимок · зажать — притянуть кванты · отпустить — столкнуть · колесо — зум · M — звук"></p>
-  <p class="to" style="opacity:.75">Палец на экране — вести детектор · кнопка ◉: тап — снимок, держать — притянуть кванты, отпустить — столкнуть · два пальца — зум</p>
-  <input id="pname" maxlength="16" placeholder="Имя для рекордов">
-  <div class="row">
-    <button id="go">Начать</button>
-    <button id="tutgo" class="alt">Обучение<small>1–2 мин</small></button>
+<!-- Заставка по шагам: имя → линия жизни Вселенной (уезжает вниз) → управление и «Начать» -->
+<div id="intro" class="overlay st-name">
+  <button id="who" title="сменить имя"><span id="whon"></span><i>✎</i></button>
+  <div class="ibox">
+    <h1>PROTO // TYPE</h1>
+    <section id="askname">
+      <p class="why">Большой взрыв. Из этого света должна появиться жизнь.<br><b>Доведи Вселенную до неё.</b></p>
+      <label for="pname">Как тебя зовут?</label>
+      <form id="nameform" class="row"><input id="pname" maxlength="16" placeholder="Имя для рекордов" autocomplete="nickname"><button id="nameok" type="submit">Дальше</button></form>
+    </section>
+    <section id="ready">
+      <p>Ты — детектор: сталкивай энергию и открывай, из чего сделан мир.</p>
+      <p class="mo gests" id="gdesk" aria-label="Мышь — вести · клик — снимок · зажать — притянуть кванты · отпустить — столкнуть · колесо — зум · M — звук"></p>
+      <p class="to" style="opacity:.75">Палец на экране — вести детектор · кнопка ◉: тап — снимок, держать — притянуть кванты, отпустить — столкнуть · два пальца — зум</p>
+      <div class="row">
+        <button id="go">Начать</button>
+        <button id="tutgo" class="alt">Обучение<small>1–2 мин</small></button>
+      </div>
+    </section>
   </div>
-</div></div>
+  <div id="life"><p id="lifecap">Это вся линия жизни Вселенной — от первых частиц до живых организмов. Пройди её до конца.</p><div id="path" aria-label="путь Вселенной"></div></div>
+</div>
 
 <div id="end" class="overlay"><div>
   <h1>Пока всё</h1>
@@ -432,20 +463,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=131"></script>
-<script src="js/gestures.js?v=131"></script>
-<script src="js/audio.js?v=131"></script>
-<script src="js/core.js?v=131"></script>
-<script src="js/universe.js?v=131"></script>
-<script src="js/codex.js?v=131"></script>
-<script src="js/sling.js?v=131"></script>
-<script src="js/s0_quarks.js?v=131"></script>
-<script src="js/s_particles.js?v=131"></script>
-<script src="js/s1_nuclei.js?v=131"></script>
-<script src="js/s_stars.js?v=131"></script>
-<script src="js/s2_atoms.js?v=131"></script>
-<script src="js/s3_molecules.js?v=131"></script>
-<script src="js/online.js?v=131"></script>
-<script src="js/main.js?v=131"></script>
+<script src="js/util.js?v=132"></script>
+<script src="js/gestures.js?v=132"></script>
+<script src="js/audio.js?v=132"></script>
+<script src="js/core.js?v=132"></script>
+<script src="js/universe.js?v=132"></script>
+<script src="js/codex.js?v=132"></script>
+<script src="js/sling.js?v=132"></script>
+<script src="js/s0_quarks.js?v=132"></script>
+<script src="js/s_particles.js?v=132"></script>
+<script src="js/s1_nuclei.js?v=132"></script>
+<script src="js/s_stars.js?v=132"></script>
+<script src="js/s2_atoms.js?v=132"></script>
+<script src="js/s3_molecules.js?v=132"></script>
+<script src="js/online.js?v=132"></script>
+<script src="js/main.js?v=132"></script>
 </body>
 </html>
