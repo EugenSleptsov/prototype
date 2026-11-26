@@ -33,7 +33,7 @@ const C_LIGHT = 1.2, WORLD_R = 12, T_START = 1000, N_QUANTA = 22, PAIR_T = .8, V
 /** @type {Record<string, number>} */
 const DET = { r: .9, sh: 1.2, pow: 3, fr: 2.6 };
 const NEED0 = ['u', 'd', 'e']; // эпоха 1: первое поколение; следующие открываются по порядку (GEN_PREV в codex.js)
-const HIT_R = .42, Z_WIN = 14; // радиус встречи; полуширина окна резонанса Z (ГэВ)
+const HIT_R = .42, Z_WIN = 14, BAND_AT = .55; // BAND_AT — где на шкале тяжёлой пары середина полосы Z // радиус встречи; полуширина окна резонанса Z (ГэВ)
 // Тепловая масса в плазме до перехода Хиггса: m ≈ g·T (сильное взаимодействие — кварки ≈ 0,5 T, топ ещё и юкавское ≈ 0,6 T;
 // электрослабое — лептоны ≈ 0,2 T). Поэтому и без поля Хиггса у рождения пары есть порог 2m.
 /** @type {Record<string, number>} */
@@ -591,9 +591,17 @@ const Particles = {
   Emax() { return 2 * this.T * this.up('pow'); },
   // Энергия столкновения растёт, пока держишь поле: от почти нуля до 2·T·сила
   /** @param {number} q */
-  chargeE(q) { return this.Emax() * (.02 + .98 * q); },
-  /** @param {number} E */
-  qOf(E) { return (E / this.Emax() - .02) / .98; },
+  // f — держимое: у пары частица + античастица шкала своя — резонанс Z приходится на её середину (BAND_AT)
+  /** @param {number} q @param {Focus | null} [f] */
+  chargeE(q, f) { return this.eTop(f) * (.02 + .98 * q); },
+  /** @param {number} E @param {Focus | null} [f] */
+  qOf(E, f) { return (E / this.eTop(f) - .02) / .98; },
+  // верх шкалы заряда: у квантов — Emax; у тяжёлой пары с резонансом — так, чтобы середина полосы Z была на BAND_AT
+  /** @param {Focus | null} [f] */
+  eTop(f) {
+    const bd = f && f.cap.length === 2 && !this.isQ(f.cap[0]) ? this.band(f) : null;
+    return bd ? Math.min(this.Emax(), (bd[0] + bd[1]) / 2 / (.02 + .98 * BAND_AT)) : this.Emax();
+  },
   /** @param {number} k */
   lvE(k) { return this.Emax() * k / LV_N; }, // √s удара на ступени k
   /** @param {number} rs */
@@ -631,6 +639,12 @@ const Particles = {
     }
     return { c: null, k: 0, why };
   },
+  // клетку не показываем вовсе: её не открыть, пока не создано то, что ей предшествует (поколение закрыто)
+  /** @param {string} why */
+  cellHidden(why) { return why.startsWith('сначала'); },
+  // клетку уже создавали (открыта в кодексе) — показываем символом, иначе «?»
+  /** @param {Cell} x */
+  cellKnown(x) { return Codex.has(x.c === 'WW' ? 'W' : x.c); },
   /** @param {Cell | null | undefined} x */
   cellSym(x) { return !x ? 'слабо' : (x.c === 'WW' ? 'W⁺W⁻' : SM[x.c].sym) + (x.glu ? ' + g' : ''); },
   // Кого поле возьмёт следующим: ближайший к центру детектора в радиусе захвата (f — поле, null — ещё не зажал)
@@ -676,7 +690,7 @@ const Particles = {
       const bd = this.band(f), inB = bd && f.E > bd[0] && f.E < bd[1];
       let dq = Math.min(dt / CHARGE_T * (inB ? .3 : 1), 1 - f.q); // на резонансе стрелка замедляется — успей отпустить
       if (this.enOn()) { dq = Math.min(dq, this.en / E_FIELD); this.en -= dq * E_FIELD; if (dq <= 0 && f.q < 1 && !f.dry) { f.dry = true; this.noEnergy(); } }
-      f.q += dq; f.E = this.chargeE(f.q);
+      f.q += dq; f.E = this.chargeE(f.q, f);
     }
     if (two) { f.t2 = (f.t2 || 0) + dt; if (f.t2 > .4) this.learn.hold = true; if (!this.isQ(f.cap[0])) this.learn.pair2 = true; }
     f.ang += dt * (2.2 + 7 * f.q);
@@ -2517,7 +2531,7 @@ const Particles = {
     wedge(sx, sy, Rg, a0, a0 + TAU, 2, 14, [255, 255, 255], .08); // сколько можно набрать
     // золотая полоса — резонанс Z: частица + античастица
     if (bd) {
-      const q1 = this.qOf(bd[0]), q2 = this.qOf(bd[1]);
+      const q1 = this.qOf(bd[0], f), q2 = this.qOf(bd[1], f);
       if (q2 > 0 && q1 < 1) {
         arc(sx, sy, Rg, a0 + TAU * Math.max(0, q1), a0 + TAU * Math.min(1, q2), GOLD, .55, 9);
         const am = a0 + TAU * clamp((q1 + q2) / 2, 0, 1), sym = kinds === 'gg' ? 'H' : 'Z';
@@ -2528,17 +2542,25 @@ const Particles = {
       // ступени удара: деление на каждой четверти круга, у деления — что родит эта ступень (клетка матрицы)
       for (let k = 1; k <= LV_N; k++) {
         const an = a0 + TAU * k / LV_N, c = Math.cos(an), s = Math.sin(an), got = (f.lv || 0) >= k;
-        const xs = this.cellsAt(kinds, k), x = xs.find(v => !this.cellWhy(v, this.lvE(k), false)) || xs[0], open = !!x && !this.cellWhy(x, this.lvE(k), false);
+        const xs = this.cellsAt(kinds, k), x = xs.find(v => !this.cellWhy(v, this.lvE(k), false)) || xs[0], why = x ? this.cellWhy(x, this.lvE(k), false) : '', open = !!x && !why;
+        // ещё не создано то, без чего эту клетку не открыть (поколение закрыто) — ступень пустая: ни символа, ни подсказки
+        if (!x || this.cellHidden(why)) { line(sx + c * (Rg - 5), sy + s * (Rg - 5), sx + c * (Rg + 5), sy + s * (Rg + 5), [255, 255, 255], .25, 2); continue; }
         line(sx + c * (Rg - 8), sy + s * (Rg - 8), sx + c * (Rg + 8), sy + s * (Rg + 8), !open ? NO_C : got ? GOLD : [255, 255, 255], got || !open ? 1 : .7, 2);
         const R = Rg + (Math.abs(c) > .5 ? 30 : 22), lx = sx + c * R, ly = sy + s * R; // сбоку надпись шире — дальше от круга
+        const col = !open ? NO_C : got ? GOLD : [255, 255, 255];
         label(`${k}⚡`, lx, ly - 8, 10, !open ? NO_C : got ? GOLD : [200, 210, 230], .85, 600);
-        label(x ? this.cellSym(x) : '—', lx, ly + 7, 13, !open ? NO_C : got ? GOLD : [255, 255, 255], .95, 800); // красное — пока не создать
+        if (this.cellKnown(x)) label(this.cellSym(x), lx, ly + 7, 13, col, .95, 800); // уже создавали — символ (красный — сейчас не создать)
+        else { ring(lx, ly + 7, 8, col, .9, 1.5); label('?', lx, ly + 7.5, 11, col, .95, 800); } // ещё не создано, но можно — кружок с «?»
       }
     }
     // энергия столкновения — клин: чем больше набрал, тем толще линия; нити к квантам тоже толстеют
     wedge(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), 2, 2 + 12 * f.q, inH ? GOLD : FIELD_C, .95);
-    if (this.isQ(f.cap[0])) { const k = f.lv || 0, x = k ? this.pickCell(kinds, k, this.lvE(k), false) : null; const no = k && x && x.c && x.k < k; label(k ? `${k} ⚡ → ${x && x.c ? this.cellSym(x) : '—'}` : 'слабо', sx, sy + Rg + 50, 15, no ? NO_C : k ? (k === LV_N ? GOLD : [142, 229, 255]) : [200, 205, 220], .95, 800);
-      if (no) label(`${this.cellSym(this.cellsAt(kinds, k)[0])}: ${x.why.split(': ')[1] || 'закрыто'}`, sx, sy + Rg + 68, 12, NO_C, .85, 600); }
+    if (this.isQ(f.cap[0])) {
+      const k = f.lv || 0, x = k ? this.pickCell(kinds, k, this.lvE(k), false) : null, no = k && x && x.c && x.k < k;
+      const top = k ? this.cellsAt(kinds, k)[0] : null, tw = top ? this.cellWhy(top, this.lvE(k), false) : '', show = no && top && !this.cellHidden(tw);
+      label(k ? `${k} ⚡ → ${x && x.c ? (this.cellKnown(x) ? this.cellSym(x) : '?') : '—'}` : 'слабо', sx, sy + Rg + 50, 15, show ? NO_C : k ? (k === LV_N ? GOLD : [142, 229, 255]) : [200, 205, 220], .95, 800);
+      if (show && top) label(`${this.cellKnown(top) ? this.cellSym(top) : '?'}: ${tw || 'закрыто'}`, sx, sy + Rg + 68, 12, NO_C, .85, 600);
+    }
     else label(`√s ${fmtGeV(this.rsOf(f))}`, sx, sy - Rg - 32, 12, inH ? GOLD : [142, 229, 255], .95, 700);
   },
   // Энергия детектора — дуга из делений под кругом; пустая и нужна — мигает красным
