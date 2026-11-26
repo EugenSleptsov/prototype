@@ -9,7 +9,8 @@
      carry(b)            — необязательно: скорость тела, которая сохраняется при броске (инерция), иначе 0
      hold(b)             — необязательно: тело взяли (заморозить, погасить вращение…)
      launch(b, vx, vy)   — бросить: задать скорость, пометить брошенным
-     predict(b, vx, vy)  — {pts: [[x, y]…], x, y, label, c} — путь и вердикт у цели (или без цели)
+     predict(b, vx, vy)  — {pts: [[x, y]…], x, y, label, c, then?, c2?} — путь и вердикт у цели (или без цели);
+                           then — путь сбитого после удара (бильярд «Адронов»), пунктиром потоньше цветом c2
      tap2(x, y)          — необязательно: двойной клик или двойное касание в точке мира; true — съедено (не брать тело) */
 const SLING_MIN = .12; // доля резинки, короче которой бросок отменяется
 const SLING_POW = 1.5; // скорость растёт быстрее длины: у слабых бросков больше хода резинки — мягкий удар легче отмерить
@@ -106,6 +107,12 @@ class Sling {
     ctx.setLineDash([3, 5]); ctx.beginPath();
     a.pts.forEach(([x, y], i) => { const [sx, sy] = W2S(x, y); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy); });
     ctx.strokeStyle = rgb(a.c, .85 * al); ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+    if (a.then) { // удар: куда покатится сбитое
+      ctx.setLineDash([2, 4]); ctx.beginPath();
+      a.then.forEach(([x, y], i) => { const [sx, sy] = W2S(x, y); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy); });
+      ctx.strokeStyle = rgb(a.c2 || a.c, .65 * al); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+      const [x, y] = a.then[a.then.length - 1], [ex, ey] = W2S(x, y); ball(ex, ey, 3, a.c2 || a.c, .8 * al);
+    }
     if (a.label) {
       const [tx, ty] = W2S(a.x, a.y);
       if (a.hit) ring(tx, ty, 10, a.c, .9 * al, 2);

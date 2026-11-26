@@ -25,6 +25,8 @@ const Q_VMAX = 13, Q_REACH = 6, Q_FLY = .8;
 const DELTA_T = 1.6, MESON_T = 2.6; // жизнь Δ и пиона
 // белое схлопывается: за SQ_T кварки стягиваются к центру (до SQ_K раскладки: 30 %), цвета сливаются в белый
 const SQ_T = .5, SQ_K = .3, SQ_RAD = .3;
+// бильярд: готовый нуклон — шар; упругость удара (масса — число кварков), сбитое быстрее полной резинки не летит
+const Q_REST = .8;
 // цель, своих нуклонов в цели, нейтронов в цели, барионов рогаткой до закона, цена закона, как часто бросает Вселенная
 const GOAL_N = 12, OWN_N = 5, GOAL_NN = 2, HAND_Q = 2, CONF_COST = 25, AUTO_CD = 1.6;
 // «Адронный зоопарк» — ключи кодекса 'h:…'
@@ -73,7 +75,7 @@ const Quarks = {
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.failed = false; this.rs = { conf: 0 }; this.banner = -1.5; this.learn = {};
     this.advanced = false; this.cheated = false; this.res = null; this.autoCd = 1; this.stuckT = 0; this.tk = {}; this.msgs = new Set();
     this.made = { p: 0, n: 0 }; this.handN = 0; this.autoN = 0; this.goneWhite = 0;
-    this.st = { frozen: 0, frozenMine: 0, mesons: 0, delta: 0, hyp: 0, hypN: 0, bCasc: 0, pairThrow: 0, bounce: 0, miss: 0 };
+    this.st = { frozen: 0, frozenMine: 0, mesons: 0, delta: 0, hyp: 0, hypN: 0, bCasc: 0, pairThrow: 0, bounce: 0, miss: 0, strikes: 0, carom: 0, saved: 0, bank: 0 };
     const pr = prev && prev.rs || {};
     this.gen2 = pr.q2 > 0 || pr.q3 > 0; this.gen3 = pr.q3 > 0;
     this.hr = prev && prev.hr ? (typeof prev.hr === 'function' ? prev.hr() : prev.hr) : 1.4;
@@ -120,7 +122,7 @@ const Quarks = {
   // тело — кварк, пара или адрон: члены уложены вокруг центра (у каждого — своё место в мире: так их видят «Ядра»)
   mk(m, x, y, vx = 0, vy = 0) {
     const o = { id: this.id++, m: m.map(q => ({ ...q, lx: 0, ly: 0, x, y, vx, vy })), x, y, vx, vy, kind: 'q', rad: QR, age: 0, dead: false, nb: 0, fly: 0, thrown: null, held: false,
-      rot: Math.random() * TAU, cold: 0, mine: false, byHand: false, t: 0, T: 0, sym: '', top: '', dq: '', pk: '', tr: null, sq: 0, r0: QR };
+      rot: Math.random() * TAU, cold: 0, mine: false, byHand: false, t: 0, T: 0, sym: '', top: '', dq: '', pk: '', tr: null, sq: 0, r0: QR, rescue: false, by: null };
     this.lay(o); this.classify(o); this.o.push(o); return o;
   },
   lay(o) {
@@ -197,34 +199,85 @@ const Quarks = {
   symOf(o) { return o.kind === 'hyp' ? o.sym : o.kind === 'delta' ? (o.dq === '++' ? 'Δ⁺⁺' : 'Δ⁻') : o.kind === 'meson' ? HSYM[o.pk] : HSYM[o.kind] || ''; },
 
   // ---------- рогатка ----------
-  bodies() { return G.prev || this.doneAt !== null ? [] : this.o.filter(o => !o.dead && !isWhite(o) && !(o.fly > 0) && o.age > .3); },
+  // берётся цветное и готовый нуклон (он — шар бильярда); Δ, гипероны и мезоны живут миг — их не берут
+  bodies() { return G.prev || this.doneAt !== null ? [] : this.o.filter(o => !o.dead && (!isWhite(o) || isNuc(o)) && !(o.fly > 0) && o.age > .3); },
   grabR(b) { return b.rad + 16 / cam.z; },
   full() { return slingFullPx() / cam.z; },
   vmax() { return Q_VMAX; },
-  hold(b) { b.held = true; b.vx = b.vy = 0; this.learn.grab = true; },
+  hold(b) { b.held = true; b.vx = b.vy = 0; b.rescue = false; this.learn.grab = true; },
   launch(b, vx, vy) {
-    b.held = false; b.vx = vx; b.vy = vy;
+    b.held = false; b.vx = vx; b.vy = vy; b.by = null;
     const v = Math.hypot(vx, vy);
     if (v > .5) { b.fly = this.flyT(v); b.thrown = 'hand'; this.learn.throw = true; }
   },
   flyT(v) { return clamp(Q_REACH / Math.max(v, 1e-6), Q_FLY, 3); },
   // путь броска (цели дрейфуют по прямой) и вердикт у первой встречной; мимо и за край — вымерзнет
+  // нуклоном — удар: путь шара до первого встречного, потом пунктир — куда покатится сбитое и во что попадёт
   predict(b, vx, vy) {
-    const pts = [[b.x, b.y]], dt = 1 / 60, others = this.o.filter(q => q !== b && !q.dead && q.age > .3), R = this.hotR();
-    for (let n = 1; n <= this.flyT(Math.hypot(vx, vy)) * 60; n++) {
-      const t = n * dt, x = b.x + vx * t, y = b.y + vy * t;
-      if (n % 4 === 0) pts.push([x, y]);
+    const R = this.hotR(), C = this.C, cold = (/** @type {number} */ x, /** @type {number} */ y) => Math.hypot(x - C.x, y - C.y) > R;
+    const cue = isNuc(b), s = this.sim(b, b.x, b.y, vx, vy, 0, [b], cue);
+    if (!s.q) {
+      const out = !cue && cold(s.x, s.y);
+      return { pts: s.pts, x: s.x, y: s.y, label: out ? 'мимо, в холод: вымерзнет' : 'мимо', c: out ? Q_ICE : [200, 205, 225] };
+    }
+    const q = s.q;
+    if (!cue) { const j = this.judge(b, q); return { pts: s.pts, x: s.qx, y: s.qy, label: j.label, c: j.c, hit: true }; }
+    const v = this.impulse(s.x, s.y, s.vx, s.vy, b.m.length, s.qx, s.qy, q.vx, q.vy, q.m.length);
+    if (!v) return { pts: s.pts, x: s.qx, y: s.qy, label: 'вскользь', c: [200, 205, 225], hit: true };
+    const s2 = this.sim(q, s.qx, s.qy, v[2], v[3], s.t, [b, q], isNuc(q)), white = isWhite(q);
+    let label = `толкнёт ${this.symOf(q)}`, c = [235, 235, 245];
+    if (s2.q && !white) { const j = this.judge(q, s2.q); label = (j.ok ? 'карамболь ' : 'собьёт, но ') + j.label; c = j.ok ? GOLD : j.c; }
+    else if (!white && cold(s2.x, s2.y)) { label = 'собьёт в холод: вымерзнет'; c = Q_ICE; }
+    else if (!white) { label = cold(q.x, q.y) ? 'вернёт в тепло' : 'толкнёт мимо'; c = cold(q.x, q.y) ? Q_OK : [200, 205, 225]; }
+    return { pts: s.pts, x: s.qx, y: s.qy, label, c, hit: true, then: s2.pts, c2: c };
+  },
+  // полёт тела (другие дрейфуют по прямой) до первого встречного; шар отскакивает от края горячего диска
+  sim(who, x, y, vx, vy, t0, skip, cush) {
+    const p = { x, y, vx, vy, rad: who.rad }, pts = [[x, y]], dt = 1 / 60, R = this.hotR(), N = Math.round(this.flyT(Math.hypot(vx, vy)) * 60);
+    const others = this.o.filter(q => !skip.includes(q) && !q.dead && !q.held && q.age > .3);
+    for (let n = 1; n <= N; n++) {
+      if (cush) this.cushion(p, R);
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      const t = t0 + n * dt;
+      if (n % 4 === 0) pts.push([p.x, p.y]);
       for (const q of others) {
         const qx = q.x + q.vx * t, qy = q.y + q.vy * t;
-        if (Math.hypot(qx - x, qy - y) < (b.rad + q.rad) * .85) {
-          pts.push([x, y]);
-          const j = this.judge(b, q);
-          return { pts, x: qx, y: qy, label: j.label, c: j.c, hit: true };
-        }
+        if (Math.hypot(qx - p.x, qy - p.y) < (who.rad + q.rad) * .85) { pts.push([p.x, p.y]); return { pts, x: p.x, y: p.y, vx: p.vx, vy: p.vy, t, q, qx, qy }; }
       }
     }
-    const [lx, ly] = pts[pts.length - 1], out = Math.hypot(lx - this.C.x, ly - this.C.y) > R;
-    return { pts, x: lx, y: ly, label: out ? 'мимо, в холод: вымерзнет' : 'мимо', c: out ? Q_ICE : [200, 205, 225] };
+    pts.push([p.x, p.y]);
+    return { pts, x: p.x, y: p.y, vx: p.vx, vy: p.vy, t: t0 + N * dt, q: null, qx: 0, qy: 0 };
+  },
+  // борт: брошенный шар у края горячего диска отражается внутрь (кто начал полёт далеко за краем — летит свободно)
+  cushion(p, R) {
+    const dx = p.x - this.C.x, dy = p.y - this.C.y, d = Math.hypot(dx, dy) || 1e-6, nx = dx / d, ny = dy / d, vn = p.vx * nx + p.vy * ny;
+    if (d > R - p.rad && d < R + 1 && vn > 0) { p.vx -= 2 * vn * nx; p.vy -= 2 * vn * ny; return true; }
+    return false;
+  },
+  // упругий удар двух тел (масса — число кварков): новые скорости обоих или null, если расходятся
+  impulse(ax, ay, avx, avy, ma, bx, by, bvx, bvy, mb) {
+    const dx = bx - ax, dy = by - ay, d = Math.hypot(dx, dy) || 1e-6, nx = dx / d, ny = dy / d, vn = (avx - bvx) * nx + (avy - bvy) * ny;
+    if (vn <= 0) return null;
+    const J = (1 + Q_REST) * vn / (1 / ma + 1 / mb);
+    let cx = bvx + J / mb * nx, cy = bvy + J / mb * ny; const s = Math.hypot(cx, cy);
+    if (s > Q_VMAX) { cx *= Q_VMAX / s; cy *= Q_VMAX / s; }
+    return [avx - J / ma * nx, avy - J / ma * ny, cx, cy];
+  },
+  // шар попал: сбитое летит дальше само (src 'cue' — твой удар); спасённое из холода — в зачёт
+  strike(a, b) {
+    const v = this.impulse(a.x, a.y, a.vx, a.vy, a.m.length, b.x, b.y, b.vx, b.vy, b.m.length);
+    if (!v) return false;
+    [a.vx, a.vy, b.vx, b.vy] = v;
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1e-6, over = (a.rad + b.rad) * .85 - d;
+    if (over > 0) { b.x += dx / d * over; b.y += dy / d * over; }
+    const s = Math.hypot(b.vx, b.vy);
+    if (s > .5) {
+      b.fly = this.flyT(s); b.thrown = 'cue'; b.nb = 0; b.by = a;
+      if (!isWhite(b) && Math.hypot(b.x - this.C.x, b.y - this.C.y) > this.hotR() + b.rad * .3) b.rescue = true;
+    }
+    this.st.strikes++;
+    fxRing((a.x + b.x) / 2, (a.y + b.y) / 2, .15, [255, 255, 255], 1.2, .4); Sfx.play('pop');
+    return true;
   },
 
   // ---------- реакции ----------
@@ -234,8 +287,9 @@ const Quarks = {
     fxRing(x, y, .2, c, 1, .45);
     if (txt) this.float(x, y, txt, c, 13);
   },
-  // a врезался в b; src — 'hand' (рогатка), 'auto' (Вселенная) или null (сами встретились)
+  // a врезался в b; src — 'hand' (рогатка), 'cue' (сбит твоим нуклоном — тоже твой), 'auto' (Вселенная) или null
   collide(a, b, src) {
+    const carom = src === 'cue'; if (carom) src = 'hand';
     const j = this.judge(a, b), hand = src === 'hand';
     if (!j.ok) {
       this.bounce(a, b, hand ? j.label : '');
@@ -248,6 +302,7 @@ const Quarks = {
     a.dead = b.dead = true; this.place(o);
     fxFlash(o.x, o.y, .7, isWhite(o) ? [255, 255, 255] : j.c, .35);
     if (hand) Sfx.play('segment');
+    if (carom) { this.st.carom++; this.kn += 4; this.float(o.x, o.y - 1.1, 'карамболь +4 ✦', GOLD, 15); fxRing(o.x, o.y, .3, GOLD, 2, .7); }
     if (o.kind === 'pair') { this.zoo('qq', o.x, o.y); if (hand) { this.kn += 2; this.float(o.x, o.y - .5, `пара: ждёт ${Q_COLN[this.missing(o)[0]]} +2 ✦`, j.c, 13); } }
     else this.onWhite(o, src, hand && a.kind === 'pair');
     return true;
@@ -275,7 +330,7 @@ const Quarks = {
   nucleon(o, src) {
     const hand = src === 'hand' || o.byHand, conf = this.rs.conf && !Uni.off(this, 'conf');
     this.made[o.kind]++;
-    if (hand) { this.handN++; this.kn += 10; this.learn.bar = true; }
+    if (hand) { this.handN++; this.kn += 10; this.learn.bar = true; if (this.handN === 2) this.once('cue', 'Готовый нуклон — тоже шар: зажми его и сбей кварк в пару или в барион, а замерзающий — обратно в тепло. От края плазмы шар отскакивает'); }
     else if (conf) { this.autoN++; Uni.pay(this, 'conf', 3); }
     this.zoo(o.kind, o.x, o.y - .5);
     if (hand) this.float(o.x, o.y, `${HSYM[o.kind]} белый +10 ✦`, GOLD, 16);
@@ -373,7 +428,10 @@ const Quarks = {
       if (isWhite(o) && o.sq < 1) o.sq = Math.min(1, o.sq + dt / SQ_T);
       if (o.tr) { if (o.age < 3.5) { o.tr.push([o.x, o.y]); if (o.tr.length > 40) o.tr.shift(); } else o.tr = null; }
       if (!o.held) {
-        if (o.fly > 0) { if ((o.fly -= dt) <= 0) o.thrown = null; }
+        if (o.fly > 0) {
+          if (isNuc(o) && this.cushion(o, R)) { this.st.bank++; fxRing(o.x, o.y, .15, [255, 235, 200], 1, .35); }
+          if ((o.fly -= dt) <= 0) { o.thrown = null; o.by = null; }
+        }
         else {
           const j = .35 * Math.sqrt(dt); o.vx += randn() * j; o.vy += randn() * j; // тепловое дрожание
           const k = Math.exp(-dt * 1.4); o.vx *= k; o.vy *= k;
@@ -391,8 +449,10 @@ const Quarks = {
       for (const o of this.o) {
         if (o.dead || !o.thrown) continue;
         for (const q of this.o) {
-          if (q === o || q.dead || q.held || q.age < .3) continue;
-          if (Math.hypot(q.x - o.x, q.y - o.y) < (o.rad + q.rad) * .85) { this.collide(o, q, o.thrown); break; }
+          if (q === o || q === o.by || q.dead || q.held || q.age < .3) continue;
+          if (Math.hypot(q.x - o.x, q.y - o.y) >= (o.rad + q.rad) * .85) continue;
+          if (isNuc(o)) { if (this.strike(o, q)) break; continue; } // нуклон — шар: бьёт, не слипается
+          this.collide(o, q, o.thrown); break;
         }
       }
       this.passive();
@@ -401,7 +461,10 @@ const Quarks = {
         for (const o of this.o) {
           if (o.dead || isWhite(o) || o.held || o.age < .3) continue;
           if (Math.hypot(o.x - C.x, o.y - C.y) > R + o.rad * .3) { if ((o.cold += dt) > FREEZE_T) this.freeze(o); }
-          else o.cold = Math.max(0, o.cold - dt * 2);
+          else {
+            o.cold = Math.max(0, o.cold - dt * 2);
+            if (o.rescue) { o.rescue = false; this.st.saved++; this.kn += 2; this.float(o.x, o.y - .6, 'спасён +2 ✦', Q_OK, 13); }
+          }
         }
         this.autoThrow(dt);
       }
@@ -502,6 +565,7 @@ const Quarks = {
       { t: 'без Δ', bad: () => st.delta > 0, atEnd: true },
       { t: 'три мезона', ok: () => st.mesons >= 3 },
       { t: 'пару — в третий цвет', ok: () => st.pairThrow > 0 },
+      { t: 'карамболь: нуклоном сбить кварк в пару или барион', ok: () => st.carom > 0 },
       { t: `быстрее ${fmtClock(Q_PAR)}`, bad: () => this.clock > Q_PAR, atEnd: true },
       ...(this.gen2 ? [{ t: 'гиперон распался в нуклон', ok: () => st.hypN > 0 }] : []),
       ...(this.gen3 ? [{ t: 'каскад b → c → s → u', ok: () => st.bCasc > 0 }] : []),
@@ -676,6 +740,10 @@ const Quarks = {
     } else if (this.st.mesons === 0 && this.steps0()) {
       const aq = this.nearBody(o => o.kind === 'aq'), q = aq && this.nearBody(o => o.kind === 'q' && fits(aq, o), aq.x, aq.y);
       ghost(aq, q, `полый — антикварк: в ${Q_COLN[aq ? aq.m[0].col : 0]} кварк`, 'quarks:anti');
+    } else if (this.st.strikes === 0 && this.handN >= 2) {
+      // нуклон — шар: сбить им ближний цветной
+      const nu = this.nearBody(o => isNuc(o) && o.byHand), q = nu && this.nearBody(o => !isWhite(o) && !o.m.some(x => x.anti), nu.x, nu.y);
+      ghost(nu, q, 'нуклон — шар: сбей им кварк', 'quarks:cue');
     }
     const it = this.shopItems()[0];
     pointAt(it && this.bal() >= it.c ? document.querySelector('#shop button.pri.ok') : null);

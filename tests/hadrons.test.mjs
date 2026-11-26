@@ -207,3 +207,49 @@ test('адроны: белое схлопывается — кварки стя�
   assert.equal(g.ev('__p.rad'), g.ev('SQ_RAD'));
   assert.equal(g.ev('__q.sq'), 0); assert.equal(D('__q'), .22);
 });
+
+test('бильярд: нуклон берётся рогаткой (Δ и мезон — нет), бьёт кварк и не слипается с ним', () => {
+  const g = hadrons(); empty(g);
+  g.ev(B('__n', [[0, 'u'], [1, 'd'], [2, 'd']], -3)); g.ev(B('__d', [[0, 'u'], [1, 'u'], [2, 'u']], 3, 3)); g.ev(B('__q', [[0, 'u']], -1.5));
+  g.ev('__d.t = 99');
+  assert.ok(g.ev('G.stage.bodies().includes(__n)'));
+  assert.ok(!g.ev('G.stage.bodies().includes(__d)'), 'Δ живёт миг — не берётся');
+  g.ev('G.stage.launch(__n, 8, 0)');
+  g.step(20);
+  assert.equal(kinds(g), 'delta,n,q');
+  assert.ok(g.ev('__q.vx') > 3, 'кварк сбит вперёд');
+  assert.ok(g.ev('__n.vx') < g.ev('__q.vx'), 'шар потерял скорость');
+  assert.equal(g.ev('G.stage.st.strikes'), 1);
+});
+
+test('бильярд: карамболь — нуклоном кварк в пару, вышел твой протон (+4 ✦ сверху), прицел показывает заранее', () => {
+  const g = hadrons(); empty(g);
+  g.ev(B('__n', [[0, 'u'], [1, 'd'], [2, 'd']], -3)); g.ev(B('__q', [[2, 'd']], -1.5)); g.ev(B('__p', [[0, 'u'], [1, 'u']], 0.5));
+  const a = g.ev('(() => { const a = G.stage.predict(__n, 8, 0); return [a.label, !!a.then, a.hit]; })()');
+  assert.match(a[0], /^карамболь → p⁺ белый/); assert.ok(a[1] && a[2]);
+  const kn = g.ev('G.stage.kn');
+  g.ev('G.stage.launch(__n, 8, 0)');
+  g.step(40);
+  assert.equal(kinds(g), 'n,p');
+  assert.equal(g.ev('G.stage.st.carom'), 1);
+  assert.equal(g.ev('G.stage.handN'), 1, 'карамболь — твой барион');
+  assert.ok(g.ev('G.stage.kn') - kn >= 14, '+10 за барион и +4 за карамболь');
+});
+
+test('бильярд: от края плазмы шар отскакивает; кварк, сбитый из холода в тепло, — спасён', () => {
+  const g = hadrons(); empty(g);
+  const R = g.ev('G.stage.hotR()');
+  g.ev(B('__n', [[0, 'u'], [1, 'd'], [2, 'd']], R - 1.5));
+  g.ev('G.stage.launch(__n, 8, 0)');
+  g.step(30);
+  assert.ok(g.ev('__n.vx') < 0, 'отразился внутрь');
+  assert.ok(g.ev('G.stage.st.bank') >= 1);
+  assert.ok(g.ev(`Math.hypot(__n.x - G.stage.C.x, __n.y - G.stage.C.y)`) < R + .5);
+  empty(g);
+  g.ev(B('__m', [[0, 'u'], [1, 'd'], [2, 'd']], R + 2.6)); g.ev(B('__c', [[1, 'u']], R + 1)); g.ev('__c.cold = .3');
+  assert.match(g.ev('G.stage.predict(__m, -8, 0).label'), /вернёт в тепло/);
+  g.ev('G.stage.launch(__m, -8, 0)');
+  g.step(40);
+  assert.equal(g.ev('G.stage.st.saved'), 1);
+  assert.equal(g.ev('G.stage.st.frozen'), 0);
+});
