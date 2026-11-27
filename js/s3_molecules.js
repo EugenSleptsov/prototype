@@ -37,6 +37,9 @@ const TOL_HIT = .5, TOL_AIM = .7;
 // энергия активации — скорость удара по линии центров: H–H 18, связь с водородом 22, тяжёлое с тяжёлым (C–C, C–O, C–N…) 27 —
 // 26 %, 31 % и 39 % полной рогатки M_VMAX; Вселенная («Синтез») бросает со скоростью M_AUTO_V — выше любого барьера, ниже BREAK_V
 const EA_HH = 18, EA_XH = 22, EA_XX = 27, M_AUTO_V = 38, M_HKEEP = 6;
+// M_GIFT — сколько секунд Вселенная не берёт тяжёлый атом, который сама принесла (он — игроку); M_REACH — докуда она бросает
+// кусок в кусок, M_REACH2 — докуда тянется достроить начатое (пара даёт соединение целиком)
+const M_GIFT = 12, M_REACH = 70, M_REACH2 = 160;
 const EA = (/** @type {string} */ x, /** @type {string} */ y) => x === 'H' && y === 'H' ? EA_HH : x === 'H' || y === 'H' ? EA_XH : EA_XX;
 // кратная связь — удар сильнее барьера ещё на столько: двойная X–X от 39, тройная от 46 (Вселенная бьёт 38 — только одинарные,
 // пока её не научили соединению с кратной связью: тогда ставит нужную кратность сама, A.mb)
@@ -44,20 +47,29 @@ const EA_N = [0, 0, 12, 19], BOND_SYM = ['', '–', '=', '≡'];
 /** кратность связи при ударе со скоростью vn (по линии центров): не больше свободных связей у обоих атомов @param {number} vn @param {number} ea @param {number} mx */
 const bondN = (vn, ea, mx) => mx >= 3 && vn >= ea + EA_N[3] ? 3 : mx >= 2 && vn >= ea + EA_N[2] ? 2 : 1;
 // органика с каркасом — связь углерода с тяжёлым атомом (C–C, C–O, C–N): шаг задания
-const ORGANIC = ['CH₃OH', 'C₂H₆', 'CH₃NH₂', 'C₂H₅OH', 'H₂CO', 'HCN', 'C₂H₄', 'C₂H₂'];
+const ORGANIC = ['CH₃OH', 'C₂H₆', 'CH₃NH₂', 'C₂H₅OH', 'CH₃OCH₃', 'H₂CO', 'HCN', 'C₂H₄', 'C₂H₂'];
+// Тяжёлые атомы (C, N, O) — итог «Атомов»: твои нейтральные приходят на свои места и дают фору. Вселенная своих тяжёлых
+// в кадр не досыпает: её газ — водород, а недостающий C, N или O она приносит по одному из-за края, не раньше M_DRIP0 с
+// от входа и не чаще раза в M_DRIP с (раньше приток держал C ≥ 2, N ≥ 2, O ≥ 3 всегда — и неважно было, что ты принёс).
+// M_HEAVY — сколько свободных атомов в кадре считать «хватает»; M_START — стартовый набор, если уровень открыт с титула
+const M_HEAVY = /** @type {[string, number][]} */ ([['C', 2], ['N', 2], ['O', 3]]), M_DRIP0 = 6, M_DRIP = 4;
+const M_START = /** @type {Record<string, number>} */ ({ C: 2, N: 2, O: 3 });
 const M_U = 5, M_VIEW = 78, M_DENS = .0012, M_CAP = 60, M_COST = 20;
 // соединения — {f: формула, n: название, c: состав, mb: кратная связь в ней (2 — двойная, 3 — тройная)}
 const COMP = [
   { f: 'H₂', n: 'водород', c: { H: 2 } }, { f: 'H₂O', n: 'вода', c: { H: 2, O: 1 } }, { f: 'NH₃', n: 'аммиак', c: { N: 1, H: 3 } },
   { f: 'CH₄', n: 'метан', c: { C: 1, H: 4 } }, { f: 'H₂O₂', n: 'перекись водорода', c: { H: 2, O: 2 } }, { f: 'CH₃OH', n: 'метанол', c: { C: 1, H: 4, O: 1 } },
   { f: 'C₂H₆', n: 'этан', c: { C: 2, H: 6 } }, { f: 'CH₃NH₂', n: 'метиламин', c: { C: 1, N: 1, H: 5 } }, { f: 'N₂H₄', n: 'гидразин', c: { N: 2, H: 4 } },
-  { f: 'NH₂OH', n: 'гидроксиламин', c: { N: 1, O: 1, H: 3 } }, { f: 'C₂H₅OH', n: 'этанол', c: { C: 2, H: 6, O: 1 } },
+  { f: 'NH₂OH', n: 'гидроксиламин', c: { N: 1, O: 1, H: 3 } }, { f: 'C₂H₅OH', n: 'этанол', c: { C: 2, H: 6, O: 1 }, cc: 1 },
+  // изомеры C₂H₆O: этанол CH₃–CH₂–OH (углероды связаны между собой, cc: 1) и диметиловый эфир CH₃–O–CH₃ (оба углерода — на кислороде, cc: 0)
+  { f: 'CH₃OCH₃', n: 'диметиловый эфир', c: { C: 2, H: 6, O: 1 }, cc: 0 },
   { f: 'O₂', n: 'кислород', c: { O: 2 }, mb: 2 }, { f: 'N₂', n: 'азот', c: { N: 2 }, mb: 3 }, { f: 'CO₂', n: 'углекислый газ', c: { C: 1, O: 2 }, mb: 2 },
   { f: 'H₂CO', n: 'формальдегид', c: { C: 1, H: 2, O: 1 }, mb: 2 }, { f: 'HCN', n: 'циановодород', c: { H: 1, C: 1, N: 1 }, mb: 3 },
   { f: 'C₂H₄', n: 'этилен', c: { C: 2, H: 4 }, mb: 2 }, { f: 'C₂H₂', n: 'ацетилен', c: { C: 2, H: 2 }, mb: 3 },
 ];
 const ckey = c => Object.keys(c).filter(k => c[k]).sort().map(k => k + c[k]).join('');
-const COMP_BY = Object.fromEntries(COMP.map(x => [ckey(x.c), x]));
+// по составу — первое соединение (у изомеров — то, что раньше в каталоге); что именно собрано — Mols.ident (по связям)
+const COMP_BY = Object.fromEntries(COMP.slice().reverse().map(x => [ckey(x.c), x]));
 const fits = (c, t) => Object.keys(c).every(k => (t[k] || 0) >= c[k]);
 
 // в соединении есть тяжёлый атом (C, N, O) — не голый водород: только такое идёт в бульон и первым в лавку
@@ -73,6 +85,8 @@ const Mols = {
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
     this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, tear: 0, cut: 0 }; this.tore = false;
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
+    // brought — сколько твоих нейтральных C, N, O пришло из «Атомов» (null — уровень открыт с титула); dripT — до следующего тяжёлого от Вселенной
+    this.brought = prev && prev.ions ? { C: 0, N: 0, O: 0 } : null; this.dripT = M_DRIP0; this.broughtShown = false;
     // атомы с прошлого уровня — на своих местах: мир растягивается в M_U раз, камера — во столько же отъезжает
     if (prev && prev.ions) {
       rescale(M_U, P.x, P.y, []);
@@ -80,14 +94,17 @@ const Mols = {
         const el = atSym(io.Z); if (!CHEM[el] || io.dead || io.ne < io.Z) continue; // в химию идут только нейтральные атомы: голый ион — не реагент
         const m = this.newMol(el, P.x + (io.x - P.x) * M_U, P.y + (io.y - P.y) * M_U);
         m.vx = io.vx * M_U; m.vy = io.vy * M_U; m.age = 1; m.mine = true; m.src = io;
+        if (this.brought && el in this.brought) this.brought[el]++;
       }
     }
-    // остальное — Вселенная за краем кадра (с нуля — и в кадре); без углерода не будет ни метана, ни спиртов
-    const z1 = zoomFor(this), want = popWant(M_DENS, M_CAP, z1);
-    for (let k = 0; this.m.length < want && k < want * 3; k++) {
-      const at = beyondPos(z1, 12, !prev); if (!at) continue;
-      const mol = this.newMol(this.needEl(), at[0], at[1]); mol.vx = randn() * 4; mol.vy = randn() * 4; mol.age = 1;
-    }
+    // с титула «Атомов» не было — стартовый набор, как средний их итог (иначе первые полминуты не из чего строить)
+    const z1 = zoomFor(this), want = popWant(M_DENS, M_CAP, z1), put = (/** @type {string} */ el, /** @type {boolean} */ any) => {
+      const at = beyondPos(z1, 12, any); if (!at) return;
+      const mol = this.newMol(el, at[0], at[1]); mol.vx = randn() * 4; mol.vy = randn() * 4; mol.age = 1;
+    };
+    if (!this.brought) for (const el in M_START) for (let i = 0; i < M_START[el]; i++) put(el, true);
+    // остальное — газ Вселенной за краем кадра (с нуля — и в кадре): водород; C, N, O — только твои (или стартовый набор)
+    for (let k = 0; this.m.length < want && k < want * 3; k++) put(this.mixEl(), !prev);
     this.stars = pickStars(this.starPool());
     this.sl = new Sling(this);
   },
@@ -192,26 +209,29 @@ const Mols = {
     const mol = { atoms: [{ el, lx: 0, ly: 0, base: Math.random() * TAU, b: d.s.map(() => -1) }], bonds: [], x, y, a: 0, vx: 0, vy: 0, w: randn() * .5, m: 1, I: 1, R: d.r, age: 0, dead: false, wp: null, hand: 0, auto: 0, mine: false, src: null };
     this.recompute(mol); this.m.push(mol); return mol;
   },
-  // какой атом принести: чего из нужного в кадре меньше всего (по доле от нужного) — то и несёт; иначе обычная смесь.
-  // По доле, а не по порядку: иначе C, N, O всегда шли первыми, и недостроенные каркасы оставались без водорода
+  // какого тяжёлого не хватает: чего из нужного (M_HEAVY) свободного в кадре меньше всего по доле; всего хватает — null.
+  // По доле, а не по порядку: иначе C, N, O всегда шли первыми
   needEl() {
     const one = (/** @type {string} */ el) => this.m.filter(m => m.atoms.length === 1 && m.atoms[0].el === el && inView(m.x, m.y, 20)).length;
     let best = null, bq = 1;
-    for (const [el, n] of /** @type {[string, number][]} */ ([['C', 2], ['N', 2], ['O', 3], ['H', 10]])) { const q = one(el) / n; if (q < bq) { bq = q; best = el; } }
-    return best || this.mixEl();
+    for (const [el, n] of M_HEAVY) { const q = one(el) / n; if (q < bq) { bq = q; best = el; } }
+    return best;
   },
-  // обычная смесь Вселенной (для ободка за краем: недостачу в кадре он не восполняет)
-  mixEl() { const r = Math.random(); return r < .6 ? 'H' : r < .75 ? 'O' : r < .88 ? 'C' : 'N'; },
-  // Вселенная вокруг: не хватает в кадре — одиночный атом из-за края; чужое вдали растворяется
+  // газ Вселенной — водород (C, N, O в нём — следы; их приносит только редкий приток, needEl)
+  mixEl() { return 'H'; },
+  // Вселенная вокруг: не хватает в кадре — водород из-за края; тяжёлого не хватает — один атом раз в M_DRIP с
+  // (часы идут, только пока не хватает: израсходовал своё — следующий придёт не сразу); чужое вдали растворяется
   tide(dt) {
     for (const m of this.m) if (!m.mine && !m.held && !(m.hand > 0) && farOff(m, 1.6)) m.dead = true;
     this.m = this.m.filter(m => !m.dead);
     if (this.doneAt !== null) return;
+    const rim = (/** @type {string} */ el) => { const r = rimPos(14), mol = this.newMol(el, r.x, r.y), sp = rnd(4, 8);
+      mol.vx = r.nx * sp + randn() * 3; mol.vy = r.ny * sp + randn() * 3; mol.age = 0; };
+    const need = this.needEl();
+    if (!need) this.dripT = Math.max(this.dripT, M_DRIP);
+    else if ((this.dripT -= dt) <= 0) { rim(need); this.m[this.m.length - 1].gift = this.t; this.dripT = M_DRIP; }
     const have = this.m.filter(m => inView(m.x, m.y, 10)).length;
-    if (have < popWant(M_DENS, M_CAP) && Math.random() < dt * 3) {
-      const r = rimPos(14), mol = this.newMol(this.needEl(), r.x, r.y), sp = rnd(4, 8);
-      mol.vx = r.nx * sp + randn() * 3; mol.vy = r.ny * sp + randn() * 3; mol.age = 0;
-    }
+    if (have < popWant(M_DENS, M_CAP) && Math.random() < dt * 3) rim(this.mixEl());
     haloFill(this.m, M_DENS, M_CAP, dt, (x, y) => { const mol = this.newMol(this.mixEl(), x, y); mol.vx = randn() * 3; mol.vy = randn() * 3; mol.age = 0; }, 2);
   },
   recompute(mol) {
@@ -232,6 +252,11 @@ const Mols = {
   /** кратность связи между атомами i и j @param {any} mol @param {number} i @param {number} j */
   order(mol, i, j) { return mol.bonds.filter(b => (b[0] === i && b[1] === j) || (b[0] === j && b[1] === i)).length; },
   counts(mol) { const c = {}; for (const a of mol.atoms) c[a.el] = (c[a.el] || 0) + 1; return c; },
+  // какое соединение каталога собрано: по составу, а у изомеров — по связям (C₂H₆O: углероды связаны — этанол, оба на кислороде — эфир)
+  ident(mol) {
+    const k = ckey(this.counts(mol)), cc = mol.bonds.some(b => mol.atoms[b[0]].el === 'C' && mol.atoms[b[1]].el === 'C');
+    return COMP.find(x => ckey(x.c) === k && (x.cc === undefined || !!x.cc === cc)) || null;
+  },
   formula(mol) { // порядок Хилла: C, H, затем по алфавиту
     const c = this.counts(mol), keys = Object.keys(c).sort((a, b) => {
       const o = k => k === 'C' ? 0 : k === 'H' && c.C ? 1 : 2; return o(a) - o(b) || a.localeCompare(b);
@@ -252,13 +277,9 @@ const Mols = {
       if (this.st.bonds === 1) tipMsg('mols:bond', 'Ковалентная связь: общая пара электронов');
     }
     if (this.freeSlots(host)) return;
-    const cp = COMP_BY[ckey(this.counts(host))];
+    const cp = this.ident(host);
     // насыщенное, но не из каталога (пропан, CH₂(OH)₂…) — реакция удалась, просто это не бульон: хотя бы формула
     if (!cp) { if (src === 'hand') this.float(x, y - 10, `${this.formula(host)} · не из бульона`, [175, 185, 205], 12); return; }
-    // C₂H₆O — это и этанол CH₃–CH₂–OH, и диметиловый эфир CH₃–O–CH₃: у этанола углероды связаны между собой
-    if (cp.f === 'C₂H₅OH' && !host.bonds.some(b => host.atoms[b[0]].el === 'C' && host.atoms[b[1]].el === 'C')) {
-      this.float(x, y - 10, 'CH₃–O–CH₃ · эфир, не спирт', [200, 205, 220], 13); return;
-    }
     if (src === 'auto') { this.st.auto++; Uni.pay(this, this.res.has(cp.f) && !Uni.off(this, cp.f) ? cp.f : [...this.res].find(k => !Uni.off(this, k)) || cp.f, 2); } else if (src === 'hand') this.st.hand++;
     // Вселенная учится — бульон варит она и ты вместе; H₂ в бульон не в счёт (иначе финал проходился штамповкой H + H)
     if ((src === 'auto' || (src === 'hand' && this.res.size)) && heavy(cp)) { this.st.soup++; host.soup = true; }
@@ -442,32 +463,48 @@ const Mols = {
     // последний водород — игроку: свободных атомов H в кадре не больше M_HKEEP — Вселенная их не берёт (иначе «Синтез H₂» съедал весь
     // водород, и недостроенные каркасы оставались голыми)
     const isH = (/** @type {any} */ m) => m.atoms.length === 1 && m.atoms[0].el === 'H', hLow = this.m.filter(m => !m.dead && isH(m) && inView(m.x, m.y, 10)).length <= M_HKEEP;
+    // и только что принесённый C, N или O — первые M_GIFT с тоже игроку: тяжёлых теперь мало (приток редкий), и «Синтез CH₄» иначе
+    // съедал каждый пришедший углерод раньше, чем до него дотянется рогатка (органику с каркасом было не собрать)
+    const keep = (/** @type {any} */ m) => (hLow && isH(m)) || (m.gift != null && this.t - m.gift < M_GIFT);
     let best = null, bs = -Infinity;
     for (const g of goals) for (let i = 0; i < f.length; i++) {
-      const ca = this.counts(f[i]); if (!fits(ca, g.c) || (hLow && isH(f[i]))) continue;
+      const ca = this.counts(f[i]); if (!fits(ca, g.c) || keep(f[i])) continue;
       for (let j = i + 1; j < f.length; j++) {
-        if (hLow && isH(f[j])) continue;
+        if (keep(f[j])) continue;
         const cb = this.counts(f[j]), sum = { ...ca }; for (const k in cb) sum[k] = (sum[k] || 0) + cb[k];
         if (!fits(sum, g.c)) continue;
         // не цель целиком — после связи должна остаться свободная валентность: H + H под «воду» дало бы тупиковый H₂
         if (ckey(sum) !== ckey(g.c) && this.freeSlots(f[i]) + this.freeSlots(f[j]) - 2 < 1) continue;
-        const d = Math.hypot(f[i].x - f[j].x, f[i].y - f[j].y); if (d > 70) continue;
-        const sc = f[i].atoms.length + f[j].atoms.length + (ckey(sum) === ckey(g.c) ? 4 : 0) - d / 20 + Math.random();
+        // достроить начатое (пара даёт цель целиком) Вселенная тянется и дальше: экзотермика связи отталкивает соседей,
+        // и последний кусок (второй O к C=O) часто отлетал за M_REACH — CO₂ так и оставался недостроенным
+        const d = Math.hypot(f[i].x - f[j].x, f[i].y - f[j].y), whole = ckey(sum) === ckey(g.c); if (d > (whole ? M_REACH2 : M_REACH)) continue;
+        const sc = f[i].atoms.length + f[j].atoms.length + (whole ? 4 : 0) - d / 20 + Math.random();
         if (sc > bs) { bs = sc; best = [f[i], f[j], d, g.mb || 1]; }
       }
     }
     if (!best) return;
     let [A, B, d, mb] = best; if (A.m > B.m) [A, B] = [B, A];
-    const dx = B.x - A.x, dy = B.y - A.y;
+    const dx = B.x - A.x, dy = B.y - A.y, dmp = this.damp(); d = d || 1;
+    if (d > M_REACH) { // далеко — сначала подвести лёгкий кусок поближе (без связи: бросок тихий), бросок — в следующий раз
+      const v = Math.min(28, (d - M_REACH * .5) * dmp / (1 - Math.exp(-dmp * 2.4)));
+      A.vx = B.vx + dx / d * v; A.vy = B.vy + dy / d * v; A.thrown = 0; return;
+    }
     this.orient(A, dx, dy); this.orient(B, -dx, -dy); A.w = B.w = 0;
-    // соединение с кратной связью — Вселенная знает, что варит (как доворачивает «магнитом»): ставит нужную кратность (mb)
-    const v = M_AUTO_V; d = d || 1; A.mb = B.mb = mb; A.vx = B.vx + dx / d * v; A.vy = B.vy + dy / d * v; A.thrown = 0; A.auto = 3; B.auto = 3;
+    // соединение с кратной связью — Вселенная знает, что варит (как доворачивает «магнитом»): ставит нужную кратность (mb).
+    // Брошенное в полёте тормозит (damp: скорость падает на damp за единицу пути), поэтому бросок — с запасом на путь до касания:
+    // долетает со скоростью M_AUTO_V (раньше бросок с 50–70 ед. приходил медленнее барьера тяжёлое–тяжёлое и отскакивал)
+    const v = M_AUTO_V + dmp * Math.max(0, d - A.R - B.R); A.mb = B.mb = mb; A.vx = B.vx + dx / d * v; A.vy = B.vy + dy / d * v; A.thrown = 0; A.auto = 3; B.auto = 3;
   },
 
   update(dt, act) {
     const live = act && G.started;
     this.t += dt; this.lowEMsgT -= dt;
     if (live) { this.banner += dt; if (this.doneAt === null) this.clock += dt; P.vx = P.vy = 0; }
+    if (live && !this.broughtShown && !G.prev) { // итог «Атомов» — в бульоне: сколько твоих C, N, O (подольше обычного всплывающего)
+      this.broughtShown = true; const [a, b] = this.broughtLine();
+      this.float(P.x, P.y + 2.5, a, [255, 225, 150], 16); this.floats[this.floats.length - 1].t = -1.4;
+      if (b) { this.float(P.x, P.y + 7, b, [190, 205, 225], 13); this.floats[this.floats.length - 1].t = -1.4; }
+    }
     for (const f of this.floats) f.t += dt;
     this.floats = this.floats.filter(f => f.t < 1.8);
     if (live && this.doneAt === null) {
@@ -500,6 +537,15 @@ const Mols = {
         endGame(`Первичный бульон готов: ${this.found.join(', ')}. Следующая ступень: органика (скоро).`);
       }
     }
+  },
+  // стартовая строка: что пришло из «Атомов» (твои нейтральные C, N, O) и чего нет — то Вселенная принесёт, но не сразу
+  /** @returns {[string, string]} */
+  broughtLine() {
+    const c = this.brought, els = M_HEAVY.map(([e]) => e);
+    if (!c) return [`с нуля: ${els.map(e => `${e} ×${M_START[e]}`).join(' · ')} от Вселенной`, ''];
+    const have = els.filter(e => c[e] > 0), miss = els.filter(e => !(c[e] > 0));
+    if (!have.length) return ['из «Атомов»: ни C, ни N, ни O', 'их принесёт Вселенная — по одному и не сразу'];
+    return [`из «Атомов»: ${have.map(e => `${e} ×${c[e]}`).join(' · ')}`, miss.length ? `${miss.join(', ')} — от Вселенной, по одному и не сразу` : 'всё своё: от Вселенной — водород, тяжёлые редко'];
   },
   // Shift + колесо — поворот взятого шагом (сразу в угол: скорость вращения Q / E обнуляет каждый кадр)
   wheel(dy) { if (this.sl.held && dy) { this.sl.held.a += Math.sign(dy) * .26; this.sl.held.manRot = true; } },
@@ -535,7 +581,7 @@ const Mols = {
       { t: 'Связать два атома', h: 'зажать атом, оттянуть и отпустить в другой', s: 'первая связь', d: this.st.bonds > 0 },
       { t: 'Собрать воду', h: 'кислороду нужны два водорода', s: 'вода H₂O', d: fd.includes('H₂O') },
       { t: 'Открыть 4 соединения', h: 'аммиак NH₃, метан CH₄, перекись H₂O₂…', items: fd.slice(0, 6).map(f => [f, true]), p: [Math.min(fd.length, 4), 4], s: '4 соединения', d: fd.length >= 4 },
-      { t: 'Собрать органику: связь C–C, C–O или C–N', h: 'метанол CH₃OH, этан C₂H₆, метиламин CH₃NH₂; тяжёлое в тяжёлое — бросок сильнее', s: 'органика', d: ORGANIC.some(f => fd.includes(f)) },
+      { t: 'Собрать органику: связь C–C, C–O или C–N', h: 'метанол CH₃OH, этан C₂H₆, метиламин CH₃NH₂, эфир CH₃OCH₃; тяжёлое в тяжёлое — бросок сильнее', s: 'органика', d: ORGANIC.some(f => fd.includes(f)) },
       { t: 'Сформировать законы', h: `${touch ? 'в лавке' : 'клавиши 1–4'}: «Синтез …»`, p: [Math.min(this.res.size, 2), 2], s: 'законы сформированы', d: this.res.size >= 2 },
       { t: 'Первичный бульон', h: 'Вселенная собирает открытое, рогатка ей помогает · H₂ не в счёт: нужны молекулы с C, N или O', p: [Math.min(this.st.soup, 10), 10], s: 'бульон готов', d: this.st.soup >= 10 },
     ];
@@ -559,7 +605,7 @@ const Mols = {
       const [cx, cy] = W2S(mol.x, mol.y); if (!onScreen(cx, cy, mol.R * z + 20)) continue;
       const ka = appear(mol.age), a = al * ka, sat = !this.freeSlots(mol) && mol.atoms.length > 1;
       const pts = mol.wp.map(p => W2S(p[0], p[1]));
-      if (sat && COMP_BY[ckey(this.counts(mol))]) glow(cx, cy, mol.R * z * 1.4, [140, 235, 170], .12 * a); // готовое соединение
+      if (sat && this.ident(mol)) glow(cx, cy, mol.R * z * 1.4, [140, 235, 170], .12 * a); // готовое соединение
       const seen = new Map();
       for (const [i, j] of mol.bonds) {
         const key = Math.min(i, j) * 999 + Math.max(i, j), n = this.order(mol, i, j), k = seen.get(key) || 0; seen.set(key, k + 1);
