@@ -12,6 +12,8 @@
    Остывание — часы уровня: цветное, что осталось за краем горячего диска, через миг вымерзает: струна рвётся,
    из вакуума — пара q q̄; кварк уходит в мезоне (пара — в барионе), а новый кварк того же цвета остаётся в плазме
    (одинокий кварк не может просто стать пионом: заряд и барионное число сохраняются). Твой кварк — потерян.
+   В холоде цветное рукой не взять — вернуть его в тепло можно только ударом готового нуклона (бильярд).
+   Сбережённое в «Частицах» греет плазму: каждый твой кварк — плазма остынет позже (HEAT_PER, не больше HEAT_MAX).
    Закон «Конфайнмент»: Вселенная сама бросает кварки к соседям — барионы собираются повсюду.
    Цель — вещество для ядер: 12 нуклонов, среди них нейтроны, пока плазма не остыла. */
 const QCOL = [[255, 60, 90], [70, 235, 120], [80, 140, 255]];
@@ -20,6 +22,8 @@ const Q_COLN = ['красный', 'зелёный', 'синий'], Q_ANTN = ['а
 const QR = .26, Q_MINPX = 7; // радиус кварка; цветное на экране не мельче (px)
 // плазма: радиус в начале, обзор этапа, сколько остывает (с), эталон времени; сколько цветное терпит холод
 const Q_R0 = 6.4, QK_VIEW = 7.4, Q_COOL = 120, Q_PAR = 90, FREEZE_T = 2.5;
+// сбережённое в «Частицах» греет плазму: каждый твой кварк — ещё HEAT_PER с до остывания, всего не больше HEAT_MAX
+const HEAT_PER = 1.5, HEAT_MAX = 45;
 // материал: кварков не меньше (поровну цветов), пар антикварк + кварк; доля u среди лёгких
 const Q_TOTAL = 54, ANTI_N = 6, U_SHARE = .6;
 // бросок: скорость полной резинки, сколько пролетает самое меньшее, сколько летит самое меньшее
@@ -94,6 +98,11 @@ const Quarks = {
     // сбережённые кварки вырываются из детектора там же, где кружили, оставляя треки
     for (const h of src) { const o = this.mk([{ col: h.col, fl: h.fl, anti: false }], h.x, h.y, h.vx, h.vy); o.age = 1; o.mine = true; o.tr = [[h.x, h.y]]; }
     this.nSaved = src.length;
+    // итог «Частиц» решает, сколько живёт плазма: твоё вещество горячее — остынет позже (с титула — как было)
+    this.heat = Math.round(Math.min(HEAT_MAX, HEAT_PER * this.nSaved)); this.coolT = Q_COOL + this.heat;
+    this.heatMsg = !prev ? null : this.nSaved
+      ? `Из «Частиц»: ${this.nSaved} твоих кварков — плазма горячее: остынет за ${fmtClock(this.coolT)} (+${this.heat} с)`
+      : `Из «Частиц» не сбережено ни одного кварка — плазме нечем греться: остынет за ${fmtClock(this.coolT)}`;
     // остальная плазма — поровну трёх цветов (иначе кому-то не хватит пары), лёгкие — с долей u
     const per = [0, 1, 2].map(c => this.o.filter(o => o.m[0].col === c).length), N = Math.max(Math.ceil(Q_TOTAL / 3), ...per);
     const add = [];
@@ -207,8 +216,17 @@ const Quarks = {
   symOf(o) { return o.kind === 'hyp' ? o.sym : o.kind === 'delta' ? (o.dq === '++' ? 'Δ⁺⁺' : 'Δ⁻') : o.kind === 'meson' ? HSYM[o.pk] : HSYM[o.kind] || ''; },
 
   // ---------- рогатка ----------
-  // берётся цветное и готовый нуклон (он — шар бильярда); Δ, гипероны и мезоны живут миг — их не берут
-  bodies() { return G.prev || this.doneAt !== null ? [] : this.o.filter(o => !o.dead && (!isWhite(o) || isNuc(o)) && !(o.fly > 0) && o.age > .3); },
+  // берётся цветное и готовый нуклон (он — шар бильярда); Δ, гипероны и мезоны живут миг — их не берут.
+  // Цветное в холоде за краем рукой не взять: вернуть его в тепло можно только ударом нуклона-шара
+  bodies() { return G.prev || this.doneAt !== null ? [] : this.o.filter(o => !o.dead && (isNuc(o) || (!isWhite(o) && !this.inCold(o))) && !(o.fly > 0) && o.age > .3); },
+  // нажал мимо — не на цветное ли в холоде: сказать, почему не берётся
+  coldTap() {
+    const [mx, my] = S2W(mouse.x, mouse.y), o = this.o.find(o => !o.dead && !isWhite(o) && this.inCold(o) && Math.hypot(o.x - mx, o.y - my) < this.grabR(o));
+    if (!o) return;
+    const ball = this.o.some(b => !b.dead && isNuc(b));
+    this.float(o.x, o.y - .7, ball ? 'в холоде рукой не взять: сбей шаром' : 'в холоде рукой не взять', Q_ICE, 13);
+    this.once('coldgrab', 'За краем горячей плазмы цветное рукой уже не взять. Вернуть его в тепло можно ударом: зажми готовый нуклон — шар — и сбей замерзающий кварк обратно');
+  },
   grabR(b) { return b.rad + 16 / cam.z; },
   full() { return slingFullPx() / cam.z; },
   vmax() { return Q_VMAX; },
@@ -293,7 +311,7 @@ const Quarks = {
     const s = Math.hypot(b.vx, b.vy);
     if (s > .5) {
       b.fly = this.flyT(s); b.thrown = 'cue'; b.nb = 0; b.by = a;
-      if (!isWhite(b) && Math.hypot(b.x - this.C.x, b.y - this.C.y) > this.hotR() + b.rad * .3) b.rescue = true;
+      if (!isWhite(b) && this.inCold(b)) b.rescue = true;
     }
     this.st.strikes++; Tips.did("quarks:cue");
     fxRing((a.x + b.x) / 2, (a.y + b.y) / 2, .15, [255, 255, 255], 1.2, .4); Sfx.play('pop');
@@ -356,7 +374,7 @@ const Quarks = {
     const hand = src === 'hand' || o.byHand, conf = this.rs.conf && !Uni.off(this, 'conf');
     this.made[o.kind]++;
     const pts = o.fromD ? DELTA_PTS : 10;
-    if (hand) { this.handN++; Tips.did('quarks:pair'); this.kn += pts; this.learn.bar = true; if (this.handN === 1) this.once('cue', 'Готовый нуклон — тоже шар: зажми его и сбей кварк в пару или в барион, а замерзающий — обратно в тепло. От края плазмы шар отскакивает'); }
+    if (hand) { this.handN++; Tips.did('quarks:pair'); this.kn += pts; this.learn.bar = true; if (this.handN === 1) this.once('cue', 'Готовый нуклон — тоже шар: зажми его и сбей кварк в пару или в барион, а замерзающий — обратно в тепло (рукой его за краем уже не взять). От края плазмы шар отскакивает'); }
     else if (conf) { this.autoN++; Uni.pay(this, 'conf', 3); }
     this.zoo(o.kind, o.x, o.y - .5);
     if (hand) this.float(o.x, o.y, `${HSYM[o.kind]} белый +${pts} ✦`, GOLD, 16);
@@ -384,9 +402,21 @@ const Quarks = {
     this.nucleon(o, o.byHand ? 'hand' : o.src);
   },
   // Слабый распад гиперона: самый тяжёлый кварк → легче (b → c, c → s, s → u; у uus — s → d, иначе вышла бы Δ⁺⁺)
+  // шаг распада: самый тяжёлый кварк и во что он станет
+  /** @param {any[]} m @returns {[any, string]} */
+  hypStep(m) {
+    const x = m.reduce((b, q) => (HEAVY[q.fl] || 0) > (HEAVY[b.fl] || 0) ? q : b), from = x.fl;
+    return [x, from === 'b' ? 'c' : from === 'c' ? 's' : m.filter(q => q !== x).every(q => q.fl === 'u') ? 'd' : 'u'];
+  },
+  // каким нуклоном кончится Δ или гиперон (те же распады, без побочных эффектов): 'p' или 'n'
+  fate(o) {
+    if (o.kind === 'delta') return o.dq === '++' ? 'p' : 'n';
+    const m = o.m.map(q => ({ fl: q.fl }));
+    for (let i = 0; i < 9 && this.hypOf(m); i++) { const [x, to] = this.hypStep(m); x.fl = to; }
+    return m.filter(q => q.fl === 'u').length >= 2 ? 'p' : 'n';
+  },
   decayHyp(o) {
-    const x = o.m.reduce((b, q) => (HEAVY[q.fl] || 0) > (HEAVY[b.fl] || 0) ? q : b), from = x.fl;
-    const to = from === 'b' ? 'c' : from === 'c' ? 's' : o.m.filter(q => q !== x).every(q => q.fl === 'u') ? 'd' : 'u';
+    const [x, to] = this.hypStep(o.m), from = x.fl;
     const dq = (QCH[from] - QCH[to]) / 3, was = o.sym;
     x.fl = to;
     const k = this.classify(o), pk = dq > 0 ? 'pi+' : dq < 0 ? 'pi-' : 'pi0';
@@ -395,7 +425,7 @@ const Quarks = {
     fxRing(o.x, o.y, .4, HYP_C[from], 2.2, .6);
     if (o.byHand || onScreen(...W2S(o.x, o.y), 0)) this.float(o.x, o.y + .5, `${was} → ${this.symOf(o)} + ${HSYM[pk]}`, HYP_C[from], o.byHand ? 14 : 12);
     if (isNuc(o)) {
-      if (o.byHand) { this.st.hypN++; if (o.hadB) { this.st.bCasc++; this.once('bcasc', 'Каскад b → c → s → u: прелестный кварк дважды стал легче, в итоге вышел обычный нуклон'); } }
+      if (o.byHand) { this.st.hypN++; if (o.hadB) { this.st.bCasc++; this.once('bcasc', `Каскад b → c → s → ${to}: три слабых распада подряд — прелестный кварк трижды стал легче, и вышел обычный нуклон`); } }
       this.nucleon(o, o.byHand ? 'hand' : o.src);
     }
   },
@@ -449,14 +479,18 @@ const Quarks = {
   },
 
   // ---------- шаг ----------
-  hotR() { return Q_R0 * Math.sqrt(clamp(1 - this.cool / Q_COOL, 0, 1)); },
+  hotR() { return Q_R0 * Math.sqrt(clamp(1 - this.cool / this.coolT, 0, 1)); },
+  // цветное за краем горячего диска — в холоде: мёрзнет, рукой его не взять (только сбить шаром)
+  inCold(o) { return Math.hypot(o.x - this.C.x, o.y - this.C.y) > this.hotR() + o.rad * .3; },
   update(dt, act) {
     const live = act && G.started, run = live && !G.prev && this.doneAt === null;
     this.t += dt;
     if (live) {
       this.banner += dt;
       if (this.doneAt === null) this.clock += dt;
-      this.sl.update();
+      const was = this.sl.was; this.sl.update();
+      if (!was && this.sl.pan && !G.prev && this.doneAt === null) this.coldTap(); // нажал мимо тела
+      if (this.heatMsg && this.clock > 2.5 && !G.prev) { msg(this.heatMsg, 4.5); this.heatMsg = null; } // чем «Частицы» отозвались здесь
       P.vx = P.vy = 0;
     }
     if (run) this.cool += dt;
@@ -505,8 +539,12 @@ const Quarks = {
         if (this.st.mesons === 0 && !this.o.some(o => !o.dead && o.m.some(q => q.anti)) && (this.vacCd -= dt) <= 0) this.vacPair();
         // цветное за краем горячего диска мёрзнет
         for (const o of this.o) {
-          if (o.dead || isWhite(o) || o.held || o.age < .3) continue;
-          if (Math.hypot(o.x - C.x, o.y - C.y) > R + o.rad * .3) { if ((o.cold += dt) > FREEZE_T) this.freeze(o); }
+          if (o.dead || isWhite(o) || o.age < .3) continue;
+          if (o.held) { // край ушёл из-под руки: в холоде цветное не удержать
+            if (this.inCold(o)) { o.held = false; this.sl.held = null; this.float(o.x, o.y - .7, 'в холоде рукой не удержать', Q_ICE, 13); }
+            continue;
+          }
+          if (this.inCold(o)) { if ((o.cold += dt) > FREEZE_T) this.freeze(o); }
           else {
             o.cold = Math.max(0, o.cold - dt * 2);
             if (o.rescue) { // спасённое платит раз на кварк: «выбил за край — вернул шаром» не ферма
@@ -536,14 +574,15 @@ const Quarks = {
       this.tickStars(false);
       const goal = this.steps().every(s => s.d) && !this.o.some(o => o.kind === 'delta' || (o.kind === 'hyp' && o.byHand));
       this.stuckT = this.stuck() ? this.stuckT + dt : 0;
-      const cold = this.cool >= Q_COOL;
+      const cold = this.cool >= this.coolT;
       if (goal || cold || this.stuckT > 3) {
+        const why = goal || cold ? '' : this.stuckWhy();
         this.doneAt = this.clock; this.endCd = goal ? 1.6 : 2.4; this.sl.held = null; this.failed = !goal;
         for (const o of this.o) { o.held = false; if (o.kind === 'delta') this.decayDelta(o); while (o.kind === 'hyp') this.decayHyp(o); }
         if (cold) for (const o of [...this.o]) if (!isWhite(o)) this.freeze(o, true); // остыло всё — адронизуется всё
         this.o = this.o.filter(o => !o.dead);
         this.tickStars(true);
-        this.float(C.x, C.y - 1.5, goal ? 'вещество для ядер готово ✓' : cold ? 'плазма остыла' : 'кварков на нуклоны больше нет', goal ? [140, 235, 170] : [200, 210, 240], 17);
+        this.float(C.x, C.y - 1.5, goal ? 'вещество для ядер готово ✓' : cold ? 'плазма остыла' : why || 'кварков на нуклоны больше нет', goal ? [140, 235, 170] : [200, 210, 240], 17);
       }
     }
     if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; advance(); }
@@ -563,12 +602,36 @@ const Quarks = {
       }
     }
   },
-  // нуклоны больше не из чего собрать: и всё цветное (без антикварков), сложенное по три, не дотянет до цели
-  stuck() {
-    if (this.shopItems().some(x => x.k === 'gen' && this.bal() >= x.c)) return false; // хватает ✦ на приток плазмы
-    const { p, n } = this.liveNP(), pend = this.o.filter(o => o.kind === 'delta' || o.kind === 'hyp').length;
-    const cc = [0, 0, 0]; for (const o of this.o) if (!o.dead && !isWhite(o)) for (const q of o.m) if (!q.anti) cc[q.col]++;
-    return p + n + pend + Math.min(...cc) < GOAL_N; // барион — по кварку каждого цвета
+  // тупик: цель уже не выполнить из того, что есть (пока на приток хватает ✦ — не тупик)
+  stuck() { return !!this.stuckWhy(); },
+  // почему тупик ('' — не тупик). Оценка сверху — тупик только наверняка:
+  // · нуклонов: живые + Δ и гипероны (станут нуклонами) + барионы из цветного — по самому редкому цвету;
+  // · пары без нуклона заперты: две пары не складываются, а разбить их нечем — нужна одиночка недостающего цвета
+  //   (или три одиночки трёх цветов: из них барион, а он — шар); пока мезона не было, вакуум ещё родит одиночку;
+  // · нейтронов: в n⁰ два d разных цветов (тяжёлый в распаде становится u — нейтрону d не даст; Δ⁺⁺ — только p⁺);
+  //   d даёт и холод: одинокий u, что уже мёрзнет, оставит в плазме d своего цвета; пока мезона не было — и вакуум;
+  // · своих: твои нуклоны + твои Δ и гипероны + всё, что ещё можно сложить рукой.
+  stuckWhy() {
+    if (this.shopItems().some(x => x.k === 'gen' && this.bal() >= x.c)) return ''; // хватает ✦ на приток плазмы
+    const np = this.liveNP(), vac = this.st.mesons === 0;
+    let n = np.n, own = this.ownN(), pend = 0;
+    const cc = [0, 0, 0], dc = [0, 0, 0], one = [0, 0, 0], pairs = [];
+    for (const o of this.o) {
+      if (o.dead) continue;
+      if (o.kind === 'delta' || o.kind === 'hyp') { pend++; if (this.fate(o) === 'n') n++; if (o.byHand) own++; continue; }
+      if (isWhite(o)) continue;
+      const qs = o.m.filter(q => !q.anti);
+      for (const q of qs) { cc[q.col]++; if (q.fl === 'd') dc[q.col]++; }
+      if (o.kind === 'q') { one[o.m[0].col]++; if (o.m[0].fl === 'u' && o.cold > 0) dc[o.m[0].col]++; }
+      else if (o.kind === 'pair') pairs.push(o);
+    }
+    const nuc = np.p + np.n + pend, all = Math.min(...cc);
+    const free = nuc > 0 || vac || one.every(k => k > 0) || pairs.some(o => one[this.missing(o)[0]] > 0) || !pairs.length;
+    const can = free ? all : 0, D = dc[0] + dc[1] + dc[2];
+    if (nuc + can < GOAL_N) return free || nuc + all < GOAL_N ? 'кварков на нуклоны больше нет' : 'кварки заперты в парах — разбить их нечем';
+    if (!vac && n + Math.min(can, Math.floor(D / 2), D - Math.max(...dc)) < GOAL_NN) return 'на нейтроны не осталось d-кварков';
+    if (own + can < OWN_N) return 'своих нуклонов уже не собрать';
+    return '';
   },
   liveNP() { let p = 0, n = 0; for (const o of this.o) if (!o.dead) { if (o.kind === 'p') p++; else if (o.kind === 'n') n++; } return { p, n }; },
   ownN() { return this.o.filter(o => !o.dead && isNuc(o) && o.byHand).length; },
@@ -635,7 +698,7 @@ const Quarks = {
     const np = this.liveNP();
     return {
       name: 'Адроны', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['к ядрам: p⁺ · n⁰', `${np.p} · ${np.n}`], ['белое', Math.round(this.white() * 100) + ' %'],
-        ['нуклоны рогаткой', this.handN], ['нуклоны Вселенной', this.autoN], ['мезоны', this.st.mesons], ['вымерзло кварков', this.st.frozen], ...(this.st.gen ? [['приток плазмы', this.st.gen + ' × ' + GEN_PER * 3 + ' кварков']] : []), ...(this.gen2 ? [['гипероны рогаткой', this.st.hyp]] : [])],
+        ['нуклоны рогаткой', this.handN], ['нуклоны Вселенной', this.autoN], ['мезоны', this.st.mesons], ['вымерзло кварков · твоих', `${this.st.frozen} · ${this.st.frozenMine}`], ...(this.nSaved ? [['тепло твоих кварков', `${this.nSaved} → +${this.heat} с`]] : []), ...(this.st.gen ? [['приток плазмы', this.st.gen + ' × ' + GEN_PER * 3 + ' кварков']] : []), ...(this.gen2 ? [['гипероны рогаткой', this.st.hyp]] : [])],
       auto: [this.autoN, this.handN + this.autoN], stars: this.stars || [],
     };
   },
@@ -691,7 +754,7 @@ const Quarks = {
     line(x1, y1, x2, y2, c, .75 * al, Math.max(1, w));
   },
   drawPlasma(al) {
-    const z = cam.z, [cx, cy] = W2S(this.C.x, this.C.y), R = this.hotR() * z, R0 = Q_R0 * z, u = clamp(this.cool / Q_COOL, 0, 1);
+    const z = cam.z, [cx, cy] = W2S(this.C.x, this.C.y), R = this.hotR() * z, R0 = Q_R0 * z, u = clamp(this.cool / this.coolT, 0, 1);
     // холод за краем: голубоватая изморозь до бывшего края
     if (R0 > R + 2) {
       const g = ctx.createRadialGradient(cx, cy, R, cx, cy, R0 + 30);
@@ -771,14 +834,15 @@ const Quarks = {
     if (!white && o.cold > 0 && this.doneAt === null) {
       const f = clamp(o.cold / FREEZE_T, 0, 1);
       arc(sx, sy, o.rad * zs + 6, -Math.PI / 2, -Math.PI / 2 + TAU * f, Q_ICE, (.6 + .4 * Math.sin(G.T * 14)) * a, 3);
-      if (o.mine || f > .3) label('вымерзнет', sx, sy + o.rad * zs + 18, 11, Q_ICE, .9 * a, 800);
+      // рукой его уже не взять — только сбить шаром, если шар есть
+      if (o.mine || f > .3) label(this.o.some(b => !b.dead && isNuc(b)) ? 'вымерзнет: сбей шаром' : 'вымерзнет', sx, sy + o.rad * zs + 18, 11, Q_ICE, .9 * a, 800);
     }
+    const near = mouse.has && !isTouch() && !this.sl.held && this.doneAt === null && !G.prev && (() => { const [mx, my] = S2W(mouse.x, mouse.y); return Math.hypot(mx - o.x, my - o.y) < this.grabR(o); })();
     if (o.held) ring(sx, sy, o.rad * zs + 5, GOLD, .9 * al, 2);
+    // курсор над цветным в холоде — не берётся: ледяное кольцо пунктиром и подсказка «сбей шаром»
+    else if (!white && near && this.inCold(o)) { ring(sx, sy, o.rad * zs + 7, Q_ICE, .75 * al, 1.5, [2, 4]); label('рукой не взять: сбей шаром', sx, sy - o.rad * zs - 16, 11, Q_ICE, .85 * al, 700); }
     // курсор над готовым нуклоном — его можно взять: это шар бильярда
-    else if (isNuc(o) && this.doneAt === null && !G.prev && mouse.has && !isTouch() && !this.sl.held) {
-      const [mx, my] = S2W(mouse.x, mouse.y);
-      if (Math.hypot(mx - o.x, my - o.y) < this.grabR(o)) { ring(sx, sy, o.rad * zs + 7, [235, 235, 245], .75 * al, 1.5, [3, 4]); label('шар: зажми и бей', sx, sy + o.rad * zs + 22, 11, [235, 235, 245], .85 * al, 700); }
-    }
+    else if (isNuc(o) && near) { ring(sx, sy, o.rad * zs + 7, [235, 235, 245], .75 * al, 1.5, [3, 4]); label('шар: зажми и бей', sx, sy + o.rad * zs + 22, 11, [235, 235, 245], .85 * al, 700); }
   },
   drawPlayer(al) {
     ctx.globalAlpha = al;
@@ -818,8 +882,10 @@ const Quarks = {
       ghost(aq, q, `полый — антикварк: в ${Q_COLN[aq ? aq.m[0].col : 0]} кварк`, 'quarks:anti');
     } else if (this.st.strikes === 0 && this.handN >= 1) {
       // нуклон — шар: сбить им ближний цветной
-      const nu = this.nearBody(o => isNuc(o) && o.byHand), q = nu && this.nearBody(o => !isWhite(o) && !o.m.some(x => x.anti), nu.x, nu.y);
-      ghost(nu, q, 'нуклон — шар: сбей им кварк', 'quarks:cue');
+      // замерзающий рядом — первым: его рукой уже не взять, только сбить обратно в тепло
+      const nu = this.nearBody(o => isNuc(o) && o.byHand), coldQ = nu && this.nearBody(o => !isWhite(o) && !o.m.some(x => x.anti) && this.inCold(o) && Math.hypot(o.x - nu.x, o.y - nu.y) < 4, nu.x, nu.y);
+      const q = coldQ || (nu && this.nearBody(o => !isWhite(o) && !o.m.some(x => x.anti), nu.x, nu.y));
+      ghost(nu, q, coldQ ? 'мёрзнет — рукой не взять: сбей шаром в тепло' : 'нуклон — шар: сбей им кварк', 'quarks:cue');
     }
     const it = this.shopItems()[0];
     pointAt(it && this.bal() >= it.c ? document.querySelector('#shop button.pri.ok') : null);
@@ -835,12 +901,12 @@ const Quarks = {
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > Q_PAR ? [190, 190, 205] : [255, 255, 255], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 2', this.steps(), this.stars, `К ядрам: ${p} p⁺ · ${n} n⁰`);
     if (!G.prev && this.doneAt === null) {
-      const rest = Math.max(0, Q_COOL - this.cool), c = rest < 20 ? [255, 140, 120] : [205, 200, 230];
+      const rest = Math.max(0, this.coolT - this.cool), c = rest < 20 ? [255, 140, 120] : [205, 200, 230];
       label(`белое ${Math.round(this.white() * 100)} % · нуклонов ${p + n}/${GOAL_N} · остынет через ${fmtClock(rest)}`, G.W / 2, aboveShop(), 13, c, .85 * al, 700);
     }
     hudBanner(this.banner, 'УРОВЕНЬ 2 · 10⁻⁶ с', 'Адроны', this.nSaved ? `${this.nSaved} сбережённых кварков: всё должно стать белым` : 'всё должно стать белым: три цвета или цвет и антицвет', al, 'из кварков → протоны и нейтроны → без них не будет ни одного ядра');
     ctx.globalAlpha = 1;
   },
   viewR() { return QK_VIEW; },
-  hud() { return { title: '', sub: `T ≈ ${fmtGeV(.19 - .04 * clamp(this.cool / Q_COOL, 0, 1))} · плазма остывает`, lines: [], goal: '', laws: [] }; },
+  hud() { return { title: '', sub: `T ≈ ${fmtGeV(.19 - .04 * clamp(this.cool / this.coolT, 0, 1))} · плазма остывает`, lines: [], goal: '', laws: [] }; },
 };
