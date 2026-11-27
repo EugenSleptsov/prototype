@@ -33,7 +33,7 @@ test('молекулы: после «Синтеза» собранное рог�
   assert.equal(g.ev('G.stage.st.soup'), 0, 'до исследования рогатка в бульон не идёт');
   g.ev(`G.stage.res.add('H₂O'); G.stage.afterMerge(G.stage.m[0], 'hand', 0, 0); G.stage.afterMerge(G.stage.m[0], 'auto', 0, 0)`);
   assert.equal(g.ev('G.stage.st.soup'), 2);
-  assert.equal(g.ev(`G.stage.steps().find(s => s.t === 'Первичный бульон').p[0]`), 2);
+  assert.equal(g.ev(`G.stage.steps().find(s => s.t.startsWith('Первичный бульон')).p[0]`), 2);
 });
 
 test('лавка частиц: пункт «для задания» не отрезается, даже если исследований много', () => {

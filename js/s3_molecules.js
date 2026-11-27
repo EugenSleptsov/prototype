@@ -30,7 +30,8 @@ const CHEM = {
   F: { r: 9, c: [150, 240, 100], s: [0], m: 19 },
   Ne: { r: 9, c: [255, 150, 120], s: [], m: 20 },
 };
-const TOL = .42, M_VMAX = 70, BREAK_V = 52, M_MINE = 8, M_STERIC = .8; // M_STERIC — насколько атомы могут сблизиться (доля суммы радиусов) // M_MINE — сколько секунд Вселенная не трогает то, что ты брал
+// M_SURE — запас пунктира над барьером: цель за полёт дрожит (тепловое движение), и удар «впритык» приходит на 1–3 % слабее
+const TOL = .42, M_VMAX = 70, BREAK_V = 52, M_MINE = 8, M_STERIC = .8, M_SURE = 1.5; // M_STERIC — насколько атомы могут сблизиться (доля суммы радиусов) // M_MINE — сколько секунд Вселенная не трогает то, что ты брал
 // допуски связи при броске (рад): у брошенного — между его свободной связью и линией удара (пунктир сам доворачивает её вперёд,
 // так что это «бить в лоб, а не вскользь»), у цели — её свободная связь должна смотреть на удар; без броска — TOL
 const TOL_HIT = .5, TOL_AIM = .7;
@@ -58,6 +59,16 @@ const M_U = 5, M_VIEW = 78, M_DENS = .0008, M_CAP = 40, M_COST = 20; // плот
 // бульон — M_SOUP молекул с C, N или O; законы «Синтез» варят не больше M_SOUP_UNI из них, остальное — рогаткой
 // (урок 33: закон не проходит уровень сам; раньше без единого касания бульон доходил до 10/10 за 105–136 с)
 const M_SOUP = 10, M_SOUP_UNI = 6;
+// Ценность бульона — очки уровня сверх вех: чем сложнее соединение, тем дороже (M_SV за каждый тяжёлый атом и за каждую
+// кратность связи тяжёлое–тяжёлое: CH₄ 30, CH₃OH 90, HCN 150, этанол 150, CO₂ 210). Сваренное законом — вполовину,
+// с атомом твоей звезды — ×M_SV_STAR. Раньше очки уровня кончались на 2000 (вехи): переиграть было незачем.
+const M_SV = 30, M_SV_STAR = 1.5;
+// Окно: облако, где варится бульон, сжимается — через M_LIFE с в нём зажигается звезда, и её ультрафиолет рвёт молекулы.
+// Не успел сварить бульон — уровень кончается без бонуса (как звезда, догоревшая до цели); M_WARN — последние секунды красным.
+// 5 минут: бот, который варит бульон, с пустым переносом проходит за 140–260 с (на бедном тяжёлыми сиде — 450–480)
+const M_LIFE = 300, M_WARN = 30;
+// испытания ★: бульон быстрее M_STAR_T с, M_STAR_HAND из 10 рогаткой, ценность M_STAR_V, M_STAR_OWN соединения с атомом твоей звезды
+const M_STAR_T = 180, M_STAR_HAND = 7, M_STAR_V = 900, M_STAR_OWN = 3;
 // соединения — {f: формула, n: название, c: состав, mb: кратная связь в ней (2 — двойная, 3 — тройная)}
 const COMP = [
   { f: 'H₂', n: 'водород', c: { H: 2 } }, { f: 'H₂O', n: 'вода', c: { H: 2, O: 1 } }, { f: 'NH₃', n: 'аммиак', c: { N: 1, H: 3 } },
@@ -121,10 +132,11 @@ const Mols = {
   enter(prev) {
     this.m = []; this.t = 0; this.clock = 0; this.hints = []; this.lowEMsgT = 0; this.floats = []; this.tk = {}; this.banner = -1.5;
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
-    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, soupU: 0, tear: 0, cut: 0 }; this.tore = false;
+    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, soupU: 0, soupV: 0, soupStar: 0, triple: 0, tear: 0, cut: 0 }; this.tore = false;
+    this.life = M_LIFE; this.failed = false; this.warned = false; this.ignite = -1; this.igAt = [0, 0]; this.soupList = [];
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     // brought — сколько твоих нейтральных C, N, O пришло из «Атомов» (null — уровень открыт с титула); dripT — до следующего тяжёлого от Вселенной
-    this.brought = prev && prev.ions ? { C: 0, N: 0, O: 0 } : null; this.dripT = M_DRIP0; this.broughtShown = false;
+    this.brought = prev && prev.ions ? { C: 0, N: 0, O: 0 } : null; this.dripT = M_DRIP0; this.broughtShown = false; this.starN = 0;
     // атомы с прошлого уровня — на своих местах: мир растягивается в M_U раз, камера — во столько же отъезжает
     if (prev && prev.ions) {
       rescale(M_U, P.x, P.y, []);
@@ -132,15 +144,18 @@ const Mols = {
         const el = atSym(io.Z); if (!CHEM[el] || !CHEM[el].s.length || io.dead || io.ne < io.Z) continue; // в химию идут только нейтральные атомы: голый ион — не реагент; благородный газ (He) — тоже нет
         const m = this.newMol(el, P.x + (io.x - P.x) * M_U, P.y + (io.y - P.y) * M_U);
         m.vx = io.vx * M_U; m.vy = io.vy * M_U; m.age = 1; m.mine = true; m.src = io;
+        if (io.mine) { m.atoms[0].star = true; this.starN++; } // выкован в твоей звезде — золотая метка, в бульоне дороже
         if (this.brought && el in this.brought) this.brought[el]++;
       }
     }
     // с титула «Атомов» не было — стартовый набор, как средний их итог (иначе первые полминуты не из чего строить)
     const z1 = zoomFor(this), want = popWant(M_DENS, M_CAP, z1), put = (/** @type {string} */ el, /** @type {boolean} */ any) => {
       const at = beyondPos(z1, 12, any); if (!at) return;
-      const mol = this.newMol(el, at[0], at[1]); mol.vx = randn() * 4; mol.vy = randn() * 4; mol.age = 1;
+      const mol = this.newMol(el, at[0], at[1]); mol.vx = randn() * 4; mol.vy = randn() * 4; mol.age = 1; return mol;
     };
-    if (!this.brought) for (const el in M_START) for (let i = 0; i < M_START[el]; i++) put(el, true);
+    // стартовый набор — вместо твоих атомов из «Атомов», и он твой: иначе в первую секунду с титула (камера ещё близко)
+    // «чужое вдали растворяется» съедало все C, N, O
+    if (!this.brought) for (const el in M_START) for (let i = 0; i < M_START[el]; i++) { const m = put(el, true); if (m) m.mine = true; }
     // остальное — газ Вселенной за краем кадра (с нуля — и в кадре): водород; C, N, O — только твои (или стартовый набор)
     for (let k = 0; this.m.length < want && k < want * 3; k++) put(this.mixEl(), !prev);
     this.stars = pickStars(this.starPool());
@@ -216,8 +231,8 @@ const Mols = {
           const free = this.freeSlots(T) && this.freeSlots(b), mx = Math.min(this.freeAt(b, ia), this.freeAt(T, ib), 3);
           // хватит ли места: та же посадка, что у удара, — в том положении, где оба будут в миг касания
           const room = !(free && sa >= 0 && sb >= 0) || !!this.place(b, { x: b.x + ox, y: b.y + oy, a: b.a }, ia, sa, T, { x: Tx, y: Ty, a: Ta }, ib, sb);
-          if (free && sa >= 0 && sb >= 0 && vn >= ea && room) {
-            const n = bondN(vn, ea, mx), bs = `${b.atoms[ia].el}${BOND_SYM[n]}${at.el}`;
+          if (free && sa >= 0 && sb >= 0 && vn >= ea + M_SURE && room) {
+            const n = bondN(vn - M_SURE, ea, mx), bs = `${b.atoms[ia].el}${BOND_SYM[n]}${at.el}`;
             label = n === 3 ? `тройная связь ${bs}` : n === 2 ? `двойная связь ${bs}` : `связь ${bs}`; c = n > 1 ? [130, 220, 255] : [120, 240, 160];
           }
           else if (vn > BREAK_V && (b.bonds.length || T.bonds.length)) { label = 'порвёт связь'; c = [255, 90, 80]; }
@@ -225,10 +240,11 @@ const Mols = {
           else if (sb < 0) { label = 'мимо свободной связи цели'; c = [200, 205, 225]; }
           else if (sa < 0) { label = 'вскользь: бить в лоб'; c = [200, 205, 225]; }
           else if (!room) { label = 'тесно: атомы налезут — в другую связь'; c = [255, 200, 110]; }
+          else if (vn >= ea) { label = 'на грани барьера: может отскочить'; c = [255, 200, 110]; }
           else { label = 'слабо: барьер, оттянуть сильнее'; c = [255, 200, 110]; }
           const near = this.slotNear(T, ib, th + Math.PI, 9, da), cone = near >= 0 && free ? [pb[0], pb[1], this.slotAng(T, ib, near) + da, sb >= 0 && room, rb] : null;
-          const sc = vn > .1 ? v0 / vn : Infinity, needN = free && sa >= 0 && sb >= 0 && room ? [2, 3].filter(n => n <= mx).map(n => (ea + EA_N[n]) * sc) : [];
-          return { pts, x: hit[0], y: hit[1], label, c, hit: true, cone, need: ea * sc, needN };
+          const sc = vn > .1 ? v0 / vn : Infinity, needN = free && sa >= 0 && sb >= 0 && room ? [2, 3].filter(n => n <= mx).map(n => (ea + EA_N[n] + M_SURE) * sc) : [];
+          return { pts, x: hit[0], y: hit[1], label, c, hit: true, cone, need: (ea + M_SURE) * sc, needN };
         }
       }
     }
@@ -346,16 +362,34 @@ const Mols = {
     if (src === 'auto') { this.st.auto++; Uni.pay(this, this.res.has(cp.f) && !Uni.off(this, cp.f) ? cp.f : [...this.res].find(k => !Uni.off(this, k)) || cp.f, 2); } else if (src === 'hand') this.st.hand++;
     // Вселенная учится — бульон варит она и ты вместе, но её доля — не больше M_SOUP_UNI: последнее — рогаткой;
     // H₂ в бульон не в счёт (иначе финал проходился штамповкой H + H)
-    if (heavy(cp) && src === 'auto' && this.st.soupU < M_SOUP_UNI) {
-      this.st.soup++; this.st.soupU++; host.soup = 'auto';
+    let sv = 0;
+    if (heavy(cp) && src === 'auto' && this.st.soupU < M_SOUP_UNI && this.st.soup < M_SOUP) {
+      this.st.soupU++; sv = this.toSoup(host, cp, 'auto');
       if (this.st.soupU === M_SOUP_UNI) tipMsg('mols:soupU', `Законы сварили ${M_SOUP_UNI} из ${M_SOUP}: остальное бульону — рогаткой`);
-    } else if (heavy(cp) && src === 'hand' && this.res.size) { this.st.soup++; host.soup = 'hand'; }
+    } else if (heavy(cp) && src === 'hand' && this.res.size && this.st.soup < M_SOUP) sv = this.toSoup(host, cp, 'hand');
     Codex.note('m:' + cp.f);
     if (!this.found.includes(cp.f)) {
       this.found.push(cp.f); this.kn += 15; Sfx.play('fresh');
       this.float(x, y - 14, `НОВОЕ: ${cp.f} · ${cp.n} +15 ✦`, [255, 215, 110], 16);
       fxRing(x, y, 6, GOLD, 40, .9);
-    } else this.float(x, y - 10, cp.f, src === 'auto' ? [150, 205, 255] : [140, 235, 170], 13);
+    } else this.float(x, y - 10, sv ? `${cp.f} · бульон +${sv}${host.soupStar ? ' · твоя звезда' : ''}` : cp.f, src === 'auto' ? [150, 205, 255] : [140, 235, 170], 13);
+  },
+  // ценность соединения в бульоне: тяжёлые атомы и кратности связей между ними; законом — вполовину, с атомом твоей звезды — дороже
+  /** @param {any} mol @param {'hand' | 'auto'} src */
+  soupVal(mol, src) {
+    const hv = mol.atoms.filter((/** @type {any} */ a) => a.el !== 'H').length;
+    const hb = mol.bonds.filter((/** @type {number[]} */ b) => mol.atoms[b[0]].el !== 'H' && mol.atoms[b[1]].el !== 'H').length;
+    const star = mol.atoms.some((/** @type {any} */ a) => a.star);
+    return Math.round(M_SV * (hv + hb) * (src === 'auto' ? .5 : 1) * (star ? M_SV_STAR : 1));
+  },
+  // соединение — в бульон: счёт, ценность, строка списка (для конца — что сварено из твоих звёзд)
+  /** @param {any} host @param {any} cp @param {'hand' | 'auto'} src */
+  toSoup(host, cp, src) {
+    const v = this.soupVal(host, src), star = host.atoms.some((/** @type {any} */ a) => a.star);
+    this.st.soup++; this.st.soupV += v; if (star) this.st.soupStar++;
+    const it = { f: cp.f, n: cp.n, v, src, star };
+    host.soup = src; host.soupV = v; host.soupStar = star; host.soupIt = it; this.soupList.push(it);
+    return v;
   },
 
   // ---------- реакции ----------
@@ -386,7 +420,7 @@ const Mols = {
     const vx = (host.vx * host.m + gu.vx * gu.m) / M, vy = (host.vy * host.m + gu.vy * gu.m) / M, Lw = host.I * host.w + gu.I * gu.w;
     gu.atoms.forEach((at, k) => {
       const [lx, ly] = rot(np[k][0] - host.x, np[k][1] - host.y, -host.a);
-      host.atoms.push({ el: at.el, lx, ly, base: gu.a + at.base + dA - host.a, b: at.b.map(x => x < 0 ? -1 : x + off) });
+      host.atoms.push({ el: at.el, lx, ly, base: gu.a + at.base + dA - host.a, b: at.b.map(x => x < 0 ? -1 : x + off), star: at.star });
     });
     for (const bd of gu.bonds) host.bonds.push([bd[0] + off, bd[1] + off, bd[2], bd[3]]);
     host.bonds.push([ih, off + ig, sh, sg]);
@@ -414,7 +448,11 @@ const Mols = {
   splitBond(mol, bi) {
     const [i, j, si, sj] = mol.bonds[bi];
     if (mol.mine) this.st.cut++; // твоё разорвано — связь снова не оплачивается
-    if (mol.soup) { if (mol.soup === 'auto') this.st.soupU = Math.max(0, this.st.soupU - 1); mol.soup = false; this.st.soup = Math.max(0, this.st.soup - 1); } // разобрал сваренное — в бульоне его больше нет
+    if (mol.soup) { // разобрал сваренное — в бульоне его больше нет (и его ценности)
+      if (mol.soup === 'auto') this.st.soupU = Math.max(0, this.st.soupU - 1);
+      this.st.soup = Math.max(0, this.st.soup - 1); this.st.soupV -= mol.soupV || 0; if (mol.soupStar) this.st.soupStar--;
+      this.soupList = this.soupList.filter((/** @type {any} */ x) => x !== mol.soupIt); mol.soup = false; mol.soupV = 0; mol.soupStar = false; mol.soupIt = null;
+    }
     mol.bonds.splice(bi, 1); mol.atoms[i].b[si] = -1; mol.atoms[j].b[sj] = -1;
     const comp = new Set([i]), st = [i];
     while (st.length) { const u = st.pop(); for (const v of mol.atoms[u].b) if (v >= 0 && !comp.has(v)) { comp.add(v); st.push(v); } }
@@ -462,7 +500,7 @@ const Mols = {
         // бросок Вселенной связывает, только если выходит часть того, что она варит (задела по пути третий кусок — отскок)
         // кратность — та, что нужна закону (сильный удар не делает из C=C тупиковую C≡C)
         const law = src === 'auto' ? COMP.find(x => this.res.has(x.f) && !Uni.off(this, x.f) && this.joinsTo(x.f, A, B, [ia, ib])) : null;
-        if (src && imp >= ea && (src !== 'auto' || law)) { const n = law ? this.lawN(law.mb || 1, A, ia, B, ib) : Math.min(mx, bondN(imp, ea, mx)); if (this.merge(A, ia, sa, B, ib, sb, src, n)) { if (src === 'hand') Sfx.play('bond', n); return true; } }
+        if (src && imp >= ea && (src !== 'auto' || law)) { const n = law ? this.lawN(law.mb || 1, A, ia, B, ib) : Math.min(mx, bondN(imp, ea, mx)); if (this.merge(A, ia, sa, B, ib, sb, src, n)) { if (src === 'hand') { Sfx.play('bond', n); if (n === 3) this.st.triple++; } return true; } }
         else if (src === 'hand' && this.lowEMsgT <= 0) { this.lowEMsgT = 5; tipMsg('mols:lowE', 'Барьер: связь рождается только от удара сильнее энергии активации'); }
       }
       if (imp > BREAK_V && (A.bonds.length || B.bonds.length)) {
@@ -610,12 +648,32 @@ const Mols = {
       this.autoChem(dt);
       this.tide(dt);
       this.tickStars(false);
-      if (this.steps().every(s => s.d)) {
-        this.doneAt = this.clock; this.tickStars(true);
-        Tally.show(this); // как у остальных уровней: бонус уровня, доля Вселенной, рекорд
-        endGame(`Первичный бульон готов: ${this.found.join(', ')}. Следующая ступень: органика (скоро).`);
-      }
+      if (!this.warned && this.rest() < M_WARN) { this.warned = true; this.float(cam.x, cam.y - 8, `облако сожмётся через ${Math.ceil(this.rest())} с: дальше — звезда`, [255, 140, 110], 16); Sfx.play('fizzle'); }
+      if (this.steps().every(s => s.d)) this.finish(false);
+      else if (this.rest() <= 0) this.finish(true);
     }
+    if (this.ignite >= 0) this.ignite += dt;
+  },
+  // сколько секунд до коллапса облака
+  rest() { return this.life - this.clock; },
+  // конец уровня (и забега): бульон готов — или облако сжалось раньше (без бонуса уровня, но сваренное — в очки)
+  /** @param {boolean} failed */
+  finish(failed) {
+    this.doneAt = this.clock; this.failed = failed; this.sl.held = null; this.tickStars(true);
+    if (failed) {
+      this.ignite = 0; this.igAt = [cam.x, cam.y]; fxFlash(cam.x, cam.y, 60, [210, 230, 255], .9); Sfx.play('fizzle'); // звезда — там, куда смотришь: её надо увидеть
+      this.float(cam.x, cam.y - 6, 'Облако сжалось: зажглась звезда — бульон, какой успел', [255, 200, 150], 17);
+    }
+    addScore(Math.max(0, this.st.soupV)); // ценность бульона — очки уровня сверх вех (в итогах — строкой)
+    Tally.show(this); // как у остальных уровней: бонус уровня, доля Вселенной, рекорд
+    endGame(this.endText());
+  },
+  // текст конца: что сварено, сколько стоит, что — из вещества твоих звёзд
+  endText() {
+    const own = [...new Set(this.soupList.filter((/** @type {any} */ x) => x.star).map((/** @type {any} */ x) => x.n))];
+    return (this.failed ? `Облако сжалось: в бульоне ${this.st.soup} из ${M_SOUP}` : 'Первичный бульон готов') +
+      ` · ценность ${this.st.soupV}.` + (this.found.length ? ` Открыто: ${this.found.join(', ')}.` : '') +
+      (own.length ? ` Из вещества твоих звёзд: ${own.join(', ')}.` : '') + ' Следующая ступень: органика (скоро).';
   },
   // стартовая строка: что пришло из «Атомов» (твои нейтральные C, N, O) и чего нет — то Вселенная принесёт, но не сразу
   /** @returns {[string, string]} */
@@ -662,19 +720,22 @@ const Mols = {
       { t: 'Открыть 4 соединения', h: 'аммиак NH₃, метан CH₄, перекись H₂O₂…', items: fd.slice(0, 6).map(f => [f, true]), p: [Math.min(fd.length, 4), 4], s: '4 соединения', d: fd.length >= 4 },
       { t: 'Собрать органику: связь C–C, C–O или C–N', h: 'метанол CH₃OH, этан C₂H₆, метиламин CH₃NH₂, эфир CH₃OCH₃; тяжёлое в тяжёлое — бросок сильнее', s: 'органика', d: ORGANIC.some(f => fd.includes(f)) },
       { t: 'Сформировать законы', h: `${touch ? 'в лавке' : 'клавиши 1–4'}: «Синтез …»`, p: [Math.min(this.res.size, 2), 2], s: 'законы сформированы', d: this.res.size >= 2 },
-      { t: 'Первичный бульон', h: `законы «Синтез» сварят до ${M_SOUP_UNI}, остальное — рогаткой · H₂ не в счёт: нужны молекулы с C, N или O`, p: [Math.min(this.st.soup, M_SOUP), M_SOUP], s: 'бульон готов', d: this.st.soup >= M_SOUP },
+      { t: `Первичный бульон · ценность ${this.st.soupV}`, h: `законы сварят до ${M_SOUP_UNI}, остальное — рогаткой · H₂ не в счёт · сложное дороже: C₂H₅OH, HCN — впятеро против CH₄; законом — вполовину`, p: [Math.min(this.st.soup, M_SOUP), M_SOUP], s: 'бульон готов', d: this.st.soup >= M_SOUP },
     ];
   },
   starPool() {
     return [
-      { t: 'открыть метан', ok: () => this.found.includes('CH₄') },
-      { t: 'открыть аммиак', ok: () => this.found.includes('NH₃') },
-      { t: 'открыть 6 соединений', ok: () => this.found.length >= 6 },
+      // ★ — про умение, а не про то, что случается само (метан и аммиак закрывал шаг 3)
+      { t: 'тройная связь рогаткой', ok: () => this.st.triple > 0 },
       { t: 'открыть этанол', ok: () => this.found.includes('C₂H₅OH') },
+      { t: `бульон за ${fmtClock(M_STAR_T)}`, ok: () => this.doneAt !== null && !this.failed && this.doneAt <= M_STAR_T, bad: () => this.clock > M_STAR_T },
+      { t: `${M_STAR_HAND} из ${M_SOUP} в бульон — рогаткой`, ok: () => this.st.soup - this.st.soupU >= M_STAR_HAND },
+      { t: `ценность бульона ${M_STAR_V}`, ok: () => this.st.soupV >= M_STAR_V },
+      { t: `${M_STAR_OWN} в бульоне — из твоих звёзд`, ok: () => this.st.soupStar >= M_STAR_OWN, can: () => this.starN >= 2 },
     ];
   },
-  tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 10, '★ +10 ✦', [255, 215, 110], 17); }); },
-  tally() { return { name: 'Молекулы', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['соединений открыто', this.found.length], ['собрано рогаткой', this.st.hand], ['собрано Вселенной', this.st.auto]], auto: [this.st.auto, this.st.auto + this.st.hand], stars: this.stars }; },
+  tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 10, '★ +10 ✦', [255, 215, 110], 17); }, this.failed); },
+  tally() { return { name: 'Молекулы', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['соединений открыто', this.found.length], ['собрано рогаткой', this.st.hand], ['собрано Вселенной', this.st.auto], [`бульон ${this.st.soup} / ${M_SOUP}${this.st.soupStar ? ` · из твоих звёзд ${this.st.soupStar}` : ''}`, '+' + this.st.soupV, 'tb']], auto: [this.st.auto, this.st.auto + this.st.hand], stars: this.stars }; },
   cheat() { this.cheated = true; for (const x of [...COMP.slice(0, 4), COMP_BY[ckey({ C: 1, H: 4, O: 1 })]]) if (!this.found.includes(x.f)) this.found.push(x.f); this.st.bonds++; this.res.add('H₂O'); this.res.add('H₂'); this.st.auto = this.st.soup = 10; },
 
   // ---------- рисование ----------
@@ -702,10 +763,17 @@ const Mols = {
           glow(x2, y2, Math.max(3, 1.6 * z), [255, 190, 100], .45 * a);
         }
         ball(sx, sy, r * .62, d.c, a);
+        if (at.star) { // выкован в твоей звезде — золотая искра у атома (кольцо — это «взято», его не путать)
+          const qx = sx + r * .5, qy = sy - r * .5; glow(qx, qy, Math.max(5, r * .45), GOLD, .5 * a); ball(qx, qy, Math.max(1.8, r * .14), [255, 235, 160], a);
+        }
         if (r > 9) label(at.el, sx, sy, Math.max(9, r * .5), at.el === 'H' ? [40, 40, 50] : [255, 255, 255], .85 * a);
       });
       if (sat) label(this.formula(mol), cx, cy - mol.R * z - 8, 11, [190, 235, 210], .75 * a, 700);
       if (mol.held) ring(cx, cy, mol.R * z + 6, GOLD, .9 * al, 2);
+    }
+    if (this.ignite >= 0) { // облако сжалось: в центре зажглась звезда, её свет заливает бульон
+      const [sx, sy] = W2S(this.igAt[0], this.igAt[1]), u = Math.min(1, this.ignite / 2.5);
+      glow(sx, sy, (40 + 260 * u) * Math.max(.6, z / 3), [255, 240, 210], .55 * u * al); ball(sx, sy, 6 + 10 * u, [255, 250, 235], .9 * u * al);
     }
     for (const h of this.hints) {
       const [x1, y1] = W2S(h[0], h[1]), [x2, y2] = W2S(h[2], h[3]);
@@ -760,10 +828,18 @@ const Mols = {
     const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : [255, 255, 255], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 6', this.steps(), this.stars, 'Первичный бульон готов');
+    // облако сжимается: сколько осталось (последние M_WARN с — красным, мигает) — над лавкой, как срок звезды
+    if (this.doneAt === null && !G.prev) {
+      const r = Math.max(0, this.rest()), hot = r < M_WARN, y = aboveShop() - 6, w = Math.min(240, G.W * .5), f = clamp(r / this.life, 0, 1);
+      const c = hot ? [255, 140, 110] : [150, 205, 255], a = al * (r < 10 ? .6 + .4 * Math.sin(G.T * 8) : 1);
+      label(`облако сожмётся в звезду через ${fmtClock(r)}`, G.W / 2, y, hot ? 16 : 14, c, .9 * a, 800);
+      ctx.globalAlpha = 1; ctx.fillStyle = rgb([255, 255, 255], .14 * al); ctx.fillRect(G.W / 2 - w / 2, y + 11, w, 4);
+      ctx.fillStyle = rgb(c, .85 * a); ctx.fillRect(G.W / 2 - w / 2, y + 11, w * f, 4);
+    }
     hudBanner(this.banner, 'УРОВЕНЬ 6 · миллиард лет', 'Молекулы', 'собрать соединения и создать законы их синтеза', al, 'атомы → молекулы → первые кирпичики жизни');
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },
   viewR() { return M_VIEW; },
-  hud() { return { title: '', sub: 'T ≈ 300 K', lines: [], goal: '', laws: [] }; },
+  hud() { return { title: '', sub: `облако · T ≈ 30 K${this.starN ? ` · из твоих звёзд: ${this.starN}` : ''}`, lines: [], goal: '', laws: [] }; },
 };

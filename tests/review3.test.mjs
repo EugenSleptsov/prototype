@@ -18,8 +18,8 @@ test('REVIEW_DESIGN 5.1: без касаний законы «Синтез» в�
     const g = toStage('molecules');
     g.ev(`(() => { const S = G.stage; S.st.bonds = 1; for (const f of ['H₂O','NH₃','CH₄','H₂O₂','CH₃OH','O₂','N₂']) S.found.push(f);
       for (const f of ${JSON.stringify(laws)}) { S.res.add(f); Uni.learn(S, f, f, f, UNI_LVL); } })()`);
-    g.step(60 * 300);
-    assert.equal(g.ev('G.stage.doneAt'), null, `${laws}: уровень прошёл сам`);
+    g.step(60 * 300); // облако сжимается за M_LIFE: уровень кончится, но не пройденным
+    assert.ok(g.ev('G.stage.doneAt === null || G.stage.failed'), `${laws}: уровень прошёл сам`);
     assert.ok(g.ev('G.stage.st.soup') <= g.ev('M_SOUP_UNI'), `${laws}: бульон ${g.ev('G.stage.st.soup')}`);
     assert.equal(g.ev('G.stage.st.soup'), g.ev('M_SOUP_UNI'), `${laws}: свою долю законы доваривают`);
   }

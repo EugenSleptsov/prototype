@@ -83,10 +83,11 @@ test('молекулы: в задании — органика с каркасо
   g.ev(`G.stage.found.push('CH₃OH')`);
   assert.equal(step().d, true);
   const g2 = toMols(); g2.ev('G.stage.cheat()');
-  assert.ok(g2.ev(`G.stage.steps().filter(s => s.t !== 'Первичный бульон').every(s => s.d)`), 'чит закрывает и органику');
+  assert.ok(g2.ev(`G.stage.steps().filter(s => !s.t.startsWith('Первичный бульон')).every(s => s.d)`), 'чит закрывает и органику');
 });
 
-// бот-игрок: целится по пунктиру (перебирает угол и натяжение, бьёт в середину удачного), строит открытое и органику
+// бот-игрок: целится по пунктиру (перебирает угол и натяжение, бьёт в середину удачного), строит открытое и органику,
+// а после двух законов варит бульон — и открытым тяжёлым (раньше строил только новое и шёл к бульону вдвое дольше)
 const BOT = `globalThis.__mbot = (secs) => { const S = G.stage; let cd = 0;
   const sum = (a, b) => { const c = S.counts(a), d = S.counts(b); for (const k in d) c[k] = (c[k] || 0) + d[k]; return c; };
   for (let i = 0; i < 60 * secs && S.doneAt === null; i++) {
@@ -95,7 +96,7 @@ const BOT = `globalThis.__mbot = (secs) => { const S = G.stage; let cd = 0;
       const f = S.bodies().filter(m => S.freeSlots(m) && inRef(m.x, m.y, -10) && !(m.hand > 0) && !(m.auto > 0));
       const org = S.found.length >= 3 && !ORGANIC.some(x => S.found.includes(x));
       let pair = null, bs = -1e9;
-      for (const gl of COMP.filter(c => !S.found.includes(c.f))) for (const A of f) for (const B of f) {
+      for (const gl of COMP.filter(c => !S.found.includes(c.f) || (S.res.size >= 2 && heavy(c)))) for (const A of f) for (const B of f) {
         if (A === B) continue; const s = sum(A, B); if (!fits(s, gl.c)) continue;
         const ex = ckey(s) === ckey(gl.c); if (!ex && S.freeSlots(A) + S.freeSlots(B) - 2 < 1) continue;
         const d = Math.hypot(A.x - B.x, A.y - B.y); if (d > 60) continue;
@@ -111,14 +112,15 @@ const BOT = `globalThis.__mbot = (secs) => { const S = G.stage; let cd = 0;
     }
     update(1 / 60);
   }
-  return { done: S.doneAt !== null, t: Math.round(S.clock), found: S.found.join(', ') };
+  return { done: S.doneAt !== null && !S.failed, t: Math.round(S.clock), found: S.found.join(', ') };
 };`;
 
 test('молекулы: бот с прицелом проходит уровень (органика, законы, бульон)', () => {
-  const g = toMols(11); // сид — после пролога-рогатки поток случайностей другой; здесь перенос из «Атомов» пуст (C, N, O — только редкий приток): 3, 5, 7, 11 — за 158–167 с
+  const g = toMols(6); // перенос из «Атомов» пуст (C, N, O — только редкий приток): сиды 1–8 — за 138–259 с, кроме бедного тяжёлыми 5 (449), до коллапса облака M_LIFE 300
   g.ev(BOT);
   const r = g.ev('__mbot(400)');
-  assert.equal(r.done, true, `не прошёл за 400 с: ${JSON.stringify(r)}`);
+  assert.equal(r.done, true, `не сварил бульон до коллапса облака: ${JSON.stringify(r)}`);
+  assert.ok(r.t < g.ev('M_LIFE'), r.t);
   assert.ok(g.ev('ORGANIC.some(f => G.stage.found.includes(f))'), r.found);
 });
 
