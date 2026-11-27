@@ -631,7 +631,8 @@ const Tally = {
     /** @type {TallyData['rows']} */
     const rows = [...d.rows];
     if (uk > 0) rows.push(['✦ от Вселенной', uk]);
-    const carry = carryOf(st); if (carry > 0) rows.push([`✦ с собой (остаток ÷ ${CARRY_DIV})`, '+' + carry, 'tb']);
+    // последний уровень — нести ✦ некуда: строки «с собой» нет
+    const carry = G.stageI < STAGES.length - 1 ? carryOf(st) : 0; if (carry > 0) rows.push([`✦ с собой (остаток ÷ ${CARRY_DIV})`, '+' + carry, 'tb']);
     rows.push(won ? ['уровень пройден', '+' + LVL_BONUS, 'tb'] : ['цель не выполнена', 'без бонуса', 'tx']);
     const m = st.paidRun === G.run && st.mile || { st: 0, star: 0 };
     if (m.st) rows.push([`шаги задания × ${m.st}`, '+' + m.st * STEP_PTS, 'tb']);

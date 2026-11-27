@@ -365,22 +365,22 @@
   #epoch .st small{font-size:12px;opacity:.6;flex-basis:100%}
   #tally{position:fixed;left:16px;top:50%;transform:translate(-24px,-50%);width:250px;padding:14px 16px;border-radius:14px;background:#0b0f1cd9;border:1px solid #ffffff1f;color:#dde3f0;font-size:13px;z-index:6;pointer-events:none;opacity:0;transition:opacity .6s,transform .6s}
   #tally.on{opacity:1;transform:translate(0,-50%)}
-  #tally .tk{font-size:11px;letter-spacing:.1em;color:#8fe8b0;font-weight:700}
-  #tally .tn{font-size:22px;font-weight:800;margin:2px 0 10px}
-  #tally>div:not(.tk):not(.tn):not(.ta):not(.ts):not(.tr):not(.tf){display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #ffffff10}
-  #tally span{opacity:.7}
-  #tally .tl b{color:#ffd27a}
-  #tally .tt b{font-size:17px}
-  #tally .ta{position:relative;height:22px;border-radius:11px;background:#ffffff12;overflow:hidden;margin-bottom:8px}
-  #tally .ta i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,#4de89b55,#4de89bbb)}
-  #tally .ta span{position:relative;display:block;text-align:center;line-height:22px;font-weight:700;opacity:1;font-size:12px}
-  #tally .ts{color:#ffd27a;margin:6px 0 2px}
-  #tally .tr{margin-top:8px;font-size:12px;color:#ffd27a;text-align:right}
-  #tally .ts{display:flex;flex-wrap:wrap;gap:4px;letter-spacing:0;font-size:11px}
-  #tally .ts em{font-style:normal;padding:2px 7px;border-radius:8px;background:#ffffff10}
-  #tally .ts em.y{background:#ffd27a33;color:#ffe08c}
-  #tally .ts em.n{color:#9a9ab0}
-  #tally .tf{margin-top:8px;font-size:12px;color:#8fd0ff;font-weight:700}
+  #tally .tk,.endtl .tk{font-size:11px;letter-spacing:.1em;color:#8fe8b0;font-weight:700}
+  #tally .tn,.endtl .tn{font-size:22px;font-weight:800;margin:2px 0 10px}
+  #tally>div:not(.tk):not(.tn):not(.ta):not(.ts):not(.tr):not(.tf),.endtl>div:not(.tk):not(.tn):not(.ta):not(.ts):not(.tr):not(.tf){display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #ffffff10}
+  #tally span,.endtl span{opacity:.7}
+  #tally .tl b,.endtl .tl b{color:#ffd27a}
+  #tally .tt b,.endtl .tt b{font-size:17px}
+  #tally .ta,.endtl .ta{position:relative;height:22px;border-radius:11px;background:#ffffff12;overflow:hidden;margin-bottom:8px}
+  #tally .ta i,.endtl .ta i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,#4de89b55,#4de89bbb)}
+  #tally .ta span,.endtl .ta span{position:relative;display:block;text-align:center;line-height:22px;font-weight:700;opacity:1;font-size:12px}
+  #tally .ts,.endtl .ts{color:#ffd27a;margin:6px 0 2px}
+  #tally .tr,.endtl .tr{margin-top:8px;font-size:12px;color:#ffd27a;text-align:right}
+  #tally .ts,.endtl .ts{display:flex;flex-wrap:wrap;gap:4px;letter-spacing:0;font-size:11px}
+  #tally .ts em,.endtl .ts em{font-style:normal;padding:2px 7px;border-radius:8px;background:#ffffff10}
+  #tally .ts em.y,.endtl .ts em.y{background:#ffd27a33;color:#ffe08c}
+  #tally .ts em.n,.endtl .ts em.n{color:#9a9ab0}
+  #tally .tf,.endtl .tf{margin-top:8px;font-size:12px;color:#8fd0ff;font-weight:700}
   @media (max-width:700px){#tally{right:12px;left:12px;width:auto;padding:8px 12px;font-size:12px;background:#0b0f1cf2;z-index:30;transform:translateY(-8px)}#tally.on{transform:none}#tally .tn{font-size:16px;margin:0 0 4px}#tally>div.tb,#tally>div.tx,#tally .ts{display:none!important}#tally .ta{height:18px;margin-bottom:4px}#tally .ta span{line-height:18px;font-size:11px}#tally .tf,#tally .tr{margin-top:4px}}
   #epoch{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:#05060bf2;z-index:21;padding:16px}
   #epoch>*{max-width:560px;width:100%}
@@ -418,6 +418,16 @@
   .endlb .lb:not(.mx) td:nth-child(4){text-align:right;opacity:.6}
   .endlb .lb tr.me td{background:#8fd0ff22;color:#fff;font-weight:600}
   .endlb{max-width:min(720px,94vw)}
+  /* финал: портрет бульона, забег по уровням, итоги уровня (раньше висели поверх) */
+  #end{overflow-y:auto;align-items:flex-start;background:#05030af2}
+  #end>div{margin:auto;max-width:min(760px,96vw);text-align:center}
+  #endart svg{width:100%;max-width:640px;height:auto;display:block;margin:4px auto 0}
+  #endart .rec{color:#ffd27a;font-weight:700;font-size:14px;margin-top:2px}
+  .runp{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:8px 0}
+  .runp>div{background:#ffffff0d;border-radius:10px;padding:6px 10px;font-size:12px;display:flex;flex-direction:column;min-width:86px}
+  .runp b{font-size:12px;opacity:.75;font-weight:600}.runp span{font-size:16px;font-weight:800}.runp i{font-style:normal;color:#ffd27a;font-size:11px}
+  .endtl:empty{display:none}
+  .endtl{max-width:320px;margin:8px auto;text-align:left;font-size:13px;color:#dde3f0;background:#ffffff08;border:1px solid #ffffff14;border-radius:12px;padding:10px 14px}
   .endlb .mxbar{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;margin:10px 0 6px}
   .endlb .mxbar .rk{margin:0;text-align:left}
   .endlb .mxm{display:inline-flex;border:1px solid #ffffff33;border-radius:8px;overflow:hidden}
@@ -513,28 +523,31 @@
 </div>
 
 <div id="end" class="overlay"><div>
-  <h1>Пока всё</h1>
+  <h1 id="endh">Пока всё</h1>
+  <div id="endart"></div>
   <p id="endtext"></p>
+  <div id="endrun"></div>
+  <div id="endtl" class="endtl"></div>
   <div id="endlb" class="endlb"></div>
   <p>Следующий этап, органика (полимеры и самокопирование), ещё в разработке.</p>
   <p class="mo" style="opacity:.75"><kbd>R</kbd>: начать заново</p>
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=164"></script>
-<script src="js/gestures.js?v=164"></script>
-<script src="js/audio.js?v=164"></script>
-<script src="js/core.js?v=164"></script>
-<script src="js/universe.js?v=164"></script>
-<script src="js/codex.js?v=164"></script>
-<script src="js/sling.js?v=164"></script>
-<script src="js/s0_quarks.js?v=164"></script>
-<script src="js/s_particles.js?v=164"></script>
-<script src="js/s1_nuclei.js?v=164"></script>
-<script src="js/s_stars.js?v=164"></script>
-<script src="js/s2_atoms.js?v=164"></script>
-<script src="js/s3_molecules.js?v=164"></script>
-<script src="js/online.js?v=164"></script>
-<script src="js/main.js?v=164"></script>
+<script src="js/util.js?v=165"></script>
+<script src="js/gestures.js?v=165"></script>
+<script src="js/audio.js?v=165"></script>
+<script src="js/core.js?v=165"></script>
+<script src="js/universe.js?v=165"></script>
+<script src="js/codex.js?v=165"></script>
+<script src="js/sling.js?v=165"></script>
+<script src="js/s0_quarks.js?v=165"></script>
+<script src="js/s_particles.js?v=165"></script>
+<script src="js/s1_nuclei.js?v=165"></script>
+<script src="js/s_stars.js?v=165"></script>
+<script src="js/s2_atoms.js?v=165"></script>
+<script src="js/s3_molecules.js?v=165"></script>
+<script src="js/online.js?v=165"></script>
+<script src="js/main.js?v=165"></script>
 </body>
 </html>

@@ -42,6 +42,11 @@ function endGame(text) {
   payMilestones(G.stage); // вехи последнего кадра — тоже в очки
   G.ended = true;
   document.getElementById('endtext').textContent = text;
+  // финал: заголовок и портрет последнего уровня (бульон), рекорд, портрет забега по уровням
+  const art = G.stage.endArt ? G.stage.endArt() : null;
+  document.getElementById('endh').textContent = art ? art.title : 'Пока всё';
+  document.getElementById('endart').innerHTML = (art && art.svg ? art.svg : '') + (art && art.rec ? `<div class="rec">${art.rec}</div>` : '');
+  document.getElementById('endrun').innerHTML = runPortrait();
   // счёт забега: в таблицу браузера и (если включена) в общую
   const cheated = G.fromI > 0 || STAGES.some(s => s.cheated), secs = (Date.now() - (G.runT0 || Date.now())) / 1000, el = document.getElementById('endlb');
   // матрица рекордов: строка — забег, столбцы — уровни и Σ (в браузере; общая — если включена)
@@ -49,7 +54,19 @@ function endGame(text) {
   if (!cheated) Runs.add(run);
   el.innerHTML = `<div class="rk big">${fmtScore(G.score)} очков за забег</div><div id="endon"></div>`;
   endBoard(document.getElementById('endon'), run, cheated);
-  setTimeout(() => { document.getElementById('end').style.display = 'flex'; }, 1500);
+  // итоги уровня — внутрь экрана конца (раньше они 8 с висели поверх него); сбоку они видны, пока экран конца не открылся
+  const tl = document.getElementById('tally'); document.getElementById('endtl').innerHTML = tl.innerHTML;
+  setTimeout(() => { tl.classList.remove('on'); Tally.t = 0; document.getElementById('end').style.display = 'flex'; }, 1500);
+}
+// портрет забега: по уровню — очки, ★ и доля сделанного руками (у кого она есть)
+function runPortrait() {
+  const cells = STAGES.map((S, i) => {
+    if (G.lv[i] == null) return '';
+    const m = S.paidRun === G.run && S.mile || { st: 0, star: 0 };
+    let hand = null; try { const a = S.tally && S.tally().auto; if (a && a[1] > 0) hand = Math.round(100 * (1 - a[0] / a[1])); } catch (e) { /* без итогов */ }
+    return `<div><b>${S.name}</b><span>${fmtScore(G.lv[i])}</span><i>${m.star ? '★'.repeat(Math.min(m.star, 4)) : '·'}${hand != null ? ` · руками ${hand} %` : ''}</i></div>`;
+  }).join('');
+  return cells ? `<div class="runp">${cells}</div>` : '';
 }
 
 // ---------- ввод ----------
