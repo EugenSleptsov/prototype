@@ -9,7 +9,7 @@ const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0,
   /** низ панели задания и когда она рисовалась (заголовки встают ниже) */
   taskY: 0, taskAt: /** @type {number | undefined} */ (undefined),
   /** заводит main.js: масштаб щипком/колесом, начало забега, идёт обучение, ✦ уже обращённые в очки (у какого этапа), лестница */
-  zoom: 1, runT0: 0, run: 0, ctlT: 0, tutor: false,
+  zoom: 1, runT0: 0, run: 0, ctlT: 0,
   /** очки каждого уровня этого забега (индекс — уровень; матрица рекордов в конце) */ lv: /** @type {(number | null)[]} */ ([]),
   ladP: /** @type {number | null} */ (null), ladT: /** @type {number | undefined} */ (undefined),
   /** единицы уходящего этапа: x_prev = x·s + ox (на переходе со сменой масштаба, см. rescale) */
@@ -606,10 +606,11 @@ const carryOf = st => st.bal ? Math.floor(Math.max(0, st.bal()) / CARRY_DIV) : 0
 // Шаг задания — STEP_PTS, испытание ★ — STAR_PTS (один раз за забег), пройденный уровень — LVL_BONUS.
 /** @param {Stage} S */
 function payMilestones(S) {
-  if (!G.started || G.ended || G.tutor || !S.steps) return;
+  if (!G.started || G.ended || !S.steps) return;
   if (S.paidRun !== G.run) { S.paidRun = G.run; S.paid = new Set(); S.mile = { st: 0, star: 0 }; }
   const paid = /** @type {Set<unknown>} */ (S.paid), m = /** @type {{ st: number, star: number }} */ (S.mile);
-  for (const [i, s] of S.steps().entries()) if (s.d) { const k = (S.ep ?? '') + ':' + i + ':' + s.t.replace(/\d+/g, '#'); if (!paid.has(k)) { paid.add(k); m.st++; addScore(STEP_PTS); } }
+  // np — шаг без очков (школа жестов: её проходят не все)
+  for (const [i, s] of S.steps().entries()) if (s.d && !s.np) { const k = (S.ep ?? '') + ':' + i + ':' + s.t.replace(/\d+/g, '#'); if (!paid.has(k)) { paid.add(k); m.st++; addScore(STEP_PTS); } }
   for (const s of S.stars || []) if (s.st === 1 && !paid.has(s)) { paid.add(s); m.star++; addScore(STAR_PTS); }
 }
 const Tally = {
@@ -623,7 +624,7 @@ const Tally = {
     const won = !st.failed, auto = won && d.auto && d.auto[1] > 0 ? clamp(d.auto[0] / d.auto[1], 0, 1) : null;
     if (won) addScore(LVL_BONUS);
     const lvl = Math.round(G.score - (st.scoreAt || 0));
-    if (!G.tutor) G.lv[G.stageI] = lvl; // строка забега в матрице рекордов
+    G.lv[G.stageI] = lvl; // строка забега в матрице рекордов
     /** @type {number | null} */
     let place = null;
     if (!st.cheated) place = LB.add('run.' + st.key, { n: LB.name(), s: lvl, t: Math.floor(st.clock ?? st.t ?? 0), d: Date.now() }).place;

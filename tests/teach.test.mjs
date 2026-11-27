@@ -75,7 +75,9 @@ test('показ, а не текст: раскачка — «зажми → от
   g.ev('G.stage.inf.go = true; G.stage.inf.hold = false; G.stage.inf.good = 0');
   assert.equal(shown(g), 'holdrel', 'раскачка');
   g.ev(PREP.pump()); g.ev(`Cine.clear(); Cine.tick(99); G.stage.kn += 50`);
-  assert.equal(shown(g), 'shop', 'хватает на закон света — стрелка к кнопке');
+  assert.notEqual(shown(g), 'shop', 'до главы «Закон» лавки нет — и стрелки к ней');
+  g.ev(`G.stage.chap = 4`);
+  assert.equal(shown(g), 'shop', 'глава «Закон», хватает на закон света — стрелка к кнопке');
 });
 
 test('показ, а не текст: снимка ещё не было — значок клика; жест не вышел — «зажми → отпусти»', () => {

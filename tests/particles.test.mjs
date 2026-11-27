@@ -13,14 +13,15 @@ function toField(opts = {}) {
   return g;
 }
 
-test('пустота: до нажатия нет поля, нажатие проявляет поле и становится первым толчком', () => {
-  const g = loadGame();
+test('пустота: до нажатия нет поля; нажатие проявляет поле — у знающего жесты оно сразу первый толчок', () => {
+  const g = loadGame({ storage: { 'proto.known': JSON.stringify(['gest:school']) } });
   g.ev(`document.getElementById('go').onclick()`);
   g.step(60 * 5, true);
   assert.equal(g.ev('G.stage.inVoid'), true);
   assert.equal(g.ev('G.stage.inf.go'), false);
   g.ev('mouse.clicked = true; mouse.down = true'); g.step(1);
   assert.equal(g.ev('G.stage.inVoid'), false);
+  assert.equal(g.ev('G.stage.school'), null, 'жесты освоены — школы нет');
   assert.equal(g.ev('G.stage.inf.go'), true);
   assert.equal(g.ev('G.stage.inf.hold'), true);
 });
@@ -159,27 +160,73 @@ test('Распады: цель t, которого игрок не создал,
   assert.ok(json(g, 'G.stage.reachNeed2()').includes('t'));
 });
 
-test('обучение: такт → свет ловится сам → три удара → снимок новой частицы → обычный забег', () => {
+// круг — к точке мира: курсор туда (камера едет за кругом — целимся заново), детектор догоняет
+const goTo = (g, wx, wy, n = 70) => { for (let k = 0; k < n; k += 5) { g.ev(`(() => { const [sx, sy] = W2S(${wx}, ${wy}); mouse.x = sx; mouse.y = sy; mouse.has = true; mouse.idle = false; })()`); g.step(5, true); } };
+const sch = (g, e) => JSON.parse(g.ev(`JSON.stringify(${e})`));
+test('школа жестов: впервые пролог учит жесты игры — вести, посмотреть, свести, разжать; без очков; потом раскачка, во второй раз — сразу она', () => {
   const g = loadGame();
-  g.ev(`document.getElementById('tutgo').onclick()`);
-  assert.equal(g.ev('G.tutor'), true);
-  g.ev(PREP.pump(.7));
-  g.step(30);
-  assert.equal(g.ev('G.stage.tut.i'), 1);
-  g.step(60 * 3); // фотон регистрируется сам, как в игре — без снимка
-  assert.equal(g.ev(`Codex.has('ph')`), true);
-  g.ev(`(() => { const S = G.stage; for (let k = 0; k < TUT_ABS; k++) S.absorb(S.mk('ph', false, P.x + 3, P.y, 0, S.T * 3)); })()`);
-  g.step(5);
-  assert.equal(g.ev('G.stage.tut.i'), 2);
-  g.ev(PREP.hit);
-  for (const k of [0, 1, 4]) g.ev(`__hit('ph', 'ph', ${k}, Math.max(G.stage.en, ${k}))`);
-  g.step(5);
-  assert.equal(g.ev('G.stage.tut.i'), 3);
-  g.ev(`(() => { const S = G.stage; S.mk('e', false, P.x, P.y, 0, .1).born = 1; S.shotCd = 0; S.snapshot(); })()`);
-  g.step(60 * 4, true);
-  assert.equal(g.ev('G.tutor'), false);
-  assert.equal(g.store.get('proto.tut'), '1');
-  assert.equal(g.ev('G.stage.tut'), null);
+  g.ev(`document.getElementById('go').onclick()`); g.step(110);
+  g.ev('mouse.clicked = true; mouse.down = true'); g.step(1); g.ev('mouse.down = false'); g.step(1, true);
+  assert.ok(g.ev('!!G.stage.school'), 'первое нажатие — школа жестов, а не толчок');
+  assert.equal(g.ev('G.stage.inf.go'), false);
+  assert.equal(g.ev('G.stage.finger'), false, 'на сенсоре — как в игре: палец ведёт круг, ◉ — действие');
+  assert.ok(g.ev(`document.body.classList.contains('tut')`), 'кнопка «пропустить» видна');
+  assert.deepEqual(sch(g, 'G.stage.steps().map(s => [s.t, !!s.np])'), [['Вести круг', true], ['Посмотреть', true], ['Свести два', true], ['Разжать без удара', true]]);
+  const score0 = g.ev('G.score');
+  assert.equal(g.ev('G.stage.p.length'), 0, 'до частиц: ни света, ни частиц — только сгустки поля');
+  // 1 — вести: круг сквозь три сгустка
+  for (let t = 0; t < 60 && g.ev('G.stage.school.n') < 3; t++) { const b = sch(g, 'G.stage.school.fl.find(b => !b.dead)'); goTo(g, b.x, b.y, 5); } // сгусток дрейфует — круг гонится за ним
+  assert.equal(g.ev('G.stage.school.n'), 3);
+  g.step(90, true); assert.equal(g.ev('G.stage.school.i'), 1, 'вести — освоено');
+  // 2 — посмотреть: клик мимо — «пусто», клик с кругом на сгустке — снимок
+  const far = sch(g, 'G.stage.school.fl[0]');
+  g.ev(`mouse.clicked = true; mouse.down = true`); g.step(2); g.ev('mouse.down = false'); g.step(2);
+  assert.equal(g.ev('G.stage.school.miss'), 1, 'мимо: сгусток далеко');
+  goTo(g, far.x, far.y);
+  g.ev(`mouse.clicked = true; mouse.down = true`); g.step(2); g.ev('mouse.down = false'); g.step(2);
+  assert.ok(g.ev('G.stage.school.done') > 0, 'снимок сгустка');
+  g.step(90, true); assert.equal(g.ev('G.stage.school.i'), 2);
+  // 3 — свести: зажать у двух, сила копится засечками, отпустить — столкнулись
+  const mid = () => sch(g, '(() => { const [a, b] = G.stage.school.fl; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; })()');
+  let m = mid(); goTo(g, m.x, m.y);
+  g.ev(`mouse.clicked = true; mouse.down = true`); g.step(60 * 2, true);
+  assert.ok(g.ev('G.stage.school.cap && G.stage.school.cap.length') === 2, 'поле взяло пару');
+  assert.ok(g.ev('G.stage.school.lv') >= 2, 'держал 2 с — не меньше двух засечек');
+  g.ev('mouse.down = false'); g.step(2);
+  assert.ok(g.ev('G.stage.school.done') > 0, 'столкнулись');
+  g.step(90, true); assert.equal(g.ev('G.stage.school.i'), 3);
+  // 4 — разжать: отпустить — не то (столкнулись, новая пара); правая кнопка — то
+  m = mid(); goTo(g, m.x, m.y);
+  g.ev(`mouse.clicked = true; mouse.down = true`); g.step(30); g.ev('mouse.down = false'); g.step(2);
+  assert.equal(g.ev('G.stage.school.i'), 3, 'отпустил — это удар, а не отмена');
+  g.step(80);
+  m = mid(); goTo(g, m.x, m.y);
+  g.ev(`mouse.clicked = true; mouse.down = true`); g.step(30);
+  assert.equal(g.ev('stCanDrop()'), true, '✕ на сенсоре видна: есть что разжать');
+  assert.equal(g.ev('stDrop()'), true);
+  g.step(90, true);
+  assert.equal(g.ev('G.stage.school'), null, 'жесты освоены — дальше раскачка');
+  assert.equal(g.ev('G.score'), score0, 'школа очков не даёт: её проходят не все');
+  assert.ok(!g.ev(`document.body.classList.contains('tut')`));
+  assert.equal(g.ev('G.stage.inf.go'), false, 'раскачка ждёт первого толчка');
+  // во второй раз — школы нет
+  const g2 = loadGame({ storage: Object.fromEntries(g.store) });
+  g2.ev(`document.getElementById('go').onclick()`); g2.step(110);
+  g2.ev('mouse.clicked = true; mouse.down = true'); g2.step(1);
+  assert.equal(g2.ev('G.stage.school'), null);
+  assert.equal(g2.ev('G.stage.inf.go'), true, 'нажатие — сразу толчок поля');
+});
+
+test('школа жестов: Esc — пропустить; задание и подсказки школы без «обучения» в разметке', () => {
+  const g = loadGame();
+  g.ev(`document.getElementById('go').onclick()`); g.step(110);
+  g.ev('mouse.clicked = true; mouse.down = true'); g.step(1); g.ev('mouse.down = false');
+  assert.ok(g.ev('!!G.stage.school'));
+  g.click('tutskip');
+  assert.equal(g.ev('G.stage.school'), null);
+  assert.equal(g.ev(`Known.has('gest:school')`), true);
+  g.step(60, true);
+  assert.equal(g.ev('G.stage.lit'), false, 'дальше — раскачка');
 });
 
 test('рецепт в задании: поколение II — только пара, сила «?»; после двух промахов — целиком; открытое раньше — сразу целиком', () => {

@@ -24,7 +24,8 @@ test('молекулы: пунктир честен — «связь» связ�
         M = S.m.find(m => !m.dead && m.atoms.length === k + 1) || M; }
       return M; };
     const kinds = [['C'], ['C', 'C'], ['O', 'C'], ['C', 'O'], ['N', 'C'], ['C', 'C', 'C'], ['C', 'C', 'O']];
-    for (let t = 0; t < 300; t++) {
+    // теснота после этапа 3 редка (не влез — садится перевёрнутым): бросаем, пока не встретится дважды
+    for (let t = 0; t < 2500 && (t < 300 || out.tight < 2); t++) {
       for (const m of S.m) m.dead = true; S.m = [];
       const B = chain(kinds[Math.floor(Math.random() * kinds.length)], P.x, P.y), A = chain(kinds[Math.floor(Math.random() * 3)], P.x - 200, P.y - 200);
       for (const m of S.m) { m.vx = m.vy = m.w = 0; }

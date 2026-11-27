@@ -122,7 +122,7 @@ test('ревью-2 №8а: тяжёлая — горячо, но цейтнот 
   assert.ok(!L.failed && !H.failed, `обычный: лёгкая ${L.t}, тяжёлая ${H.t}`);
   assert.ok(H.t < L.t, 'на тяжёлой — быстрее');
   assert.ok(H.life - H.t < 30, `тяжёлая: запас ${(H.life - H.t).toFixed(1)} с — цейтнот чувствуется`);
-  const slowL = play(2, 0, .25, 6, { sig: .12, ang: .08 }), slowH = play(2, 1, .25, 6, { sig: .12, ang: .08 });
+  const slowL = play(1, 0, .25, 6, { sig: .12, ang: .08 }), slowH = play(1, 1, .25, 6, { sig: .12, ang: .08 }); // медленный на тяжёлой — на грани: сиды 1, 5, 6 не успевают, 2–4 — за 41–50 с
   assert.ok(slowL.r.done && !slowL.r.failed, `медленный на лёгкой: ${JSON.stringify(slowL.r)}`);
   assert.ok(slowH.r.done && slowH.r.failed, `медленный на тяжёлой не успел: ${JSON.stringify(slowH.r)}`);
   assert.ok(Math.abs(slowH.r.t - slowH.r.life) < .1, 'сверхновая — когда догорела');

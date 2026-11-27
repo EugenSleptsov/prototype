@@ -7,7 +7,7 @@ import { loadGame, PREP } from './harness.mjs';
 const lit = (storage) => {
   const g = loadGame({ storage });
   g.ev(PREP.start); g.ev(PREP.pump());
-  g.ev('Cine.clear(); Cine.tick(99)');
+  g.ev('Cine.clear(); Cine.tick(99); G.stage.chap = 4'); // глава «Закон»: лавка открыта
   return g;
 };
 const html = g => g.ev(`document.getElementById('cinein').innerHTML`);

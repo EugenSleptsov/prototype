@@ -100,13 +100,17 @@ const BOT = `globalThis.__casual = (secs) => {
 };`;
 
 test('лавка: необязательный закон стоит 20–40 с дохода среднего игрока; вся необязательная лавка — не больше 300 ✦', () => {
-  const g = loadGame({ seed: 4 });
-  g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.hit); g.ev(BOT);
-  g.ev(`(() => { const S = G.stage; S.kn += 10; S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); S.kn -= 10; })()`);
-  g.ev('__casual(20)'); // разогнался: измерил свет — дальше ровный темп
-  const k0 = g.ev('G.stage.kn'), t0 = g.ev('G.stage.t');
-  g.ev('__casual(120)');
-  const rate = (g.ev('G.stage.kn') - k0) / (g.ev('G.stage.t') - t0); // ✦ в секунду
+  // доход среднего — по трём забегам (один сид шумит: 1,0–1,7 ✦/с)
+  const rate = [1, 3, 5].map(seed => {
+    const g = loadGame({ seed });
+    g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.hit); g.ev(BOT);
+    g.ev(`(() => { const S = G.stage; S.chap = 4; S.kn += 10; S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); S.kn -= 10; })()`);
+    g.ev('__casual(20)'); // разогнался: измерил свет — дальше ровный темп
+    const k0 = g.ev('G.stage.kn'), t0 = g.ev('G.stage.t');
+    g.ev('__casual(120)');
+    return (g.ev('G.stage.kn') - k0) / (g.ev('G.stage.t') - t0); // ✦ в секунду
+  }).reduce((s, r) => s + r, 0) / 3;
+  const g = loadGame();
   const opt = g.ev(`[...RES_COST.ph.slice(1), ...Object.values(LAW_COST)]`);
   const total = opt.reduce((s, c) => s + c, 0);
   assert.ok(total <= 300 && total >= 150, `необязательная лавка ${total} ✦`);
@@ -117,11 +121,11 @@ test('лавка: необязательный закон стоит 20–40 с 
 test('лавка: обязательные законы по-прежнему закрывают задания — «Свет» I и «Глюоны» эпоху 1, «Асимметрия» свой шаг эпохи 4', () => {
   const g = loadGame({ seed: 3 });
   g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.light);
-  g.ev(`Cine.clear(); Cine.tick(99); G.stage.pairs = 1; Codex.see('g')`);
+  g.ev(`Cine.clear(); Cine.tick(99); G.stage.pairs = 1; G.stage.full = true; G.stage.kn += 40; Codex.see('e'); Codex.see('g')`); // шкала ⚡ полна, электрон снят; свет скуп до закона — ✦ на глюоны доложим
   assert.equal(g.ev('G.stage.taskRes()'), 'g');
   assert.equal(buy(g, 'g'), 40);
   g.ev(`['u', 'd', 'e'].forEach(k => Codex.see(k)); G.stage.checkGoals()`);
-  assert.equal(g.ev('G.stage.epDone'), true, 'эпоха 1 выполнена: свет и глюоны — законы, первое поколение открыто');
+  assert.equal(g.ev('G.stage.epDone'), true, 'эпоха 1 выполнена: свет и глюоны — законы, шкала ⚡ наполнена, первое поколение открыто');
   // эпоха 4: тройки руками → «Асимметрия» → Вселенная сберегает тройки сама
   g.ev(`(() => { const S = G.stage; S.startEpoch(3); S.hig = 1; S.stockQ = Array.from({ length: 15 }, (_, i) => ({ fl: i % 3 ? 'u' : 'd', col: i % 3 })); S.stock = 15; Cine.clear(); Cine.tick(99); })()`);
   assert.equal(g.ev('G.stage.taskRes()'), 'cp');

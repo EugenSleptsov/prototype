@@ -57,12 +57,9 @@
   .overlay h1{margin:0 0 6px;font-size:34px;letter-spacing:.03em}
   .overlay kbd{background:#ffffff22;padding:1px 6px;border-radius:4px}
   .overlay button{margin-top:14px;font-size:16px;padding:8px 20px;border-radius:8px;border:0;background:#8fd0ff;color:#012;cursor:pointer}
-  /* старт: обучение или сразу игра; впервые — обучение главной кнопкой */
+  /* старт: обучение — сам пролог (школа жестов), отдельной кнопки нет */
   #intro .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  #intro button.alt{background:transparent;color:#cfe6ff;border:1px solid #8fd0ff88}
-  #intro.fresh #tutgo{order:-1;background:#8fd0ff;color:#012;border:0}
-  #intro.fresh #go{background:transparent;color:#cfe6ff;border:1px solid #8fd0ff88}
-  #tutgo small,#go small{opacity:.7;font-size:12px;margin-left:6px}
+  #go small{opacity:.7;font-size:12px;margin-left:6px}
   /* «ради чего»: одна фраза и путь Вселенной — от частиц к жизни */
   #intro .why{font-size:19px;line-height:1.45;margin:10px 0 4px}
   /* заставка по шагам: st-name — имя; st-line — линия жизни крупно в центре; st-ready — она внизу, в центре только управление */
@@ -498,7 +495,7 @@
   <button id="t-x" data-key="KeyX" aria-label="отщепить атом">✂</button>
 </div>
 
-<button id="tutskip">Пропустить обучение<kbd>Esc</kbd></button>
+<button id="tutskip">Уже умею — пропустить жесты<kbd>Esc</kbd></button>
 <!-- Заставка по шагам: имя → линия жизни Вселенной (уезжает вниз) → управление и «Начать» -->
 <div id="intro" class="overlay st-name">
   <button id="who" title="сменить имя"><span id="whon"></span><i>✎</i></button>
@@ -515,7 +512,6 @@
       <ul class="to gl"><li>Палец на экране: вести детектор</li><li>Тап по кнопке ◉: снимок</li><li>Держать ◉: притянуть кванты</li><li>Отпустить ◉: столкнуть</li><li>Провести палец с ◉ на ✕: разжать без удара</li><li>Два пальца: зум</li></ul>
       <div class="row">
         <button id="go">Начать</button>
-        <button id="tutgo" class="alt">Обучение<small>1–2 мин</small></button>
       </div>
     </section>
   </div>
@@ -534,20 +530,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=165"></script>
-<script src="js/gestures.js?v=165"></script>
-<script src="js/audio.js?v=165"></script>
-<script src="js/core.js?v=165"></script>
-<script src="js/universe.js?v=165"></script>
-<script src="js/codex.js?v=165"></script>
-<script src="js/sling.js?v=165"></script>
-<script src="js/s0_quarks.js?v=165"></script>
-<script src="js/s_particles.js?v=165"></script>
-<script src="js/s1_nuclei.js?v=165"></script>
-<script src="js/s_stars.js?v=165"></script>
-<script src="js/s2_atoms.js?v=165"></script>
-<script src="js/s3_molecules.js?v=165"></script>
-<script src="js/online.js?v=165"></script>
-<script src="js/main.js?v=165"></script>
+<script src="js/util.js?v=166"></script>
+<script src="js/gestures.js?v=166"></script>
+<script src="js/audio.js?v=166"></script>
+<script src="js/core.js?v=166"></script>
+<script src="js/universe.js?v=166"></script>
+<script src="js/codex.js?v=166"></script>
+<script src="js/sling.js?v=166"></script>
+<script src="js/s0_quarks.js?v=166"></script>
+<script src="js/s_particles.js?v=166"></script>
+<script src="js/s1_nuclei.js?v=166"></script>
+<script src="js/s_stars.js?v=166"></script>
+<script src="js/s2_atoms.js?v=166"></script>
+<script src="js/s3_molecules.js?v=166"></script>
+<script src="js/online.js?v=166"></script>
+<script src="js/main.js?v=166"></script>
 </body>
 </html>

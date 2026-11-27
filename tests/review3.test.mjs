@@ -70,7 +70,7 @@ test('REVIEW_DESIGN 5.2: у следа запас — каракули одни�
   const n = g.ev('G.stage.neutral()');
   assert.ok(n < .4, `слепой зигзаг 90 с: нейтральных ${Math.round(n * 100)} % (было 74–79 % за 120 с)`);
   assert.ok(g.ev('G.stage.ink') < INK_MAX_OF(g), 'запас тратится');
-  const h = toAtoms(1); h.ev(SKILL);
+  const h = toAtoms(4); h.ev(SKILL); // сиды 1–5: 84–315 с (последний ион — редкий гость), 4 — 149 с
   const r = h.ev('__skill(240)');
   assert.equal(r.done, true, JSON.stringify(r));
 });

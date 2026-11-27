@@ -180,13 +180,13 @@ function touchBar() {
   const s = G.stage, on = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
   const hold = s.key === 'particles';
   on('act', G.started && hold && !G.paused && !s.finger); // пролог — рогатка шарика пальцем, ◉ не нужна
-  actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держать' : s.ep === 3 ? 'держать: щит' : 'тап: снимок · держать: поле') : '';
+  actBtn.querySelector('small').textContent = s.key === 'particles' ? (s.school ? 'тап: посмотреть · держать: свести' : !s.lit && !s.ep ? 'держать' : s.ep === 3 ? 'держать: щит' : 'тап: снимок · держать: поле') : '';
   on('t-ff', G.started && s.enterKey && !(G.started && !G.paused && stCanDrop())); on('t-dash', G.started && s.dash);
   // «✕ разжать» — пока держишь взятое (частицы): раньше это было касание вторым пальцем поверх ◉ — третий палец
   const busy = G.started && !G.paused && stCanDrop(); // что-то в руке: ✕ — внизу у пальца, звук и ×4 прячутся (не задеть)
   on('t-drop', busy); on('t-mute', !busy);
   on('t-cx', G.started && (!s.showCodex || s.showCodex() !== null)); on('t-x', false);
-  on('t-help', G.started && !G.ended && !G.tutor && !G.paused);
+  on('t-help', G.started && !G.ended && !G.paused);
   // взятое само поворачивается по ходу броска; но у фрагмента из нескольких атомов к цели может встать не тот — ⟲ ⟳ (как Q / E)
   const rot = s.key === 'molecules' && G.started && !G.paused && !!(s.sl && s.sl.held && s.sl.held.atoms && s.sl.held.atoms.length >= 2);
   on('t-rl', rot); on('t-rr', rot);
@@ -224,12 +224,12 @@ addEventListener('keydown', e => {
   if (Codex.isOpen) { if (e.code === 'KeyC' || e.code === 'Escape') Codex.close(); return; }
   if (e.code === 'KeyC' && G.started && document.activeElement !== pname) { Codex.open(); return; }
   if (!G.started) return;
-  if (e.code === 'Escape' && G.tutor) { endTut(false); return; }
+  if (e.code === 'Escape' && G.stage.school) { if (G.stage.endSchool) G.stage.endSchool(false); return; }
   if (G.stage.sling && /^Arrow/.test(e.code)) e.preventDefault(); // стрелки двигают карту, а не страницу
   if (e.code === 'Space' && !G.paused) { e.preventDefault(); G.stage.dash && G.stage.dash(); }
   if (!G.paused && (e.code === 'Enter' || e.code === 'NumpadEnter')) G.stage.enterKey && G.stage.enterKey();
   if (e.code === 'KeyX' && !G.paused) { if (G.stage.detach) G.stage.detach(); else stDrop(); }
-  if (e.code === 'Escape' && !G.paused && !G.tutor) stDrop();
+  if (e.code === 'Escape' && !G.paused) stDrop();
   if (e.code === 'KeyH' && !G.paused) helpAgain();
   if (/^Digit[1-9]$/.test(e.code)) { const i = +e.code.slice(5) - 1; if (G.paused) G.stage.pick && G.stage.pick(i); else G.stage.buy && G.stage.buy(i); }
   if (G.paused && (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter')) { e.preventDefault(); G.stage.closeCard && G.stage.closeCard(); return; }
@@ -239,7 +239,7 @@ addEventListener('keydown', e => {
 });
 // «?» (H): подсказки текущего уровня — снова: жесты-подсказки, строка «как» у шага задания, строка управления
 function helpAgain() {
-  if (!G.started || G.ended || G.tutor) return;
+  if (!G.started || G.ended) return;
   const S = G.stage;
   Tips.again(S.key);
   Known.forget('ctl:' + S.key); G.ctlT = G.T + CTL_T;
@@ -286,19 +286,8 @@ function startRun() {
   jumpTo(G.fromI);
 }
 document.getElementById('go').onclick = startRun;
-// Обучение — короткий забег до игры (уровень частиц в режиме tut). Впервые — главная кнопка на старте.
-const tutSeen = () => { try { return !!localStorage.getItem('proto.tut'); } catch (e) { return true; } };
-if (!tutSeen()) document.getElementById('intro').classList.add('fresh');
-document.getElementById('tutgo').onclick = () => { G.fromI = 0; startRun(); G.tutor = true; document.body.classList.add('tut'); G.stage.startTut(); };
-document.getElementById('tutskip').onclick = () => endTut(false);
-// Кончилось или пропущено — настоящий забег с начала: счёт, часы и кодекс забега обнуляются
-function endTut(done) {
-  if (!G.tutor) return;
-  G.tutor = false; document.body.classList.remove('tut'); Cine.clear(); Spot.end();
-  try { localStorage.setItem('proto.tut', '1'); } catch (e) { /* без хранилища */ }
-  G.stage.enter(); G.score = 0; G.run = (G.run || 0) + 1; G.lv = []; G.runT0 = Date.now(); G.fx = []; mouse.down = false;
-  msg(done ? 'Обучение пройдено. Начинается настоящий забег' : 'Обучение пропущено. Забег начинается', 2.5);
-}
+// Школа жестов — пролог «Частиц» (до частиц, в поле инфляции): кнопка внизу и Esc — пропустить
+document.getElementById('tutskip').onclick = () => { const S = G.stage; if (S.endSchool) S.endSchool(false); };
 
 // ---------- цикл ----------
 function update(dt) {
@@ -406,7 +395,7 @@ function hud() {
   const ctlHtml = gs ? gRow('по предмету', gs.obj) + gRow('по пустому', gs.empty) + gRow('карта', mapT || undefined) : [S.controls, pan].filter(Boolean).join(' · ');
   // строка управления внизу — только при первом визите на уровень и первые CTL_T секунд (потом игрок знает сам)
   const ctlOn = !Known.has('ctl:' + S.key) && (S.clock ?? S.t ?? 0) < CTL_T || G.T < (G.ctlT || 0); // ctlT — «?» вернул строку
-  const hb = document.getElementById('help'); if (hb) hb.style.display = G.started && !G.ended && !G.tutor && !G.paused ? '' : 'none';
+  const hb = document.getElementById('help'); if (hb) hb.style.display = G.started && !G.ended && !G.paused ? '' : 'none';
   if (G.started && !ctlOn && (S.clock ?? S.t ?? 0) >= CTL_T) Known.add('ctl:' + S.key);
   put('controls', ctlOn ? ctlHtml : '', true);
   document.getElementById('laws').style.display = h.laws.length ? '' : 'none';

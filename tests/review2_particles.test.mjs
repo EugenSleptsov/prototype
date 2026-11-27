@@ -17,38 +17,25 @@ const drawn = (g, code) => g.ev(`(() => { const out = [], lb = label, hb = hudBa
   label = (t, ...r) => { out.push(String(t)); return lb(t, ...r); }; hudBanner = (b, k, n, line, ...r) => { out.push(String(k), String(n), String(line)); };
   try { ${code}; } finally { label = lb; hudBanner = hb; } return out; })()`);
 
-test('№7a обучение: свет регистрируется сам, клик по свету — «снимать нечего», снимок учат на рождённой частице', () => {
+test('№7a свет регистрируется сам, клик по свету — «снимать нечего», снимать учат на рождённой частице', () => {
   const g = loadGame();
-  g.ev(`document.getElementById('tutgo').onclick()`);
-  g.ev(PREP.pump(.7)); g.step(30);
-  assert.equal(g.ev('G.stage.tut.i'), 1);
+  g.ev(PREP.start); g.ev(PREP.pump(.7)); g.step(30);
   const st = g.ev('G.stage.steps().map(s => s.t + " | " + s.h)');
   assert.ok(!st.some(s => /фотон/.test(s) && /снимок/.test(s.split('|')[0])), `ни один шаг не просит снять фотон: ${st}`);
   assert.match(st[1], /кликать не нужно/);
-  assert.match(st[3], /^Снять новую частицу/);
+  assert.match(st[4], /^Снять электрон/);
   // свет, который ещё не зарегистрирован, подсказка-жест не предлагает снимать
   assert.notEqual(g.ev(`(() => { const S = G.stage; S.learn.snapNew = false; const o = S.mk('ph', false, P.x + 1, P.y, 0, S.T); o.born = 1; const k = S.coachPick(); o.dead = true; return k && k.kind; })()`), 'snap');
   g.step(60 * 3);
-  assert.equal(g.ev(`Codex.has('ph')`), true, 'фотон зарегистрировался сам, как в обычной игре');
-  g.ev(`(() => { const S = G.stage; for (let k = 0; k < TUT_ABS; k++) S.absorb(S.mk('ph', false, P.x + 3, P.y, 0, S.T * 3)); })()`);
-  g.step(5);
-  assert.equal(g.ev('G.stage.tut.i'), 2);
-  g.ev(PREP.hit);
-  for (const k of [0, 1, 4]) g.ev(`__hit('ph', 'ph', ${k}, Math.max(G.stage.en, ${k}))`);
-  g.step(5);
-  assert.equal(g.ev('G.stage.tut.i'), 3);
-  // клик по одному свету — как в игре: «снимать нечего», шаг не засчитан
+  assert.equal(g.ev(`Codex.has('ph')`), true, 'фотон зарегистрировался сам');
+  // клик по одному свету: «снимать нечего», ⚡ цела
   const said = g.ev(`(() => { const S = G.stage, out = [], f = S.float; for (const o of S.p) o.dead = true; S.p = []; S.tracks = [];
     S.float = (x, y, t, ...r) => { out.push(t); return f.call(S, x, y, t, ...r); };
     S.mk('ph', false, P.x, P.y, 0, S.T).born = 1; S.shotCd = 0; S.snapshot(); S.float = f; return out; })()`);
   assert.ok(said.some(t => /снимать нечего: свет ловится кругом/.test(t)), String(said));
-  g.step(5);
-  assert.equal(g.ev('G.stage.tut.i'), 3, 'снимок света — не снимок новой частицы');
-  g.ev(`(() => { const S = G.stage; S.mk('e', false, P.x, P.y, 0, .1).born = 1; S.shotCd = 0; S.snapshot(); })()`);
-  g.step(5);
-  assert.equal(g.ev('G.stage.tut.i'), 4, 'снята рождённая частица — обучение пройдено');
-  g.step(60 * 4);
-  assert.equal(g.ev('G.tutor'), false);
+  g.ev(`(() => { const S = G.stage; S.en = 3; S.mk('e', false, P.x, P.y, 0, .1).born = 1; S.shotCd = 0; S.snapshot(); })()`);
+  assert.equal(g.ev(`Codex.has('e')`), true, 'снята рождённая частица');
+  assert.equal(g.ev(`G.stage.steps()[4].d`), true, 'шаг «Снять электрон» засчитан');
 });
 
 test('№7c эпоха 3: у шагов нет плашки «для задания» — покупка не обязательна (и когда руками уже не родить)', () => {

@@ -106,8 +106,8 @@ export function loadGame({ seed = 1, touch = false, storage = {} } = {}) {
 
 // Стандартные заготовки для тестов уровня частиц
 export const PREP = {
-  // старт забега: «Начать», пустота, первое нажатие
-  start: `document.getElementById('go').onclick(); __step(110); mouse.clicked = true; mouse.down = true; __step(1); mouse.down = false;`,
+  // старт забега: «Начать», пустота, первое нажатие (жесты уже освоены — школы жестов нет, нажатие — сразу толчок поля)
+  start: `Known.add('gest:school'); document.getElementById('go').onclick(); __step(110); mouse.clicked = true; mouse.down = true; __step(1); mouse.down = false;`,
   // раскачка рогаткой до вспышки (maxA — какой размах держать: от него классы света): у края — зажать,
   // у дна — отпустить, резинка против хода шарика (толчок по ходу); размах набран — отпустить без резинки
   pump: (maxA = .9, secs = 40) => `(() => { const S = G.stage, I = S.inf;
@@ -118,7 +118,7 @@ export const PREP = {
       update(1 / 60); }
     mouse.down = false; })()`,
   // свет исследован и измерен — поле открыто
-  light: `(() => { const S = G.stage; S.kn += 500; S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); for (const c of S.madeCls()) S.measure(c); })()`,
+  light: `(() => { const S = G.stage; S.kn += 500; S.chap = Math.max(S.chap, 4); S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); for (const c of S.madeCls()) S.measure(c); })()`,
   // зажать пару квантов a+b у детектора до ступени k и отпустить; вернуть рождённое
   hit: `globalThis.__hit = (a, b, k, en = E_CAP) => { const S = G.stage; S.en = en;
     for (const o of S.p) if (!o.dead && Math.hypot(o.x - P.x, o.y - P.y) < S.fr() * 1.6) o.dead = true; update(1 / 60);

@@ -48,7 +48,7 @@ interface Stage {
   /** ✦ уровня — валюта (в очки не идут: очки — за вехи, core.js payMilestones) */
   kn?: number;
   /** задание уровня (шаги) и испытания ★ — вехи для очков; эпоха (частицы) */
-  steps?(): { t: string; d?: boolean }[];
+  steps?(): { t: string; d?: boolean; np?: boolean }[];
   stars?: Star[]; ep?: number;
   /** оплаченные вехи этого забега (payMilestones) */
   paidRun?: number; paid?: Set<unknown>; mile?: { st: number; star: number };
@@ -91,7 +91,9 @@ interface Stage {
   showLadder?(): boolean;
   renderUpg?(el: HTMLElement): void;
   renderShop?(el: HTMLElement): void;
-  startTut?(): void;
+  /** «Частицы»: школа жестов в прологе (пока идёт) и её конец (done — пройдена, иначе пропущена) */
+  school?: unknown;
+  endSchool?(done: boolean): void;
   wheel?(d: number): void;
   dash?(): void;
   enterKey?(): void;
@@ -183,8 +185,11 @@ interface Wave { n: number; cd: number; dir: number | null; cur: { list: Q[]; t:
 interface Safe { a: number; r: number; w: number; t0: number; q: string[] }
 interface Stored { fl: string; col: number }
 interface Handoff { x: number; y: number; vx: number; vy: number; fl: string; col: number }
-/** Обучение: шаг; сколько поймано света; удары слабо / на 1 ⚡ / изо всех сил; снимков новой частицы */
-interface Tut { i: number; t: number; abs: number; weak: number; lep: number; q: number; snap: number; end: number }
+/** Сгусток поля в школе жестов: k — проявление 0…1, look — его надо «посмотреть», cap — держит поле */
+interface FieldBlob { x: number; y: number; vx: number; vy: number; ph: number; k: number; look: boolean; cap: boolean; dead: boolean }
+/** Школа жестов (пролог): сцена i (SCHOOL), n — сгустков пройдено, press/hold — нажатие, at — когда взята пара, cap — пара в поле,
+ *  lv — ступень силы, done — пауза после жеста, re — новая пара через, miss — промахов */
+interface School { i: number; t: number; idle: number; n: number; fl: FieldBlob[]; press: boolean; hold: number; at: number; ang: number; cap: FieldBlob[] | null; lv: number; done: number; re: number; miss: number }
 interface CoachPick { kind: string; o?: Q; o2?: Q; el?: HTMLElement }
 interface Coach { idle: number; t: number; kind: string | null; o?: Q | null; o2?: Q | null; el?: HTMLElement | null }
 /** Освоенные жесты (подсказки гаснут) */
@@ -231,7 +236,9 @@ interface ParticlesState {
   epClock: number; epKn0: number; doneAt: number | null; lvlTotal: number;
   /** была отладка — без рекордов */
   cheated: boolean;
-  tut: Tut | null;
+  school: School | null;
+  /** глава эпохи 1, чья лента уже показана */
+  chap: number;
   inVoid: boolean; voidT: number;
   focus: Focus | null; holding: boolean; hold: number; shield: number;
   learn: Learn; coach: Coach;
@@ -271,4 +278,4 @@ interface ParticlesState {
 /** Шаг задания эпохи (hudTask в core.js): t — заголовок, h — подсказка, d — выполнен, res — нужное исследование,
  *  items — галочки, p — [сколько, из скольких], s — что написать по выполнении */
 /** Шаг задания; rx — рецепт значками (что с чем столкнуть и с какой силой) */
-interface Step { t: string; h?: string | null; s: string; d: boolean; res?: string | null; items?: [string, boolean][]; p?: [number, number]; rx?: Rx }
+interface Step { t: string; h?: string | null; s: string; d: boolean; /** глава эпохи 1 */ ch?: number; /** без очков забега */ np?: boolean; res?: string | null; items?: [string, boolean][]; p?: [number, number]; rx?: Rx }
