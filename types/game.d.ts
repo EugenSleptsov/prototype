@@ -158,9 +158,12 @@ type Prof = typeof PROF[number];
 type Heat = Omit<Prof, 'k'> & { i: number; k: number; heat: number };
 
 /** Пролог: инфлатон в чаше (mkInf) */
-interface Inf {
-  A: number; th: number; H: number; t: number; idle: number; go: boolean; hold: boolean;
-  p0: [number, number]; pull: number; flash: number; snapFx: number; snaps: number; good: number; late: number;
+/** Чаша с шариком (пролог и «Рогатка» школы): u — положение (доля полуширины, край — 1), v — скорость, A — размах;
+ *  hold, p0, pull — рогатка; flash — вспышка дна; snapFx, snaps — вылеты за край; good — размахов у края;
+ *  out — сколько ещё падает за краем, ox — за каким; top — докуда долетел в последний раз */
+interface Bowl { u: number; v: number; A: number; hold: boolean; p0: [number, number]; pull: number; flash: number; snapFx: number; snaps: number; good: number; out: number; ox: number; top: number; /** прошёл середину чаши с последней остановки */ sw: boolean; /** пойман, долетев от середины: докуда долетел */ cTop: number }
+interface Inf extends Bowl {
+  H: number; t: number; idle: number; go: boolean;
   pick: Heat | null; zone: number;
   /** сколько пар создано каждого класса света */
   made: number[];
@@ -190,7 +193,7 @@ interface Handoff { x: number; y: number; vx: number; vy: number; fl: string; co
 interface FieldBlob { x: number; y: number; vx: number; vy: number; ph: number; k: number; look: boolean; cap: boolean; dead: boolean }
 /** Школа жестов (пролог): сцена i (SCHOOL), n — сгустков пройдено, press/hold — нажатие, at — когда взята пара, cap — пара в поле,
  *  lv — ступень силы, done — пауза после жеста, re — новая пара через, miss — промахов */
-interface School { i: number; t: number; idle: number; n: number; fl: FieldBlob[]; press: boolean; hold: number; at: number; ang: number; cap: FieldBlob[] | null; lv: number; done: number; re: number; miss: number }
+interface School { i: number; t: number; idle: number; n: number; fl: FieldBlob[]; press: boolean; hold: number; at: number; ang: number; cap: FieldBlob[] | null; lv: number; done: number; re: number; miss: number; /** чаша «Рогатки» */ bw: Bowl | null }
 interface CoachPick { kind: string; o?: Q; o2?: Q; el?: HTMLElement }
 interface Coach { idle: number; t: number; kind: string | null; o?: Q | null; o2?: Q | null; el?: HTMLElement | null }
 /** Освоенные жесты (подсказки гаснут) */

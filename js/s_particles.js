@@ -12,12 +12,11 @@
    - Каждая эпоха — задание крупно под часами (цели меняются от забега к забегу) и два случайных испытания ★.
    - ✦ знания добываются ловлей фотонов и снимками и тратятся на исследования мира прямо в игре.
    - Детектор не прокачивается: радиус, перезарядка, сила поля и захват — одни и те же (DET).
-   - Пролог «Разогрев»: инфляция кончилась, поле-инфлатон — шарик в чаше потенциала V(φ), катается туда-сюда.
-     Его надо раскачать, как качели, — рогаткой, тем же глаголом, что у предметов на всех уровнях (разбор дизайна:
-     было «держать, пока катится влево»): оттянуть резинку против хода шарика и отпустить, когда он проходит дно, —
-     толчок по ходу раскачивает, против хода — гасит; чем длиннее резинка, тем сильнее. На каждом отскоке поле отдаёт энергию в
-     свет: из кольца вылетают пары фотонов, тем жёстче, чем сильнее размах, и остаются в мире эпохи 1.
-     Чем сильнее размах — тем быстрее ритм; кольцо дошло до красной черты — срыв, раскачка пропадает.
+   - Пролог «Разогрев»: инфляция кончилась, поле-инфлатон — шарик в неподвижной чаше потенциала V(φ); сам не движется.
+     Его раскачивают рогаткой, тем же глаголом, что у предметов на всех уровнях (урок 43; было — толчок в такт шарику,
+     качавшемуся самому): зажал — пойман, оттянул и отпустил — полетел в обратную сторону и качается, теряя энергию;
+     поймал на краю — оттянул ещё. Трение — это разогрев; на каждом проходе дна поле отдаёт энергию в свет: пары фотонов,
+     тем жёстче, чем сильнее размах, и остаются в мире эпохи 1. Перетянул — шарик вывалился из чаши, размах пропал.
      За 18 с поле распадается; сколько света набрал (шкала внизу) — такое и качество разогрева: слабый, хороший
      или отличный (T = k·1 ТэВ, света в мире ∝ k^1,5 до конца уровня). Это оценка, а не выбор: больше — всегда лучше
      (второе ревью №8: «профили» были выбором с одной строго лучшей опцией). Это настоящий механизм preheating —
@@ -62,13 +61,19 @@ const RES_MAX = 4; // исследований в панели ✦ одновр�
 // оценка и цвет отметок (от холодного синего к горячему розовому — Вселенная и правда горячее)
 // h — с какой доли шкалы разогрева начинается эта оценка
 const PROF = [{ n: 'слабый', k: [.82, .92], c: [130, 195, 255], h: 0 }, { n: 'хороший', k: [1.05, 1.18], c: [255, 215, 110], h: .4 }, { n: 'отличный', k: [1.38, 1.5], c: [255, 120, 200], h: .75 }];
-// Пролог — резонанс инфлатона: шарик в чаше V(φ) ∝ φ². Размах A (0…1), фаза θ: φ = A·cos θ, θ ∈ (0, π) — катится влево.
-// Рогатка: отпустил — толчок в сторону, обратную резинке: dA = kick · k^1,5 · c, k — доля резинки (по горизонтали),
-// c = направление толчка × скорость шарика (−sin θ: + — катится вправо) — у дна по ходу раскачивает, против — гасит.
-// Свет рождается, когда шарик проходит дно (φ = 0). R — полуширина чаши в радиусах детектора.
-// Отскок (θ = π) отдаёт долю eta размаха в свет: шкала += kap·A². Ритм ω = w0·(1 + wk·A). A > crit — срыв до snapA.
-// life — сколько секунд живёт поле после первого нажатия (или после wait секунд без нажатий).
-const INF = { A0: .2, w0: TAU / 1.8, wk: 1, kick: .2, damp: .03, eta: .06, kap: .09, crit: 1, snapA: .15, life: 18, wait: 8, R: 2.6, deep: .75, low: .4 };
+// Пролог — инфлатон: шарик в чаше V(φ) ∝ φ² (парабола). Сам не движется: лежит на дне, пока его не тронешь.
+// Рогатка: зажал — шарик пойман и замер, где был; оттянул и отпустил — полетел в обратную сторону со скоростью
+// k^1,5 · vk · ω (k — доля резинки по горизонтали). Дальше колеблется с трением: ü = −ω²u − γu̇ (парабола — гармоника:
+// ритм не зависит от размаха). Трение — это распад поля в свет: что ушло трением, то разогрело Вселенную
+// (H += κ · 2γ(u̇/ω)² dt), и на каждом проходе дна рождается пара фотонов. Поймал на краю (там шарик замирает) и оттянул
+// ещё — размах растёт; размах за край — перетянул: шарик вывалился, его энергия пропала. Размах у края (≥ edge) — жарче
+// разогрев и жёсткий свет. u — доля полуширины чаши (край — |u| = 1), A = √(u² + (u̇/ω)²) — размах;
+// R — полуширина чаши в радиусах детектора. Та же чаша — сцена «Рогатка» школы жестов (без света).
+const INF = { w: TAU / 1.8, gam: .4, vk: 1.3, kap: .2, edge: .85, outT: 1.2, life: 18, wait: 8, R: 2.6, deep: .75, low: .4 };
+/** шаг колебания с трением (полунеявный Эйлер) @param {number} u @param {number} v @param {number} h @returns {[number, number]} */
+const bowlStep = (u, v, h) => { v += (-INF.w * INF.w * u - INF.gam * v) * h; return [u + v * h, v]; };
+/** @returns {Bowl} */
+const mkBowl = () => ({ u: 0, v: 0, A: 0, hold: false, p0: [0, 0], pull: 0, flash: 0, snapFx: 0, snaps: 0, good: 0, out: 0, ox: 1, top: 0, sw: false, cTop: 0 });
 // Классы фотонов по энергии относительно температуры (x = E/T, тепловой спектр): доля, ⚡, ✦ за первую находку (k)
 // и ✦ за каждый пойманный (kn) — главный «клик» экономики: больше света в мире → быстрее копятся ✦
 // Два класса: четыре оттенка жёсткости путали и ничего не давали игре
@@ -80,7 +85,7 @@ const GLU_LOOPS = 4, GLU_SPIN = 5; // петель в пружинке глюо�
 // тепловой хвост: класс, которого раскачка не создала, всё равно есть в спектре — редко (вес от суммы созданных).
 // Раньше вялая раскачка навсегда запрещала жёсткий свет — в тепловом равновесии так не бывает (ревью: физическая неправда)
 const PH_TAIL = .06;
-const PH_TOP = PH_CLS.length - 1, PH_XMAX = 11, PH_HARD_A = .55; // самый жёсткий класс; верх спектра (x = E/T); с какого размаха раскачки свет жёсткий
+const PH_TOP = PH_CLS.length - 1, PH_XMAX = 11, PH_HARD_A = .7; // самый жёсткий класс; верх спектра (x = E/T); с какого размаха раскачки свет жёсткий
 /** верх класса c в долях T @param {number} c */
 const phHi = c => (c < PH_TOP ? PH_CLS[c + 1].x : PH_XMAX);
 // Цены «Сформировать закон». Обязательные для заданий — «Свет» I, «Глюоны», «Асимметрия»; прочие — по одному
@@ -183,7 +188,8 @@ const COACH_IDLE = 5, COACH_T = 2.8;
 // Обучение — отдельный короткий забег до игры: четыре жеста по одному (такт → снимок → сбор света → столкновения
 // разной силы). Без очков, часов и рекордов; пропустить можно на старте и в любой момент (кнопка или Esc).
 // До частиц — школа жестов (пролог): сцены по порядку; сгустков в сцене «вести»; через сколько секунд без дела — призрачный жест
-const SCHOOL = ['move', 'look', 'join', 'drop'], SCH_N = 3, SCH_IDLE = 3.5, FL_C = [175, 165, 255];
+// «Рогатка» — та же чаша, что в прологе: довести размах почти до края SCH_EDGE раз
+const SCHOOL = ['move', 'look', 'join', 'drop', 'sling'], SCH_N = 3, SCH_EDGE = 2, SCH_IDLE = 3.5, FL_C = [175, 165, 255];
 // Главы эпохи 1 (шаг задания знает свою главу — ch): новая глава — лента с её названием и одной мыслью, игра идёт
 /** @type {Record<number, { n: string, line: string }>} */
 const CHAPTERS = {
@@ -316,12 +322,13 @@ const Particles = {
   key: 'particles', name: 'Частицы', bg: [44, 34, 14], controls: '',
   // пролог — рогатка шарика: палец на сенсоре сам жест (без ◉), как на уровнях с рогаткой; в школе жестов — как в игре: палец ведёт, ◉ — действие
   /** @returns {boolean} */
-  get finger() { return this.ep === 0 && !this.lit && !this.school; },
+  get finger() { return this.ep === 0 && !this.lit && (!this.school || SCHOOL[this.school.i] === 'sling'); },
   // словарь жестов (разбор дизайна: один на игру): по предмету · по пустому · карта
   gest() {
     const t = isTouch(), hold = t ? '◉ держать' : 'держать';
+    if (this.school && SCHOOL[this.school.i] === 'sling') return { obj: 'шарик: зажать, оттянуть, отпустить — рогатка', empty: '', map: '' };
     if (this.school) return { obj: t ? '◉ тап у сгустка: посмотреть' : 'клик у сгустка: посмотреть', empty: `${hold} у двух сгустков: свести · отпустить: удар` + (t ? ' · с ◉ на ✕: разжать' : ' · правая кнопка: разжать'), map: t ? 'палец ведёт круг' : 'круг идёт за мышью' };
-    if (this.ep === 0 && !this.lit) return { obj: 'шарик поля: оттянуть против хода, отпустить у дна — раскачка', empty: '', map: '' };
+    if (this.ep === 0 && !this.lit) return { obj: 'шарик поля: зажать, оттянуть, отпустить — рогатка; поймать на краю и оттянуть ещё', empty: '', map: '' };
     return { obj: t ? '◉ тап по частице: снимок' : 'клик по частице: снимок',
       empty: this.ep === 3 ? `${hold}: щит · отпустить: ударная волна` : `${hold} у двух квантов: поле тянет и копит удар · отпустить: удар` + (t ? ' · с ◉ на ✕: разжать' : ' · правая кнопка: разжать'),
       map: t ? 'палец ведёт детектор, карта — за ним' : 'карта — за детектором (ведёт мышь)' };
@@ -396,7 +403,7 @@ const Particles = {
   },
   // ---------- пролог: резонанс инфлатона ----------
   /** @returns {Inf} */
-  mkInf() { return { A: INF.A0, th: -Math.PI / 2, H: 0, t: 0, idle: 0, go: false, hold: false, p0: [0, 0], pull: 0, flash: 0, snapFx: 0, snaps: 0, good: 0, late: 0, pick: null, zone: 0, made: PH_CLS.map(() => 0) }; },
+  mkInf() { return { ...mkBowl(), H: 0, t: 0, idle: 0, go: false, pick: null, zone: 0, made: PH_CLS.map(() => 0) }; },
   // Разогрев по шкале H (0…1): зона даёт имя и цвет, место внутри зоны — температуру k
   /** @param {number} H @returns {Heat} */
   profOf(H) {
@@ -404,53 +411,98 @@ const Particles = {
     const k = lerp(p.k[0], p.k[1], clamp((H - p.h) / (hi - p.h), 0, 1));
     return { ...p, i, k, heat: k ** 1.5 };
   },
-  infW() { return INF.w0 * (1 + INF.wk * this.inf.A); },
+  // ---------- чаша с шариком: рогатка и колебание (пролог и школа) ----------
+  // Рогатка: зажал — шарик пойман и замер; отпустил — полетел против резинки. true — бросил
+  /** @param {Bowl} B */
+  bowlInput(B) {
+    if (mouse.clicked) {
+      mouse.clicked = false;
+      if (!(B.out > 0)) {
+        if (B.sw && !B.hold) B.cTop = Math.abs(B.u); // поймал, долетев от середины, — это тоже «докуда долетел» (на краю — у края ✓)
+        B.hold = true; B.p0 = [mouse.x, mouse.y]; B.pull = 0; B.v = 0; B.sw = false; Sfx.play('grab');
+      }
+    }
+    if (B.hold) B.pull = clamp((mouse.x - B.p0[0]) / slingFullPx(), -1, 1); // резинка — по горизонтали (шарик ходит по чаше)
+    if (!B.hold || mouse.down) return false;
+    const k = Math.abs(B.pull), dir = -Math.sign(B.pull); B.hold = false; B.pull = 0;
+    if (k < SLING_MIN) return false; // у самого шарика — не бросок: отпущен с места
+    B.v = dir * k ** SLING_POW * INF.vk * INF.w; B.flash = Math.max(B.flash, .4); Sfx.play('throw');
+    return true;
+  },
+  // прицел рогатки: докуда долетит шарик, если отпустить сейчас (с трением; > 1 — вывалится); null — резинка не натянута
+  /** @param {Bowl} B */
+  bowlAim(B) {
+    const k = Math.abs(B.pull); if (!B.hold || k < SLING_MIN) return null;
+    let u = B.u, v = -Math.sign(B.pull) * k ** SLING_POW * INF.vk * INF.w;
+    for (let i = 0; i < 960; i++) { // до первой остановки (≤ 4 с), шаг — как в bowlTick
+      const v0 = v; [u, v] = bowlStep(u, v, 1 / 240);
+      if (Math.abs(u) > 1) return Math.abs(u);
+      if (v0 * v <= 0 && i) return Math.abs(u);
+    }
+    return Math.abs(u);
+  },
+  // передумал: шарик отпущен с места, без броска (правая кнопка, X, ✕)
+  /** @param {Bowl} B */
+  bowlCancel(B) { if (!B.hold) return false; B.hold = false; B.pull = 0; mouse.down = false; Sfx.play('grab'); return true; },
+  // Колебание с трением; cb: loss — сколько энергии (в долях края²) ушло трением, pass — проход дна (размах),
+  // top — шарик замер на краю хода (или пойман там), пройдя середину чаши (докуда долетел), out — размах за край: вывалился
+  /** @param {Bowl} B @param {number} dt @param {{ loss?: (e: number) => void, pass?: (A: number) => void, top?: (a: number) => void, out?: () => void }} cb */
+  bowlTick(B, dt, cb) {
+    B.flash = Math.max(0, B.flash - dt * 2.5); B.snapFx = Math.max(0, B.snapFx - dt);
+    if (B.out > 0) { if ((B.out -= dt) <= 0) { B.out = 0; B.u = 0; B.v = 0; } B.A = 0; return; } // вывалился — новый шарик на дне
+    if (B.cTop) { const a = B.cTop; B.cTop = 0; B.top = a; if (cb.top) cb.top(a); }
+    if (B.hold) { B.A = Math.abs(B.u); return; }
+    const w = INF.w, n = Math.max(1, Math.ceil(dt * 240));
+    for (let i = 0; i < n; i++) {
+      const h = dt / n, u0 = B.u, v0 = B.v;
+      [B.u, B.v] = bowlStep(B.u, B.v, h);
+      if (cb.loss) cb.loss(2 * INF.gam * (B.v / w) ** 2 * h);
+      if (Math.abs(B.u) < .5) B.sw = true; // прошёл середину чаши: следующий разворот — честный размах (щёлкать у края без хода не выйдет)
+      if (u0 !== 0 && Math.sign(B.u) !== Math.sign(u0) && cb.pass) cb.pass(Math.hypot(B.u, B.v / w));
+      if (v0 * B.v < 0) { B.top = Math.abs(B.u); if (B.sw && cb.top) cb.top(B.top); B.sw = false; }
+      if (Math.abs(B.u) > 1) { B.ox = Math.sign(B.u); B.u = B.ox; B.v = 0; B.out = INF.outT; B.snaps++; B.snapFx = 2.5; if (cb.out) cb.out(); break; }
+    }
+    if (Math.hypot(B.u, B.v / w) < 2e-3) { B.u = 0; B.v = 0; } // затих — лежит на дне
+    B.A = Math.hypot(B.u, B.v / w);
+  },
   /** @param {number} dt */
   tickInf(dt) {
     const I = this.inf;
     if (this.inVoid) { // шаг ноль: только предыстория; первое нажатие проявляет поле и становится первым толчком
       this.voidT += dt;
       if (!mouse.clicked || this.voidT < VOID_MIN) { mouse.clicked = false; return; }
-      this.inVoid = false; this.banner = 0; I.th = Math.PI * .25; // шарик уже катится влево — нажатие сразу в такт
+      this.inVoid = false; this.banner = 0; // нажатие проявляет чашу и сразу ловит шарик: оттянуть, отпустить — первый толчок
       fxRing(P.x, P.y, .2, [200, 215, 255], this.hr() * 3, 1.2); fxFlash(P.x, P.y, this.hr(), [200, 215, 255], .5); Sfx.play('segment');
       if (this.needSchool()) { mouse.clicked = false; this.startSchool(); return; } // впервые — сначала жесты, потом раскачка
     }
     if (this.school) return this.tickSchool(dt);
-    I.flash = Math.max(0, I.flash - dt * 2.5); I.snapFx = Math.max(0, I.snapFx - dt);
-    if (mouse.clicked) { mouse.clicked = false; I.go = true; I.hold = true; I.p0 = [mouse.x, mouse.y]; I.pull = 0; }
-    if (I.hold) I.pull = clamp((mouse.x - I.p0[0]) / slingFullPx(), -1, 1); // резинка — по горизонтали (шарик ходит по чаше)
-    if (I.hold && !mouse.down) { // отпустил: толчок в сторону, обратную резинке — по ходу шарика раскачал, против — погасил
-      I.hold = false;
-      const k = Math.abs(I.pull);
-      if (k >= SLING_MIN) {
-        const c = -Math.sign(I.pull) * -Math.sin(I.th), d = INF.kick * k ** SLING_POW * c;
-        I.A = Math.max(.08, I.A + d); I.flash = Math.max(I.flash, .4);
-        const late = c < -.2, good = c > .2;
-        if (late) I.late++; else if (good) I.good++;
-        Sfx.play('throw');
-        if (late || I.good <= 2) this.float(P.x, P.y - this.hr() * 2.2, late ? 'против хода: раскачка гаснет' : good ? 'в такт ✓' : 'мимо такта: шарик на краю стоит', late ? [255, 140, 120] : good ? [140, 235, 170] : [215, 220, 235], 15);
-      }
-      I.pull = 0;
-    }
-    if (!I.go && (I.idle += dt) > INF.wait) I.go = true; // не трогает — поле распадается само, Вселенная выйдет холодной
+    if (mouse.clicked) I.go = true; // первое нажатие — шарик пойман, часы поля пошли
+    this.bowlInput(I);
+    if (!I.go && (I.idle += dt) > INF.wait) I.go = true; // не трогает — поле распадается само; шарик на дне — Вселенная выйдет холодной
     if (I.go) I.t += dt;
-    const w = this.infW();
-    I.A = Math.max(.08, I.A * (1 - INF.damp * dt));
-    const th2 = I.th + w * dt;
-    if (Math.floor((th2 - Math.PI / 2) / Math.PI) > Math.floor((I.th - Math.PI / 2) / Math.PI)) this.infBounce();
-    I.th = th2;
-    if (I.A > INF.crit) this.infSnap();
+    this.bowlTick(I, dt, {
+      loss: e => { if (I.go) I.H = Math.min(1, I.H + INF.kap * e); }, // трение — это свет: разогрев
+      pass: A => this.infBounce(A),
+      top: a => {
+        if (a < INF.edge) return;
+        I.good++; Sfx.play('catch', Math.min(3, I.good));
+        if (I.good <= 3) this.float(P.x, P.y - this.hr() * 2.2, 'у края ✓', [140, 235, 170], 15);
+      },
+      out: () => this.infSnap(),
+    });
+    const z = this.profOf(I.H).i;
+    if (z > I.zone) { I.zone = z; const p = PROF[z]; Sfx.play('goal'); this.float(P.x, P.y - this.hr() * 2.2, `разогрев: ${p.n}${z === 2 ? '!' : ''}`, p.c, 16); }
     Sfx.hum(I.hold ? .15 + .85 * Math.min(1, Math.abs(I.pull)) : 0);
     if (I.go && I.t >= INF.life) this.ignite(this.profOf(I.H));
   },
   // Чаша (в мире): полуширина, глубина до черты срыва, дно — под центром детектора
   infBowl() { const w = this.hr() * INF.R; return { w, d: w * INF.deep, bx: P.x, by: P.y + w * INF.low }; },
-  // Проход дна: поле отдаёт часть размаха в свет — со дна разлетаются пары фотонов, тем жёстче, чем сильнее размах
-  infBounce() {
-    const I = this.inf, A = Math.min(1, I.A); I.flash = 1;
-    if (!I.go) return; // пока не тронул — шарик только показывает ритм
-    I.H = Math.min(1, I.H + INF.kap * A * A / 2); I.A -= INF.eta / 2 * I.A;
-    const c0 = A < PH_HARD_A ? 0 : 1, n = A > .7 ? 2 : 1, B = this.infBowl(), R = this.hr() * .4;
+  // Проход дна: со дна разлетаются пары фотонов, тем жёстче и гуще, чем больше размах (энергию забирает трение — bowlTick)
+  /** @param {number} A размах */
+  infBounce(A) {
+    const I = this.inf; I.flash = Math.min(1, A * 1.4);
+    if (!I.go || A < .1) return; // почти затих — света нет
+    const c0 = A < PH_HARD_A ? 0 : 1, n = A > .8 ? 2 : 1, B = this.infBowl(), R = this.hr() * .4;
     for (let k = 0; k < n; k++) {
       const c = Math.random() < .3 ? Math.max(0, c0 - 1) : c0, C = PH_CLS[c], hi = phHi(c);
       if (!I.made[c]) this.float(P.x, P.y - this.hr() * 3, `создан свет: ${C.n} γ`, C.c, 15); // новый класс — его будет рождать Вселенная
@@ -460,16 +512,14 @@ const Particles = {
     }
     const C = PH_CLS[c0]; this.kn += .5;
     fxRing(B.bx, B.by, R * .5, C.c, R + this.hr() * (.6 + A), .5); Sfx.play('pert', c0);
-    const z = this.profOf(I.H).i;
-    if (z > I.zone) { I.zone = z; const p = PROF[z]; Sfx.play('goal'); this.float(P.x, P.y - this.hr() * 2.2, `разогрев: ${p.n}${z === 2 ? '!' : ''}`, p.c, 16); }
   },
-  // Срыв: размах дошёл до красной черты — поле дробится в мягкий свет, раскачку начинать заново
-  infSnap() {
-    const I = this.inf; I.A = INF.snapA; I.snaps++; I.snapFx = 2.5; I.hold = false; I.pull = 0;
-    const B = this.infBowl(), x = B.bx + B.w * Math.sign(Math.cos(I.th) || 1), y = B.by - B.d; // шарик вылетел за край
+  // Перетянул: размах за край — шарик вывалился из чаши, его энергия пропала (новый — на дне через INF.outT)
+  infSnap() { this.bowlOut(this.inf); this.float(P.x, P.y - this.hr() * 2.2, 'перетянул: шарик вывалился', [255, 120, 110], 15); },
+  /** @param {Bowl} B */
+  bowlOut(B) {
+    const G0 = this.infBowl(), x = G0.bx + G0.w * B.ox, y = G0.by - G0.d; // край, через который вывалился
     for (let k = 0; k < 3; k++) fxRing(x, y, this.hr() * (.3 + .3 * k), [255, 90, 80], this.hr() * (1.5 + .6 * k), .5 + .1 * k);
     fxFlash(x, y, this.hr(), [255, 80, 70], .4); Sfx.play('overheat');
-    this.float(P.x, P.y - this.hr() * 2.2, 'срыв резонанса', [255, 120, 110], 15);
   },
   // Поле распалось — Вселенная разогрета до набранной температуры; света в ней до конца уровня ∝ T^1,5
   /** @param {Heat} [p] */
@@ -477,7 +527,7 @@ const Particles = {
     if (!p) p = this.profOf(.55);
     this.lit = true; this.litT = 0; this.banner = 0; this.inf.pick = p; this.inf.hold = false; Sfx.hum(0); Sfx.play('ignite'); // одно событие — заголовок эпохи 1
     this.heat = p.heat;
-    // свет не беднее мягкого: не попал в такт ни разу — Вселенная всё равно светит хотя бы мягким (иначе мало ⚡ и ✦ на весь уровень)
+    // свет не беднее мягкого: не раскачал ни разу — Вселенная всё равно светит хотя бы мягким (иначе мало ⚡ и ✦ на весь уровень)
     if (!this.inf.made.some(n => n > 0)) this.inf.made[0] = 1; // не раскачал вовсе — Вселенная светит мягким
     const T0 = this.T; this.T = this.T0 = T_START * p.k;
     if (T0 > 0) for (const o of this.p) if (!o.dead && !o.cap && this.isQ(o)) o.p *= this.T / T0;
@@ -500,14 +550,15 @@ const Particles = {
   // Потом — раскачка поля (рогатка). Прошёл однажды — в следующих забегах школы нет (Known), Esc — пропустить.
   needSchool() { return !Known.has('gest:school'); },
   startSchool() {
-    this.school = { i: 0, t: 0, idle: 0, n: 0, fl: [], press: false, hold: 0, at: 0, ang: 0, cap: null, lv: 0, done: 0, re: 0, miss: 0 };
+    this.school = { i: 0, t: 0, idle: 0, n: 0, fl: [], press: false, hold: 0, at: 0, ang: 0, cap: null, lv: 0, done: 0, re: 0, miss: 0, bw: null };
     this.banner = 0; this.tk = {}; this.schoolSpawn(); document.body.classList.add('tut');
   },
   // сгустки сцены: «вести» — три вокруг, «посмотреть» — один светлый, «свести» и «разжать» — пара рядом
   schoolSpawn() {
     const S = /** @type {School} */ (this.school), a0 = Math.random() * TAU;
     const mk = (/** @type {number} */ a, /** @type {number} */ d, look = false) => ({ x: P.x + Math.cos(a) * d, y: P.y + Math.sin(a) * d, vx: 0, vy: 0, ph: Math.random() * TAU, k: 0, look, cap: false, dead: false });
-    S.fl = S.i === 0 ? [0, 1, 2].map(j => mk(a0 + j * TAU / 3, rnd(2.8, 3.6))) : S.i === 1 ? [mk(a0, 3, true)] : [mk(a0 - .3, 2.6), mk(a0 + .3, 2.6)];
+    S.fl = S.i === 0 ? [0, 1, 2].map(j => mk(a0 + j * TAU / 3, rnd(2.8, 3.6))) : S.i === 1 ? [mk(a0, 3, true)] : SCHOOL[S.i] === 'sling' ? [] : [mk(a0 - .3, 2.6), mk(a0 + .3, 2.6)];
+    S.bw = SCHOOL[S.i] === 'sling' ? mkBowl() : null; // рогатка — чаша с шариком под кругом
     S.cap = null; S.press = false; S.lv = 0; S.n = 0; S.idle = 0;
   },
   /** @param {number} dt */
@@ -522,6 +573,23 @@ const Particles = {
       b.x += b.vx * dt; b.y += b.vy * dt;
     }
     if (S.re > 0 && (S.re -= dt) <= 0) this.schoolSpawn(); // столкнул вместо отмены — новая пара
+    if (k === 'sling' && S.bw) { // рогатка: та же чаша, что в прологе, только без света
+      const B = S.bw;
+      if (S.done > 0) { mouse.clicked = false; this.bowlTick(B, dt, {}); if ((S.done -= dt) <= 0) this.schoolNext(); return; }
+      if (mouse.clicked || B.hold) S.idle = 0;
+      this.bowlInput(B);
+      this.bowlTick(B, dt, {
+        top: a => {
+          if (a < INF.edge) return;
+          S.n++; S.idle = 0; Sfx.play('catch', Math.min(3, S.n));
+          const G0 = this.infBowl(); fxRing(G0.bx + G0.w * B.u, G0.by - G0.d * B.u * B.u, .1, GOLD, this.hr() * .6, .4);
+          this.float(P.x, P.y - this.hr() * 2.2, `у края ✓ ${S.n}/${SCH_EDGE}`, [140, 235, 170], 15);
+        },
+        out: () => { S.miss++; this.bowlOut(B); this.float(P.x, P.y - this.hr() * 2.2, 'перетянул: шарик вывалился — резинку короче', [255, 140, 120], 14); },
+      });
+      if (S.n >= SCH_EDGE) this.schoolOk();
+      return;
+    }
     if (S.done > 0) { mouse.clicked = false; S.press = false; if ((S.done -= dt) <= 0) this.schoolNext(); return; }
     if (k === 'move') {
       mouse.clicked = false; // здесь жест — только вести
@@ -566,7 +634,8 @@ const Particles = {
   },
   // отмена в школе: пара разлетается без удара; в сцене «разжать» — это и есть жест
   schoolDrop() {
-    const S = this.school; if (!S || !S.cap) return false;
+    const S = this.school; if (S && S.bw) return this.bowlCancel(S.bw);
+    if (!S || !S.cap) return false;
     for (const b of S.cap) { b.cap = false; const dx = b.x - P.x, dy = b.y - P.y, d = Math.hypot(dx, dy) || 1; b.vx = dx / d * 2.2; b.vy = dy / d * 2.2; }
     S.cap = null; S.press = false; mouse.down = false; Sfx.play('grab'); fxRing(P.x, P.y, this.hr() * .9, [200, 210, 230], this.hr() * .4, .3);
     if (SCHOOL[S.i] === 'drop') this.schoolOk(); else this.float(P.x, P.y - this.hr(), 'разжато без удара', [200, 210, 230], 13);
@@ -584,7 +653,7 @@ const Particles = {
     this.school = null; this.tk = {}; this.banner = 0; mouse.down = false; mouse.clicked = false;
     Known.add('gest:school'); try { localStorage.setItem('proto.tut', '1'); } catch (e) { /* без хранилища */ }
     document.body.classList.remove('tut');
-    this.inf.th = Math.PI * .25; this.inf.idle = 0;
+    this.inf.idle = 0;
     fxRing(P.x, P.y, .2, [200, 215, 255], this.hr() * 3, 1.2); Sfx.play('segment');
     if (!done) msg('Школа жестов пропущена. Кнопка «?» вернёт подсказки', 2.5);
   },
@@ -596,6 +665,8 @@ const Particles = {
       { t: 'Посмотреть', h: `навести круг на светлый сгусток и ${tc ? 'коснуться ◉' : 'кликнуть'}: снимок. Так в игре узнают новое`, s: 'снимок: так узнают новое', d: d(1), np: true },
       { t: 'Свести два', h: `${tc ? 'держать ◉' : 'зажать'} у двух сгустков: поле тянет их и копит силу — засечки на кольце. Отпустить: столкнутся`, s: 'чем дольше держишь, тем сильнее удар', d: d(2), np: true },
       { t: 'Разжать без удара', h: tc ? 'держать ◉ у двух и, не отпуская, провести палец на ✕: передумал — сгустки разлетятся' : 'зажать у двух, затем правая кнопка или X: передумал — сгустки разлетятся', s: 'передумал — разжал', d: d(3), np: true },
+      { t: 'Рогатка', h: `${tc ? 'прижать' : 'зажать'} шарик, оттянуть и отпустить — полетит в обратную сторону и закачается, теряя силу. Поймать на краю (там он замирает) и оттянуть ещё. Довести размах почти до края; перетянул — вывалится`,
+        p: [S.i > 4 ? SCH_EDGE : S.i === 4 ? S.n : 0, SCH_EDGE], s: 'сила — длиной резинки', d: d(4), np: true },
     ];
   },
   /** @returns {[string | null, string]} строка у круга и значок жеста */
@@ -604,6 +675,12 @@ const Particles = {
     if (S.done > 0) return [null, ''];
     if (k === 'move') return [tc ? 'палец ведёт круг: провести сквозь сгустки' : 'круг идёт за мышью: провести сквозь сгустки', 'move'];
     if (k === 'look') return [tc ? 'навести круг на сгусток и тап ◉: посмотреть' : 'навести круг на сгусток и клик: посмотреть', 'click'];
+    if (k === 'sling' && S.bw) {
+      const B = S.bw, aim = this.bowlAim(B);
+      if (B.hold) return aim === null ? ['оттянуть: сила — длина резинки', 'hold'] : aim > 1 ? ['перетянул: вывалится — резинку короче', 'hold'] : aim >= INF.edge ? ['отпустить: долетит до края', 'release'] : ['оттянуть дальше', 'hold'];
+      if (B.out > 0) return ['перетянул: шарик вывалился', ''];
+      return [B.A > .3 ? 'поймать на краю — там шарик замирает — и оттянуть ещё' : 'зажать шарик, оттянуть и отпустить', 'holdrel'];
+    }
     if (S.cap) return k === 'join' ? (S.lv < 2 ? ['держать: сила копится засечками', 'hold'] : ['отпустить: столкнутся', 'release'])
       : [tc ? 'не отпуская ◉ — провести палец на ✕' : 'не отпуская — правая кнопка или X', ''];
     return [tc ? 'держать ◉ у двух сгустков' : 'зажать у двух сгустков', 'holdrel'];
@@ -627,12 +704,21 @@ const Particles = {
       }
       label(`${S.lv} ⚡`, px, py - r0 * 1.3 - 14, 13, S.lv >= LV_N ? GOLD : [200, 230, 255], alpha, 800);
     } else if (k === 'join' || k === 'drop') ring(px, py, this.fr() * z, FIELD_C, .16 * alpha, 1, [4, 6]); // докуда достаёт поле
+    if (S.bw) this.drawBowl(S.bw, FL_C, alpha);
     this.drawSchoolCoach(alpha);
   },
   // постоял без дела — призрачный курсор показывает жест сцены
   /** @param {number} alpha */
   drawSchoolCoach(alpha) {
     const S = /** @type {School} */ (this.school); if (S.idle < SCH_IDLE || S.press || S.done > 0) return;
+    if (S.bw) { // рогатка: к шарику, зажать, оттянуть вбок, отпустить
+      const B = S.bw; if (B.hold || B.out > 0) return;
+      const k = ((S.idle - SCH_IDLE) % 3.2) / 3.2, G0 = this.infBowl(), [bx, by] = W2S(G0.bx + G0.w * B.u, G0.by - G0.d * B.u * B.u);
+      const a = .6 * Math.min(1, k * 6) * (1 - smooth(.88, 1, k)) * alpha, x = bx - smooth(.4, .75, k) * Math.min(120, slingFullPx() * .8), y = by;
+      ghostCursor(x, y, k > .3 && k < .8, a);
+      label(k < .3 ? 'к шарику…' : k < .8 ? 'зажать и оттянуть…' : '…отпустить', x, y + 36, 12, [255, 255, 255], Math.min(1, a * 1.6), 700);
+      return;
+    }
     const live = S.fl.filter(b => !b.dead).sort((a, b) => Math.hypot(a.x - P.x, a.y - P.y) - Math.hypot(b.x - P.x, b.y - P.y)); if (!live.length) return;
     const k = ((S.idle - SCH_IDLE) % 2.8) / 2.8, [px, py] = W2S(P.x, P.y), st = SCHOOL[S.i], two = st === 'join' || st === 'drop', tc = isTouch();
     let [tx, ty] = W2S(live[0].x, live[0].y);
@@ -946,6 +1032,7 @@ const Particles = {
   // ⚡, потраченная на это зажатие, возвращается. Возвращает true, если было что разжимать.
   drop() {
     if (this.school) return this.schoolDrop();
+    if (!this.lit && this.ep === 0) return this.bowlCancel(this.inf); // пролог: передумал — шарик отпущен без броска
     const f = this.focus; if (!f || !this.holding || this.ep === 3) return false;
     this.focus = null; this.holding = false;
     const c = f.cap.filter(o => !o.dead);
@@ -960,7 +1047,7 @@ const Particles = {
   },
   // X с клавиатуры — то же, что правая кнопка
   detach() { this.drop(); },
-  canDrop() { return this.school ? !!this.school.cap : !!(this.focus && this.holding && this.ep !== 3 && this.focus.cap.length); },
+  canDrop() { return this.school ? !!(this.school.cap || this.school.bw && this.school.bw.hold) : !this.lit && this.ep === 0 ? this.inf.hold : !!(this.focus && this.holding && this.ep !== 3 && this.focus.cap.length); },
   // Отпустил — захваченные летят навстречу друг другу и сталкиваются лоб в лоб (√s = E)
   release() {
     const f = this.focus; this.focus = null; if (!f) return;
@@ -1632,7 +1719,7 @@ const Particles = {
     const red = this.T / prevT; // расширение: импульсы краснеют вместе с температурой
     if (live && own) { this.input(dt0); this.tickShield(dt0); this.tickCoach(dt0); }
     if (act && own) {
-      if (this.inf.hold && !this.lit) P.vx = P.vy = 0; // рогатка шарика: чаша стоит, пока тянешь резинку
+      if (!this.lit && this.ep === 0 && (!this.school || SCHOOL[this.school.i] === 'sling')) P.vx = P.vy = 0; // чаша с шариком стоит: пролог и «Рогатка» школы
       else steer(P, 11 / (1 + 1.5 * this.load()), 6, dt0); // тяжёлый груз в поле тормозит детектор
       P.x += P.vx * dt0; P.y += P.vy * dt0;
       this.shotCd -= dt0; this.enFx -= dt0;
@@ -2100,7 +2187,7 @@ const Particles = {
     const G4 = { l: [['γ', 'boson'], ['γ', 'boson']], r: [['u', 'quark'], ['u̅', 'quark'], ['g', 'boson']], k: LV_N };
     switch (this.ep) {
       case 0: return [
-        { t: 'Создать свет', h: 'раскачать поле рогаткой: оттянуть против хода шарика, отпустить у дна — толчок по ходу раскачивает. Чем сильнее размах, тем жёстче свет. Генерация света — только созданного здесь: не создал жёсткий — он будет лишь редким тепловым хвостом', items: PH_CLS.map((c, i) => [c.n, this.inf.made[i] > 0]), s: `создано классов света: ${this.madeCls().length} · ${fmtGeV(this.T0)}`, d: this.lit, ch: 1 },
+        { t: 'Создать свет', h: 'раскачать поле рогаткой: зажать шарик, оттянуть, отпустить — он закачается в чаше, и трение станет светом. Поймать на краю и оттянуть ещё — размах растёт; перетянул — вывалится. Чем ближе к краю, тем жарче разогрев и жёстче свет. Генерация света — только созданного здесь: не создал жёсткий — он будет лишь редким тепловым хвостом', items: PH_CLS.map((c, i) => [c.n, this.inf.made[i] > 0]), s: `создано классов света: ${this.madeCls().length} · ${fmtGeV(this.T0)}`, d: this.lit, ch: 1 },
         // глава 2 — свет: поймать (измерить) и запасти энергию; ✦ копятся, лавки ещё нет
         { t: 'Измерить свет', h: 'ловить фотоны кругом, кликать не нужно: пойманный фотон измерен и даёт энергию ⚡. Нужен каждый созданный класс', items: this.madeCls().map(c => [PH_CLS[c].n, this.phSeen.has(c)]), s: 'свет измерен', d: this.measured(), ch: 2 },
         { t: 'Наполнить шкалу энергии ⚡', h: `свет — это энергия: шкала ⚡ — под кругом, ${E_CAP} делений. Удар стоит 1–${LV_N} ⚡. Света мало — он кончается: ищи его по кадру`, p: [this.full ? E_CAP : Math.floor(this.en), E_CAP], s: 'энергия запасена', d: this.full, ch: 2 },
@@ -2448,7 +2535,7 @@ const Particles = {
     for (let i = 0; i < 70; i++) {
       const ph = G.T * .9 + i * .618, n = Math.floor(ph), f = ph - n, h = Math.sin(i * 127.1 + n * 311.7) * 43758.5453, r1 = h - Math.floor(h), h2 = Math.sin(i * 269.5 + n * 183.3) * 43758.5453, r2 = h2 - Math.floor(h2);
       const wx = cam.x + (r1 * 2 - 1) * hw, wy = cam.y + (r2 * 2 - 1) * hh, [x, y] = W2S(wx, wy);
-      const near = this.lit ? 0 : Math.min(1, this.inf.A) * .6 + this.inf.flash * .8; // вакуум дышит в такт полю
+      const near = this.lit ? 0 : Math.min(1, this.inf.A) * .6 + this.inf.flash * .8; // вакуум дышит вместе с полем
       const a = Math.sin(f * Math.PI) * (.5 + 1.5 * near) * k;
       ball(x - 2, y, 1.2, [200, 210, 255], a); ball(x + 2, y, 1.2, [255, 200, 220], a);
     }
@@ -2741,42 +2828,49 @@ const Particles = {
     }
     ctx.globalAlpha = 1;
   },
-  // Пролог: чаша потенциала V(φ) с шариком-полем. Красный пунктир — черта срыва, золотые риски — размах.
-  // Под шариком — стрелка его хода (у дна ярче: здесь толкать). Тянешь — резинка от шарика к пальцу, дуга — доля
-  // резинки, стрелка толчка: золотая, если толчок сейчас по ходу шарика; красная и дрожит — против (гасишь).
+  // Пролог: чаша потенциала V(φ) с шариком-полем (та же чаша — «Рогатка» школы).
   /** @param {number} sx @param {number} sy */
   drawInflaton(sx, sy) {
     if (this.lit || this.ep || this.inVoid || this.school) return;
-    const I = this.inf, A = Math.min(1.05, I.A), z = cam.z, B = this.infBowl(), w = B.w * z, d = B.d * z;
-    const [bx, by] = W2S(B.bx, B.by), th = I.th, u = A * Math.cos(th), left = Math.sin(th) > 0;
-    const Y = (/** @type {number} */ v) => by - d * v * v, c = PH_CLS[A < PH_HARD_A ? 0 : 1].c, dang = smooth(.6, 1, A);
-    // чаша
-    ctx.beginPath();
-    for (let k = 0; k <= 40; k++) { const v = -1.12 + 2.24 * k / 40; k ? ctx.lineTo(bx + w * v, Y(v)) : ctx.moveTo(bx + w * v, Y(v)); }
-    ctx.strokeStyle = rgb([200, 215, 255], .55); ctx.lineWidth = 2.5; ctx.stroke();
-    // черта срыва
-    ctx.setLineDash([5, 5]); line(bx - w * 1.12, Y(INF.crit), bx + w * 1.12, Y(INF.crit), [255, 80, 70], .25 + .6 * dang, 1.5 + 1.5 * dang); ctx.setLineDash([]);
-    label('срыв', bx + w * 1.12 + 4, Y(INF.crit), 11, [255, 110, 100], .5 + .5 * dang, 700); ctx.textAlign = 'center';
-    // размах: золотые риски, докуда шарик долетает
-    for (const sg of [-1, 1]) { const x = bx + sg * w * A, y = Y(A); line(x, y - 7, x, y + 7, GOLD, .7, 2); }
-    // дно — где рождается свет
-    glow(bx, by, w * .25, c, .1 + .5 * I.flash); ball(bx, by, 2.5, [255, 255, 255], .5 + .5 * I.flash);
-    // шарик
-    const x = bx + w * u, y = Y(u), br = Math.max(6, w * .09);
-    glow(x, y, br * 2.6, c, .25 + .2 * A); ball(x, y, br, mixc(c, [255, 255, 255], .35), 1);
-    // ход шарика (до нажатия) или толчок рогатки (пока тянешь): стрелка под шариком
-    const k = Math.abs(I.pull || 0), push = I.hold && k >= SLING_MIN, kdir = -Math.sign(I.pull || 0), mv = left ? -1 : 1;
-    const lose = push && kdir !== mv, bot = 1 - Math.min(1, Math.abs(u) / Math.max(.05, A)); // bot — близость к дну
-    if (I.hold) { // резинка: от шарика к пальцу, дуга — доля
-      line(x, y, mouse.x, y, [255, 255, 255], (.4 + .45 * k) * .9, Math.max(1.5, 4 - 2.5 * k)); ball(mouse.x, y, 4, [255, 255, 255], .9);
-      arc(x, y, br + 8, -Math.PI / 2, -Math.PI / 2 + TAU * k, k < SLING_MIN ? [150, 150, 165] : GOLD, .9, 3);
+    this.drawBowl(this.inf, PH_CLS[this.inf.A < PH_HARD_A ? 0 : 1].c, 1);
+  },
+  // Чаша до края, золотом — участок «почти у края» (туда и надо довести размах); риски — нынешний размах.
+  // Тянешь — резинка от шарика к пальцу, дуга — доля резинки, стрелка броска и прицел: риски на чаше — докуда долетит,
+  // подпись «слабо» / «у края ✓» / «перетянул: вывалится». Вывалился — шарик падает за краем.
+  /** @param {Bowl} B @param {RGB} c цвет шарика @param {number} alpha */
+  drawBowl(B, c, alpha) {
+    const ga = ctx.globalAlpha; ctx.globalAlpha = alpha;
+    const z = cam.z, G0 = this.infBowl(), w = G0.w * z, d = G0.d * z, [bx, by] = W2S(G0.bx, G0.by);
+    const Y = (/** @type {number} */ v) => by - d * v * v, path = (/** @type {number} */ v0, /** @type {number} */ v1) => {
+      ctx.beginPath(); for (let k = 0; k <= 24; k++) { const v = v0 + (v1 - v0) * k / 24; k ? ctx.lineTo(bx + w * v, Y(v)) : ctx.moveTo(bx + w * v, Y(v)); }
+    };
+    path(-1, 1); ctx.strokeStyle = rgb([200, 215, 255], .55); ctx.lineWidth = 2.5; ctx.stroke();
+    for (const sg of [-1, 1]) {
+      path(sg * INF.edge, sg); ctx.strokeStyle = rgb(GOLD, .55); ctx.lineWidth = 6; ctx.stroke(); // «почти у края»
+      line(bx + sg * w, Y(1), bx + sg * (w + 12), Y(1) + 12, [200, 215, 255], .45, 2.5); // край: дальше чаши нет
     }
-    const col = push ? (lose ? [255, 80, 70] : GOLD) : bot > .6 ? GOLD : [170, 175, 195];
-    const dir = push ? kdir : mv, ax = x + (lose ? Math.sin(G.T * 50) * 2.5 : 0), ay = y + br + 16, L = push ? 22 + 24 * k : 20;
-    const al = push ? .95 : .35 + .55 * bot * (I.go ? .6 : 1);
-    line(ax - dir * L / 2, ay, ax + dir * L / 2, ay, col, al, push ? 4 : 2.5);
-    line(ax + dir * L / 2, ay, ax + dir * (L / 2 - 8), ay - 6, col, al, push ? 4 : 2.5);
-    line(ax + dir * L / 2, ay, ax + dir * (L / 2 - 8), ay + 6, col, al, push ? 4 : 2.5);
+    glow(bx, by, w * .25, c, .1 + .5 * B.flash); ball(bx, by, 2.5, [255, 255, 255], .5 + .5 * B.flash); // дно — где рождается свет
+    const A = Math.min(1, B.A);
+    if (A > .05 && !B.hold && !(B.out > 0)) for (const sg of [-1, 1]) line(bx + sg * w * A, Y(A) - 7, bx + sg * w * A, Y(A) + 7, A >= INF.edge ? GOLD : [200, 205, 220], .75, 2);
+    // шарик (вывалился — падает за краем)
+    const fall = B.out > 0 ? 1 - B.out / INF.outT : 0, x = B.out > 0 ? bx + B.ox * w * (1 + .5 * fall) : bx + w * B.u, y = B.out > 0 ? Y(1) + d * 2.5 * fall * fall : Y(B.u);
+    const br = Math.max(6, w * .09), fa = 1 - smooth(.6, 1, fall);
+    glow(x, y, br * 2.6, B.out > 0 ? [255, 90, 80] : c, (.25 + .2 * A) * fa); ball(x, y, br, mixc(c, [255, 255, 255], .35), fa);
+    if (B.hold) {
+      const k = Math.abs(B.pull), aim = this.bowlAim(B), over = aim !== null && aim > 1, good = aim !== null && !over && aim >= INF.edge;
+      const col = aim === null ? [150, 150, 165] : over ? [255, 90, 80] : good ? GOLD : [200, 205, 220];
+      line(x, y, mouse.x, y, [255, 255, 255], (.4 + .45 * k) * .9, Math.max(1.5, 4 - 2.5 * k)); ball(mouse.x, y, 4, [255, 255, 255], .9); // резинка
+      arc(x, y, br + 8, -Math.PI / 2, -Math.PI / 2 + TAU * k, col, .9, 3);
+      if (aim !== null) {
+        const ta = Math.min(1, aim);
+        for (const sg of [-1, 1]) line(bx + sg * w * ta, Y(ta) - 11, bx + sg * w * ta, Y(ta) + 11, col, .95, 3); // докуда долетит
+        const dir = -Math.sign(B.pull), ax = x + (over ? Math.sin(G.T * 50) * 2.5 : 0), ay = y - br - 36, L = 22 + 24 * k; // над подписью: снизу — подсказка жеста
+        line(ax - dir * L / 2, ay, ax + dir * L / 2, ay, col, .95, 4);
+        line(ax + dir * L / 2, ay, ax + dir * (L / 2 - 8), ay - 6, col, .95, 4); line(ax + dir * L / 2, ay, ax + dir * (L / 2 - 8), ay + 6, col, .95, 4);
+        label(over ? 'перетянул: вывалится' : good ? 'у края ✓' : 'слабо', x, y - br - 18, 12, col, .95, 800);
+      }
+    }
+    ctx.globalAlpha = ga;
   },
   // Кого возьмёт поле: до нажатия — ближайший в радиусе захвата, в поле с одним квантом — второй (дуга — сколько осталось)
   drawPick() {
@@ -2879,7 +2973,7 @@ const Particles = {
     /** @type {string | null} */
     let t = null, g = ''; // g — что показать вместо чтения: значок жеста (hold, release, click, move, holdrel) или shop — стрелка к кнопке лавки
     /** @type {boolean | undefined} */
-    let hot; // holdrel: сейчас — «зажми» (раскачка: в такт шарику)
+    let hot; // holdrel: сейчас — «зажми» (раскачка: пока шарик не в руке)
     if (this.school) [t, g] = this.schoolHint();
     else if (this.ep === 3) {
       [t, g] = !this.learn.shield ? ['зажать: щит', 'hold']
@@ -2888,14 +2982,12 @@ const Particles = {
         : !this.learn.recol && this.stock >= 2 && this.p.some(o => !o.dead && o.sp === 'g' && this.helpGlu(o) && onScreen(...W2S(o.x, o.y), 0)) ? ['глюон в золотом кольце: зажать рядом, щит перекрасит лишний кварк', 'hold'] : [null, ''];
     }
     else if (!this.lit && this.ep === 0) {
-      const I = this.inf; g = 'holdrel'; hot = Math.abs(Math.cos(I.th)) > .5; // значки — в такт шарику: на краю — «зажми, оттяни», у дна — «отпусти»
-      if (I.hold) t = null;
-      else if (I.snapFx > 0) t = 'срыв резонанса: шарик дошёл до красной черты';
-      else if (!I.go) t = 'рогатка: оттянуть против хода шарика, отпустить у дна';
-      else if (I.late >= 2 && I.late > I.good) t = 'толчок — в сторону, обратную резинке: тянуть против хода шарика';
-      else if (I.good < 2) t = 'отпускать, когда шарик проходит дно: там толчок сильнее всего';
-      else if (this.madeCls().length < PH_CLS.length) t = 'сильнее размах, жёстче свет: нужны оба класса';
-      else if (I.A > .8 && !I.snaps) t = 'у красной черты резинку короче';
+      const I = this.inf; g = 'holdrel'; hot = !I.hold; // значки: держишь — «отпусти», иначе — «зажми»
+      if (I.hold) t = null; // прицел у шарика говорит сам: «слабо», «у края ✓», «перетянул»
+      else if (I.snapFx > 0) t = 'перетянул: шарик вывалился из чаши — резинку короче';
+      else if (!I.go) t = 'рогатка: зажать шарик, оттянуть и отпустить — полетит в обратную сторону';
+      else if (I.good < 2) t = 'поймать шарик на краю (там он замирает) и оттянуть ещё: размах растёт';
+      else if (this.madeCls().length < PH_CLS.length) t = 'размах у края — жёсткий свет: нужны оба класса';
     }
     else if (this.ep === 0 && this.lit && !this.rs.ph && this.shopOk()) { t = this.bal() >= RES_COST.ph[0] ? 'кнопка «Сформировать закон» внизу: свет станет законом' : null; g = 'shop'; }
     else if (!this.learn.smash && this.fieldOn() && this.t - this.missT < 5) { t = isTouch() ? 'для столкновения: держать ◉ у двух квантов, затем отпустить' : 'для столкновения: зажать у двух квантов и отпустить'; g = 'holdrel'; }

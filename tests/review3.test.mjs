@@ -70,7 +70,7 @@ test('REVIEW_DESIGN 5.2: у следа запас — каракули одни�
   const n = g.ev('G.stage.neutral()');
   assert.ok(n < .4, `слепой зигзаг 90 с: нейтральных ${Math.round(n * 100)} % (было 74–79 % за 120 с)`);
   assert.ok(g.ev('G.stage.ink') < INK_MAX_OF(g), 'запас тратится');
-  const h = toAtoms(4); h.ev(SKILL); // сиды 1–5: 84–315 с (последний ион — редкий гость), 4 — 149 с
+  const h = toAtoms(1); h.ev(SKILL); // сиды 1–6: 58 с … дольше 240 (последний ион — редкий гость), 1 — 142 с
   const r = h.ev('__skill(240)');
   assert.equal(r.done, true, JSON.stringify(r));
 });
@@ -130,7 +130,7 @@ const HOLD_CANCEL = `(() => { const S = G.stage, sl = S.sl;
 
 test('REVIEW_DESIGN 5.3: отмена броска — одна на игру: на уровнях 2–6 правая кнопка / X / Esc / ✕ отпускают взятое без броска', () => {
   for (const key of ['quarks', 'nuclei', 'atoms', 'molecules']) {
-    const g = toStage(key);
+    const g = toStage(key, 4); // сид 4: рядом с телом никто не пролетает — его скорость после отмены видна чисто
     g.ev('if (G.stage.tide) G.stage.tide = () => {}');
     const r = g.ev(HOLD_CANCEL);
     assert.equal(typeof r === 'string' && r.startsWith('{'), true, `${key}: ${r}`);

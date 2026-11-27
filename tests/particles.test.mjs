@@ -57,6 +57,45 @@ test('свет: сильная раскачка создаёт оба класс
   for (const c of cls) assert.ok(made.includes(c), `класс ${c} не создан игроком`);
 });
 
+test('пролог: та же чаша, что в «Рогатке», — бросок раскачивает, трение — это разогрев, свет — на проходах дна; перетянул — шарик вывалился', () => {
+  const g = loadGame();
+  g.ev(`Known.add('gest:school'); document.getElementById('go').onclick()`); g.step(110);
+  g.ev('mouse.x = G.W / 2; mouse.clicked = true; mouse.down = true'); g.step(1);
+  assert.equal(g.ev('G.stage.inf.hold'), true, 'первое нажатие — шарик пойман');
+  assert.equal(g.ev('G.stage.inf.u'), 0);
+  assert.equal(g.ev('stCanDrop()'), true, 'держишь — можно передумать');
+  g.ev('mouse.x = G.stage.inf.p0[0] + .7 * slingFullPx()'); g.step(1);
+  const aim = g.ev('G.stage.bowlAim(G.stage.inf)');
+  assert.ok(aim > .5 && aim < 1, 'прицел: докуда долетит — ' + aim);
+  g.ev(`globalThis.__pass = 0; const f = G.stage.infBounce.bind(G.stage); G.stage.infBounce = A => { __pass++; f(A); }`);
+  const ph0 = g.ev('G.stage.p.length');
+  g.ev('mouse.down = false'); g.step(1);
+  assert.ok(g.ev('G.stage.inf.v') < 0, 'резинка вправо — шарик летит влево');
+  g.step(60 * 4);
+  assert.ok(g.ev('__pass') >= 3, 'качается туда-сюда через дно');
+  assert.ok(g.ev('G.stage.p.length') > ph0, 'на проходах дна — свет');
+  assert.ok(g.ev('G.stage.inf.H') > 0, 'трение разогревает');
+  assert.ok(g.ev('G.stage.inf.A') < aim * .7, 'размах тает');
+  // перетянул: шарик вывалился, новый — на дне
+  g.ev('mouse.x = G.W / 2; mouse.clicked = true; mouse.down = true'); g.step(1);
+  g.ev('mouse.x = G.stage.inf.p0[0] + (G.stage.inf.u > 0 ? -1 : 1) * slingFullPx()'); g.step(1);
+  assert.ok(g.ev('G.stage.bowlAim(G.stage.inf)') > 1, 'прицел: за край');
+  g.ev('mouse.down = false'); g.step(60);
+  assert.equal(g.ev('G.stage.inf.snaps'), 1);
+  g.step(60 * 1.5);
+  assert.equal(g.ev('G.stage.inf.A'), 0, 'новый шарик лежит на дне');
+});
+
+test('пролог: не трогаешь — шарик лежит на дне, Вселенная выходит холодной', () => {
+  const g = loadGame();
+  g.ev(`Known.add('gest:school'); document.getElementById('go').onclick()`); g.step(110);
+  g.ev('mouse.clicked = true; mouse.down = true'); g.step(1); g.ev('mouse.down = false'); g.step(1); // пойман и отпущен без резинки
+  g.step(60 * 30);
+  assert.equal(g.ev('G.stage.lit'), true);
+  assert.equal(g.ev('G.stage.inf.H'), 0);
+  assert.equal(g.ev('G.stage.inf.pick.i'), 0, 'холодный разогрев');
+});
+
 test('поле включается, только когда свой свет измерен', () => {
   const g = loadGame();
   g.ev(PREP.start); g.ev(PREP.pump());
@@ -163,7 +202,23 @@ test('Распады: цель t, которого игрок не создал,
 // круг — к точке мира: курсор туда (камера едет за кругом — целимся заново), детектор догоняет
 const goTo = (g, wx, wy, n = 70) => { for (let k = 0; k < n; k += 5) { g.ev(`(() => { const [sx, sy] = W2S(${wx}, ${wy}); mouse.x = sx; mouse.y = sy; mouse.has = true; mouse.idle = false; })()`); g.step(5, true); } };
 const sch = (g, e) => JSON.parse(g.ev(`JSON.stringify(${e})`));
-test('школа жестов: впервые пролог учит жесты игры — вести, посмотреть, свести, разжать; без очков; потом раскачка, во второй раз — сразу она', () => {
+// школа, сцена «Рогатка»: зажать шарик, оттянуть на k резинки (знак — в какую сторону), отпустить
+const sling = (g, k) => { g.ev(`mouse.x = G.W / 2; mouse.clicked = true; mouse.down = true`); g.step(1); g.ev(`mouse.x = G.stage.school.bw.p0[0] + ${k} * slingFullPx()`); g.step(1); const aim = g.ev('G.stage.bowlAim(G.stage.school.bw)'); g.ev('mouse.down = false'); g.step(1); return aim; };
+// пройти «Рогатку»: дважды довести размах почти до края — шарик лежит на дне или замер на краю хода: поймать,
+// оттянуть (по прицелу) до 0,93 и отпустить
+const passSling = g => {
+  for (let t = 0; t < 60 * 20 && g.ev('!!G.stage.school && G.stage.school.i === 4'); t++) {
+    const B = sch(g, '(B => ({ u: B.u, v: B.v, A: B.A, out: B.out }))(G.stage.school.bw)');
+    if (!g.ev('G.stage.school.done') && !B.out && (B.A < .02 || Math.abs(B.v) < .3 && Math.abs(B.u) > .5)) {
+      g.ev(`mouse.x = G.W / 2; mouse.clicked = true; mouse.down = true`); g.step(1);
+      const sg = B.u < 0 ? -1 : 1; let lo = .12, hi = 1;
+      for (let j = 0; j < 18; j++) { const k = (lo + hi) / 2; g.ev(`G.stage.school.bw.pull = ${sg} * ${k}`); if (g.ev('G.stage.bowlAim(G.stage.school.bw)') < .93) lo = k; else hi = k; }
+      g.ev(`mouse.x = G.stage.school.bw.p0[0] + ${sg * lo} * slingFullPx(); mouse.down = false`);
+    }
+    g.step(1, true);
+  }
+};
+test('школа жестов: впервые пролог учит жесты игры — вести, посмотреть, свести, разжать, рогатка; без очков; потом раскачка, во второй раз — сразу она', () => {
   const g = loadGame();
   g.ev(`document.getElementById('go').onclick()`); g.step(110);
   g.ev('mouse.clicked = true; mouse.down = true'); g.step(1); g.ev('mouse.down = false'); g.step(1, true);
@@ -171,7 +226,7 @@ test('школа жестов: впервые пролог учит жесты �
   assert.equal(g.ev('G.stage.inf.go'), false);
   assert.equal(g.ev('G.stage.finger'), false, 'на сенсоре — как в игре: палец ведёт круг, ◉ — действие');
   assert.ok(g.ev(`document.body.classList.contains('tut')`), 'кнопка «пропустить» видна');
-  assert.deepEqual(sch(g, 'G.stage.steps().map(s => [s.t, !!s.np])'), [['Вести круг', true], ['Посмотреть', true], ['Свести два', true], ['Разжать без удара', true]]);
+  assert.deepEqual(sch(g, 'G.stage.steps().map(s => [s.t, !!s.np])'), [['Вести круг', true], ['Посмотреть', true], ['Свести два', true], ['Разжать без удара', true], ['Рогатка', true]]);
   const score0 = g.ev('G.score');
   assert.equal(g.ev('G.stage.p.length'), 0, 'до частиц: ни света, ни частиц — только сгустки поля');
   // 1 — вести: круг сквозь три сгустка
@@ -205,6 +260,8 @@ test('школа жестов: впервые пролог учит жесты �
   assert.equal(g.ev('stCanDrop()'), true, '✕ на сенсоре видна: есть что разжать');
   assert.equal(g.ev('stDrop()'), true);
   g.step(90, true);
+  assert.equal(g.ev('G.stage.school.i'), 4, 'разжать — освоено; дальше рогатка');
+  passSling(g);
   assert.equal(g.ev('G.stage.school'), null, 'жесты освоены — дальше раскачка');
   assert.equal(g.ev('G.score'), score0, 'школа очков не даёт: её проходят не все');
   assert.ok(!g.ev(`document.body.classList.contains('tut')`));
@@ -227,6 +284,40 @@ test('школа жестов: Esc — пропустить; задание и �
   assert.equal(g.ev(`Known.has('gest:school')`), true);
   g.step(60, true);
   assert.equal(g.ev('G.stage.lit'), false, 'дальше — раскачка');
+});
+
+test('школа «Рогатка»: та же чаша, что в прологе — шарик сам не движется; бросок — колебание с трением; перетянул — вывалился; у края дважды — освоено', () => {
+  const g = loadGame();
+  g.ev(`document.getElementById('go').onclick()`); g.step(110);
+  g.ev('mouse.clicked = true; mouse.down = true'); g.step(1); g.ev('mouse.down = false'); g.step(1, true);
+  g.ev(`G.stage.school.i = 3; G.stage.schoolNext()`);
+  assert.equal(g.ev('G.stage.school.i'), 4);
+  assert.equal(g.ev('G.stage.finger'), true, 'рогатка — пальцем, как в прологе');
+  const p0 = sch(g, '[P.x, P.y]');
+  g.step(120, true);
+  assert.deepEqual(sch(g, '[G.stage.school.bw.u, G.stage.school.bw.v]'), [0, 0], 'не трогаешь — шарик лежит на дне');
+  // слабый бросок: колеблется, теряя размах; не у края
+  assert.ok(sling(g, .3) < .85, 'прицел: слабо');
+  const tops = [];
+  g.ev(`globalThis.__t = []; const f = G.stage.bowlTick.bind(G.stage); G.stage.bowlTick = (B, dt, cb) => f(B, dt, { ...cb, top: a => { __t.push(a); cb.top && cb.top(a); } })`);
+  g.step(60 * 4, true); tops.push(...sch(g, '__t'));
+  assert.ok(tops.length >= 3, 'качается туда-сюда: ' + tops);
+  for (let i = 1; i < tops.length; i++) assert.ok(tops[i] < tops[i - 1], 'размах тает: ' + tops);
+  assert.equal(g.ev('G.stage.school.n'), 0);
+  assert.deepEqual(sch(g, '[P.x, P.y]'), p0, 'круг стоит: чаша неподвижна');
+  // перетянул: прицел красный, шарик вываливается, новый — на дне
+  g.step(60 * 6, true);
+  const aim = sling(g, 1);
+  assert.ok(aim > 1, 'прицел: за край — ' + aim);
+  g.step(60, true);
+  assert.equal(g.ev('G.stage.school.miss'), 1, 'вывалился');
+  assert.ok(g.ev('G.stage.school.bw.out') > 0);
+  g.step(60 * 1.5, true);
+  assert.equal(g.ev('G.stage.school.bw.out'), 0); assert.equal(g.ev('G.stage.school.bw.u'), 0, 'новый шарик — на дне');
+  // освоить: размах почти до края дважды
+  passSling(g);
+  assert.equal(g.ev('G.stage.school'), null, 'рогатка освоена — школа кончилась');
+  assert.equal(g.ev(`Known.has('gest:school')`), true);
 });
 
 test('рецепт в задании: поколение II — только пара, сила «?»; после двух промахов — целиком; открытое раньше — сразу целиком', () => {

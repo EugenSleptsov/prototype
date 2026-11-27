@@ -89,7 +89,8 @@ export function loadGame({ seed = 1, touch = false, storage = {} } = {}) {
   };
   sandbox.window = sandbox; sandbox.self = sandbox; sandbox.globalThis = sandbox;
   const ctx = vm.createContext(sandbox);
-  vm.runInContext(`Math.random = (${seeded.toString()})(${seed});`, ctx);
+  // __reseed — поток случайного заново от зерна забега (после пролога: тесты дальше не зависят от того, как шла раскачка)
+  vm.runInContext(`const __seeded = ${seeded.toString()}; Math.random = __seeded(${seed}); globalThis.__reseed = k => { Math.random = __seeded(${seed} * 7919 + k); };`, ctx);
   for (const src of scriptList()) {
     const file = path.join(ROOT, src);
     vm.runInContext(fs.readFileSync(file, 'utf8'), ctx, { filename: file });
@@ -108,15 +109,16 @@ export function loadGame({ seed = 1, touch = false, storage = {} } = {}) {
 export const PREP = {
   // старт забега: «Начать», пустота, первое нажатие (жесты уже освоены — школы жестов нет, нажатие — сразу толчок поля)
   start: `Known.add('gest:school'); document.getElementById('go').onclick(); __step(110); mouse.clicked = true; mouse.down = true; __step(1); mouse.down = false;`,
-  // раскачка рогаткой до вспышки (maxA — какой размах держать: от него классы света): у края — зажать,
-  // у дна — отпустить, резинка против хода шарика (толчок по ходу); размах набран — отпустить без резинки
+  // раскачка рогаткой до вспышки (maxA — какой размах держать: от него разогрев и классы света): шарик затих на краю
+  // хода (или лежит на дне) и размах ниже 0,8·maxA — поймать, оттянуть наружу ровно на столько, чтобы долетел до maxA (по прицелу), отпустить
   pump: (maxA = .9, secs = 40) => `(() => { const S = G.stage, I = S.inf;
     for (let i = 0; i < 60 * ${secs} && !S.lit; i++) {
-      const mv = -Math.sin(I.th) > 0 ? 1 : -1;
-      if (!I.hold && Math.abs(Math.cos(I.th)) > .6) { mouse.x = G.W / 2; mouse.clicked = true; mouse.down = true; }
-      else if (I.hold && Math.abs(Math.cos(I.th)) < .15) { mouse.x = I.p0[0] - (I.A < ${maxA} ? mv * slingFullPx() * .7 : 0); mouse.down = false; }
+      if (I.hold) { const sg = I.u >= 0 ? 1 : -1; let lo = SLING_MIN, hi = 1; // прицел честный (с трением): подобрать резинку до maxA
+        for (let j = 0; j < 18; j++) { const k = (lo + hi) / 2; I.pull = sg * k; if (S.bowlAim(I) < ${maxA}) lo = k; else hi = k; }
+        mouse.x = I.p0[0] + sg * lo * slingFullPx(); mouse.down = false; }
+      else if (!(I.out > 0) && I.A < ${maxA} * .8 && Math.abs(I.v) < .12 * INF.w) { mouse.x = G.W / 2; mouse.clicked = true; mouse.down = true; }
       update(1 / 60); }
-    mouse.down = false; })()`,
+    mouse.down = false; __reseed(1); })()`,
   // свет исследован и измерен — поле открыто
   light: `(() => { const S = G.stage; S.kn += 500; S.chap = Math.max(S.chap, 4); S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); for (const c of S.madeCls()) S.measure(c); })()`,
   // зажать пару квантов a+b у детектора до ступени k и отпустить; вернуть рождённое

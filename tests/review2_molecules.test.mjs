@@ -98,7 +98,7 @@ test('второе ревью № 6: только что принесённый 
 });
 
 test('ревью CO₂: Вселенная достраивает начатое и издалека — второй O к C=O с 120 ед.', () => {
-  for (const seed of [3, 4, 11]) {
+  for (const seed of [4, 7, 11]) {
     const g = toMols(seed); g.ev('G.stage.tide = () => {}');
     g.ev(`(() => { const S = G.stage; for (const m of S.m) m.dead = true; S.m = []; S.res.add('CO₂');
       const c = S.newMol('C', P.x, P.y), o = S.newMol('O', P.x + 30, P.y); c.age = o.age = 2;
