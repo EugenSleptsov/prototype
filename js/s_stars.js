@@ -28,8 +28,15 @@ const ST_VIEW = 10.5, ST_PAR = 150, ST_COST = 35, BE_LIFE = 2.6, ST_BOOM = 2.6;
 // тепловое давление — облачка ближе ST_PH расталкиваются (сила ST_PK); не зажёг за ST_AUTO с — облако схлопнулось само, лёгкой звездой
 const ST_NEAR = 2.6, ST_LO = 1, ST_HI = 1.6, ST_M0 = 8, ST_M1 = 100, ST_OVER = .35, ST_BLOWV = 10, ST_BLOWT = 1.6, ST_PH = 1.1, ST_PK = 3, ST_AUTO = 60;
 // звезда по mu: [лёгкая, тяжёлая] — сколько живёт до сверхновой (с), множитель барьера, ширина окна слияния, раз в сколько секунд 4p → ⁴He, ядер в недрах;
-// у лёгкой ¹²C + ⁴He → ¹⁶O ещё ×ST_OCOOL (в прохладных недрах гелий горит в углерод, кислород — у тяжёлых)
-const ST_LIFE = [220, 110], ST_BF = [.85, .55], ST_GAP = [.8, 1.2], ST_HBURN = [5, 2.2], ST_NUCN = [15, 26], ST_OCOOL = 1.15, ST_HE0 = .25;
+// у лёгкой ¹²C + ⁴He → ¹⁶O ещё ×ST_OCOOL (в прохладных недрах гелий горит в углерод, кислород — у тяжёлых).
+// Срок жизни — настоящий цейтнот у тяжёлой (второе ревью: прежние 110 с никогда не наступали — цель берётся за 30–45 с,
+// и тяжёлая была строго лучше); лёгкая — спокойная, но недра прохладнее и гелий копится медленнее.
+// Гелий недр: доля ⁴He в ядре на старте — твоя Y с «Ядер» (раньше недра сами доводили её до ~55 %, и Y ничего не решала);
+// дальше водород выгорает в гелий: доля растёт к ST_HEMAX как HEMAX − (HEMAX − Y)·e^(−t/τ), τ = ST_HTAU (тяжёлая жжёт быстрее);
+// не выше ST_HEMAX — протоны нужны азоту (¹²C + p, ¹³C + p). ST_WARN с до сверхновой — предупреждение
+const ST_LIFE = [130, 50], ST_BF = [.85, .55], ST_GAP = [.8, 1.2], ST_HBURN = [5, 2.2], ST_NUCN = [15, 26], ST_OCOOL = 1.15, ST_HE0 = .25;
+// тройная альфа сильно зависит от жара: раз в сколько секунд ⁴He сами слипаются в ⁸Be (ST_BE) и бросает закон (ST_3A) — лёгкая реже
+const ST_HTAU = [60, 25], ST_HEMAX = .7, ST_WARN = 20, ST_BE = [3.6, 1.8], ST_3A = [2.4, 1.1];
 const ST_NEED = { '6,6': 2, '8,8': 2, '7,7': 1 }; // накопить к сверхновой: ¹²C, ¹⁶O, ¹⁴N
 Object.assign(NUC_NAME, { '4,4': ['⁸Be', 'бериллий-8'], '6,6': ['¹²C', 'углерод-12'], '6,7': ['¹³C', 'углерод-13'], '7,7': ['¹⁴N', 'азот-14'], '8,8': ['¹⁶O', 'кислород-16'] });
 
@@ -49,6 +56,7 @@ const Stars = {
     this.st = { bounce: 0, shat: 0 }; this.made = { hand: 0, auto: 0 }; this.phase = 'gas'; this.igT = 0; this.ignAt = null;
     this.hT = 0; this.beT = 2; this.flowT = 0; this.autoCd = 1; this.boom = 0; this.well = null;
     this.st.blow = 0; this.overT = 0; this.blowT = 0; this.near = 0; this.mu = .5; this.Ms = null; this.life = lerp(ST_LIFE[0], ST_LIFE[1], .5); this.bf = lerp(ST_BF[0], ST_BF[1], .5);
+    this.hTau = lerp(ST_HTAU[0], ST_HTAU[1], .5); this.warned = false; this.he0 = null;
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     this.C = { x: P.x, y: P.y }; this.ignT = null;
     // доля гелия в облаке — твоя Y с «Ядер» (с нуля — как в нашей Вселенной, 25 %); показ — в первый живой кадр
@@ -217,6 +225,7 @@ const Stars = {
   ignite(x, y, mu = .5, auto = false) {
     this.phase = 'core'; this.ignAt = this.clock; this.ignT = this.t; this.well = null;
     this.mu = mu; this.Ms = this.massOf(mu); this.life = lerp(ST_LIFE[0], ST_LIFE[1], mu); this.bf = lerp(ST_BF[0], ST_BF[1], mu); this.hBurn = lerp(ST_HBURN[0], ST_HBURN[1], mu);
+    this.hTau = lerp(ST_HTAU[0], ST_HTAU[1], mu); this.warned = false;
     const U = ST_CORE / ST_CLUMP, lump = this.gas.filter(g => Math.hypot(g.x - x, g.y - y) < ST_CLUMP);
     rescale(U, x, y, [this.gas, this.o, this.floats]);
     for (const g of this.gas) g.s = U;
@@ -225,23 +234,33 @@ const Stars = {
     Sfx.play('ignite');
     lump.sort((a, b) => +b.mine - +a.mine || Math.random() - .5);
     for (const g of lump) g.core = 1;
-    // ядро рождается там, где было облачко, и недра расширяются: k-е от центра уходит на свою долю радиуса (плотный комок не слипается)
+    // ядро рождается там, где было облачко, и недра расширяются: k-е от центра уходит на свою долю радиуса (плотный комок не слипается).
+    // Комок был жидковат (облако схлопнулось само) — недра всё равно не пустые: добираем до 18 ядер вокруг
     const nuc = lump.slice(0, Math.round(lerp(ST_NUCN[0], ST_NUCN[1], mu))).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
-    nuc.forEach((g, k) => {
-      const he = g.he || Math.random() < .5; // в недрах водород уже горит в гелий
+    /** @type {{ x: number, y: number, vx: number, vy: number, he: boolean, li: boolean, mine: boolean, age: number }[]} */
+    const slots = nuc.map((g, k) => {
       const dx = g.x - x, dy = g.y - y, d = Math.hypot(dx, dy), an = d > 1e-6 ? Math.atan2(dy, dx) : Math.random() * TAU;
       const push = Math.max(0, ST_CORE * Math.sqrt((k + .5) / nuc.length) - d) * .9; // путь с трением .9 — ровно до места
-      const o = this.mk(he ? 2 : 1, he ? 2 : 0, g.x, g.y, Math.cos(an) * push, Math.sin(an) * push); o.age = 0; o.mine = g.mine;
-      if (g.li) this.float(g.x, g.y - .5, '⁷Li + p → 2 ⁴He', [210, 170, 255], 12); // литий в недрах не живёт: сгорает в гелий
+      return { x: g.x, y: g.y, vx: Math.cos(an) * push, vy: Math.sin(an) * push, he: g.he, li: g.li, mine: g.mine, age: 0 };
     });
-    // комок был жидковат (облако схлопнулось само) — недра всё равно не пустые
-    for (let i = this.o.length; i < 18; i++) {
-      const a = Math.random() * TAU, d = ST_CORE * Math.sqrt(Math.random()) * .9, he = i % 3 > 0;
-      this.mk(he ? 2 : 1, he ? 2 : 0, x + Math.cos(a) * d, y + Math.sin(a) * d, randn() * .4, randn() * .4).age = -Math.random();
+    for (let i = slots.length; i < 18; i++) {
+      const a = Math.random() * TAU, d = ST_CORE * Math.sqrt(Math.random()) * .9;
+      slots.push({ x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, vx: randn() * .4, vy: randn() * .4, he: false, li: false, mine: false, age: -Math.random() });
     }
+    // ⁴He в недрах — ровно доля heP (твоя Y с «Ядер»): гелием становятся прежде всего облачка гелия (и лития — он сгорает в гелий)
+    const nHe = Math.round(this.heP * slots.length), order = slots.map((q, i) => [+(q.he || q.li) + Math.random() * .5, i]).sort((u, v) => v[0] - u[0]);
+    const isHe = new Set(order.slice(0, nHe).map(u => u[1]));
+    slots.forEach((q, i) => {
+      const he = isHe.has(i), o = this.mk(he ? 2 : 1, he ? 2 : 0, q.x, q.y, q.vx, q.vy); o.age = q.age; o.mine = q.mine;
+      if (q.li) this.float(q.x, q.y - .5, '⁷Li + p → 2 ⁴He', [210, 170, 255], 12); // литий в недрах не живёт: сгорает в гелий
+    });
+    this.he0 = nHe / slots.length;
     const kind = mu < 1 / 3 ? 'лёгкая: живёт долго, но недра прохладнее' : mu > 2 / 3 ? 'тяжёлая: недра горячие, но сгорит быстро' : 'в жаре недр атомы снова голые ядра';
-    msg(auto ? `Облако схлопнулось само: звезда ${this.Ms} M☉, лёгкая. Гелий сливается в углерод` : `Звезда ${this.Ms} M☉ зажглась: ${kind}`);
+    msg(auto ? `Облако схлопнулось само: звезда ${this.Ms} M☉, лёгкая. До сверхновой ${fmtClock(this.life)}` : `Звезда ${this.Ms} M☉ зажглась: ${kind}. До сверхновой ${fmtClock(this.life)}`);
     this.float(x, y - 1.6, `${this.Ms} M☉`, this.col(1), 20);
+    // итог «Ядер» — в недрах: сколько в них гелия на старте (мало — углерод позже: ждать, пока водород выгорит в гелий)
+    this.float(x, y + 2.2, `${this.Yin !== null ? 'гелий из «Ядер»' : 'гелий облака'}: ${Math.round(this.heP * 100)} % → в ядре ⁴He ${Math.round(this.he0 * 100)} %`, [255, 225, 150], 15);
+    this.floats[this.floats.length - 1].t = -1.4;
   },
 
   // ---------- фаза 2: ядро звезды ----------
@@ -269,6 +288,8 @@ const Stars = {
       }
     }
     if (this.doneAt !== null) return;
+    // цейтнот: за ST_WARN с до сверхновой — предупреждение (раз), строка внизу краснеет и мигает
+    if (!this.warned && this.rest() < ST_WARN) { this.warned = true; this.float(P.x, P.y - 2.5, `звезде осталось ${Math.ceil(this.rest())} с: дальше — сверхновая`, [255, 140, 110], 16); Sfx.play('fizzle'); }
     // звезда сама жжёт водород: 4p → ⁴He
     if ((this.hT += dt) > (this.hBurn ?? 3.5)) { // тяжёлая звезда жжёт водород быстрее
       const ps = this.o.filter(o => nkey(o) === '1,0' && this.free(o) && o.age > 1 && inRef(o.x, o.y));
@@ -282,7 +303,7 @@ const Stars = {
     }
     // гелий изредка слипается в ⁸Be сам — лови его (после того как первый ⁸Be ты слепил сам: первый раз — руками)
     if (this.seen.has('4,4') && (this.beT -= dt) <= 0) {
-      this.beT = 2.4;
+      this.beT = lerp(ST_BE[0], ST_BE[1], this.mu ?? .5);
       const al = this.o.filter(o => nkey(o) === '2,2' && this.free(o) && o.age > 1);
       if (al.length >= 4 && this.cnt('4,4') < 2) {
         let best = null, bd = 3.2;
@@ -296,7 +317,7 @@ const Stars = {
   // «Звёздный синтез»: звезда бросает сама — туда, чего не хватает к сверхновой
   autoFuse(dt) {
     if (!this.rs.syn || Uni.off(this, 'syn') || (this.autoCd -= dt) > 0) return;
-    this.autoCd = 1.4;
+    this.autoCd = lerp(ST_3A[0], ST_3A[1], this.mu ?? .5); // в прохладных недрах тройная альфа идёт реже
     // закон куёт только углерод (тройная альфа: ⁸Be + ⁴He); кислород и азот — твоими бросками. Раньше он ковал и их —
     // после трёх бросков и закона уровень доходил до сверхновой сам, а лучшей игрой было убрать руки (разбор ревью)
     const want = [['4,4', '2,2', 5]];
@@ -319,11 +340,12 @@ const Stars = {
     if (this.doneAt !== null) return;
     const vis = this.o.filter(o => !o.dead && inView(o.x, o.y, 1));
     if (vis.length < popWant(ST_CORE_D, ST_CORE_CAP) && Math.random() < dt * 4) {
-      const nP = vis.filter(o => nkey(o) === '1,0').length, nA = vis.filter(o => nkey(o) === '2,2').length;
-      const he = nA < nP * 1.2, r = rimPos(1), sp = rnd(1.2, 2.2);
+      // подносит то, чего вокруг меньше, чем в составе недр (доля ⁴He — heCore(): с Y «Ядер» и растёт, пока горит водород)
+      const nP = vis.filter(o => nkey(o) === '1,0').length, nA = vis.filter(o => nkey(o) === '2,2').length, hs = this.heCore();
+      const he = nA + nP ? nA < (nA + nP + 1) * hs : Math.random() < hs, r = rimPos(1), sp = rnd(1.2, 2.2);
       this.mk(he ? 2 : 1, he ? 2 : 0, r.x, r.y, r.nx * sp + randn() * .4, r.ny * sp + randn() * .4).age = 0;
     }
-    haloFill(this.o, ST_CORE_D, ST_CORE_CAP, dt, (x, y) => { const he = Math.random() < .45; this.mk(he ? 2 : 1, he ? 2 : 0, x, y, randn() * .4, randn() * .4).age = 0; }, 2);
+    haloFill(this.o, ST_CORE_D, ST_CORE_CAP, dt, (x, y) => { const he = Math.random() < this.heCore(); this.mk(he ? 2 : 1, he ? 2 : 0, x, y, randn() * .4, randn() * .4).age = 0; }, 2);
   },
 
   update(dt, act) {
@@ -369,6 +391,12 @@ const Stars = {
     msg('Миллионы лет спустя: звезда дожгла всё до железа, ядро схлопнулось — сверхновая! Выкованные ядра разлетаются по Вселенной');
   },
 
+  // доля ⁴He в недрах: на старте — Y с «Ядер», дальше водород выгорает в гелий (тяжёлая — быстрее)
+  heCore() {
+    if (this.ignAt === null) return this.heP;
+    const h0 = this.he0 ?? this.heP, t = Math.max(0, this.clock - this.ignAt);
+    return h0 >= ST_HEMAX ? h0 : ST_HEMAX - (ST_HEMAX - h0) * Math.exp(-t / (this.hTau || ST_HTAU[0]));
+  },
   // сколько звезде осталось до сверхновой (тяжёлая сгорает быстрее)
   rest() { return this.ignAt === null ? Infinity : this.ignAt + this.life - this.clock; },
   // цвет звезды по массе: лёгкая — оранжевая, тяжёлая — голубовато-белая (k: 0 — свечение недр, 1 — яркое)
@@ -393,7 +421,7 @@ const Stars = {
     const n = k => this.cnt(k);
     return [
       { t: 'Зажечь звезду', h: 'зажать и вести: гравитация сгребает газ; отпустить в золотой полосе', p: [gasP, 100], s: 'звезда горит', d: this.phase === 'core' },
-      { t: 'Сделать углерод', h: '⁴He в ⁴He → ⁸Be (живёт миг), затем в него ещё ⁴He', items: [['⁸Be', s.has('4,4')], ['¹²C', s.has('6,6')]], s: 'углерод', d: s.has('6,6') },
+      { t: 'Сделать углерод', h: `⁴He в ⁴He → ⁸Be (живёт миг), затем в него ещё ⁴He${this.phase === 'core' && this.heCore() < .2 ? ' · гелия мало: водород выгорает в него (4p → ⁴He)' : ''}`, items: [['⁸Be', s.has('4,4')], ['¹²C', s.has('6,6')]], s: 'углерод', d: s.has('6,6') },
       { t: 'Сделать кислород', h: 'бросить ⁴He в ¹²C', s: 'кислород', d: s.has('8,8') },
       { t: 'Сделать азот', h: 'бросить протон в ¹²C, потом ещё один', items: [['¹³C', s.has('6,7')], ['¹⁴N', s.has('7,7')]], s: 'азот', d: s.has('7,7') },
       { t: 'Сформировать закон «Звёздный синтез»', h: `${isTouch() ? 'в лавке' : 'клавиша 1'} за ${ST_COST} ✦`, s: 'звёздный синтез', d: this.rs.syn > 0, res: 'syn' },
@@ -465,7 +493,9 @@ const Stars = {
     arc(wx, wy, R, A(0), A(n), c, .95 * al, 3);
     const top2 = over ? 'перебор: свет сдует газ' : inB ? `отпустить: звезда ${this.massOf(mu)} M☉` : 'мало массы';
     label(top2, wx, wy - R - 14, 14, over ? [255, 140, 110] : inB ? GOLD : [200, 210, 230], .9 * al, 800);
-    if (inB) label(mu < 1 / 3 ? 'лёгкая: живёт долго, кислород трудно' : mu > 2 / 3 ? 'тяжёлая: горячо, но взорвётся скоро' : 'средняя', wx, wy + R + 16, 12, c, .8 * al, 700);
+    // и сколько она проживёт: выбор массы — это выбор между жаром недр и временем
+    const lf = fmtClock(lerp(ST_LIFE[0], ST_LIFE[1], mu));
+    if (inB) label(mu < 1 / 3 ? `лёгкая: живёт ${lf}, но кислород трудно` : mu > 2 / 3 ? `тяжёлая: горячо, но живёт ${lf}` : `средняя: живёт ${lf}`, wx, wy + R + 16, 12, c, .8 * al, 700);
   },
   drawPlayer(al) {
     ctx.globalAlpha = al;
@@ -474,6 +504,7 @@ const Stars = {
       if (this.phase === 'gas' && !this.well && Tips.ok('stars:gas')) { label('зажать и вести: газ сгребается в комок, отпустить в золотой полосе', G.W / 2, G.H * .62, 15, [255, 255, 255], (.75 + .2 * Math.sin(G.T * 4)) * al, 700); ghostSweep(G.W / 2, G.H * .62 - 80, al); }
       if (this.phase === 'core' && this.sl.shots === 0 && !this.sl.held) {
         const be = this.o.find(o => o.Z === 4) || this.o.find(o => nkey(o) === '2,2' && o.age > .3);
+        if (!be) label('гелия в ядре пока нет: водород выгорает в гелий (4p → ⁴He) — жди', G.W / 2, G.H * .62, 14, [255, 225, 150], .8 * al, 700);
         if (be && Tips.ok('stars:sling')) { const [sx, sy] = W2S(be.x, be.y), r = be.rad * cam.z + 8 + 3 * Math.sin(G.T * 5); ring(sx, sy, r, GOLD, .8 * al, 2); label(be.Z === 4 ? 'бросить в ⁸Be ещё ⁴He' : 'зажать ⁴He, оттянуть, отпустить в другой', sx, sy + r + 16, 13, [255, 255, 255], .85 * al, 700);
           // курсор сам бросает ⁴He: в ⁸Be (если он есть) или в соседний ⁴He
           const he = this.o.filter(o => o !== be && nkey(o) === '2,2' && o.age > .3).sort((u, v) => Math.hypot(u.x - be.x, u.y - be.y) - Math.hypot(v.x - be.x, v.y - be.y))[0];
@@ -489,12 +520,19 @@ const Stars = {
     hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > ST_PAR ? [190, 190, 205] : [255, 255, 255], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 4', this.steps(), this.stars, 'Сверхновая!');
     // звезда горит: её масса и сколько ей осталось (последние 20 с — красным)
-    if (this.phase === 'core' && this.doneAt === null && !G.prev) { const r = Math.max(0, this.rest()); label(`звезда ${this.Ms} M☉ · сверхновая через ${fmtClock(r)}`, G.W / 2, aboveShop(), 13, r < 20 ? [255, 140, 110] : this.col(1), .85 * al, 700); }
+    // под строкой — полоска горючего: у тяжёлой тает на глазах (цейтнот — её цена)
+    if (this.phase === 'core' && this.doneAt === null && !G.prev) {
+      const r = Math.max(0, this.rest()), hot = r < ST_WARN, y = aboveShop() - 6, w = Math.min(240, G.W * .5), f = clamp(r / this.life, 0, 1);
+      const c = hot ? [255, 140, 110] : this.col(1), a = al * (r < 10 ? .6 + .4 * Math.sin(G.T * 8) : 1);
+      label(`звезда ${this.Ms} M☉ · сверхновая через ${fmtClock(r)}`, G.W / 2, y, hot ? 16 : 14, c, .9 * a, 800);
+      ctx.globalAlpha = 1; ctx.fillStyle = rgb([255, 255, 255], .14 * al); ctx.fillRect(G.W / 2 - w / 2, y + 11, w, 4);
+      ctx.fillStyle = rgb(c, .85 * a); ctx.fillRect(G.W / 2 - w / 2, y + 11, w * f, 4);
+    }
     hudBanner(this.banner, 'УРОВЕНЬ 4 · 100 млн лет', 'Звёзды', 'Через 380 000 лет ядра H и He поймали электроны: первые атомы, Вселенная прозрачна. Сжать облако атомов в звезду и выковать в ней углерод, кислород и азот', al, 'в звёздах куётся углерод → без него не будет живого');
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },
   // газ — широко; недра — ближе; сверхновая — камера отъезжает с выбросом к масштабу атомов
   viewR() { return this.phase === 'gas' ? ST_GR + 1 : this.doneAt === null ? ST_VIEW : lerp(ST_VIEW, A_VIEW, smooth(0, 1, 1 - this.boom / ST_BOOM)); },
-  hud() { return { title: '', sub: this.phase === 'gas' ? `атомы H, He · гелий ${Math.round(this.heP * 100)} %${this.Yin !== null ? ' с «Ядер»' : ''} · T ≈ 200 K` : `${this.Ms} M☉ · T ≈ ${(1 + (this.mu ?? .5)).toFixed(1).replace('.', ',')}·10⁸ K`, lines: [], goal: '', laws: [] }; },
+  hud() { return { title: '', sub: this.phase === 'gas' ? `атомы H, He · гелий ${Math.round(this.heP * 100)} %${this.Yin !== null ? ' с «Ядер»' : ''} · T ≈ 200 K` : `${this.Ms} M☉ · ⁴He в ядре ${Math.round(this.heCore() * 100)} % · T ≈ ${(1 + (this.mu ?? .5)).toFixed(1).replace('.', ',')}·10⁸ K`, lines: [], goal: '', laws: [] }; },
 };
