@@ -683,7 +683,8 @@ const Particles = {
   },
   // удару не хватает на массу: если и в полную силу не хватит — Вселенная остыла; иначе — бить сильнее
   /** @param {number} need */
-  coldWhy(need) { return need > this.Emax() ? `остыло: удару нужно ${fmtGeV(need)}, в полную силу — ${fmtGeV(this.Emax())}` : `нужен удар сильнее: ${fmtGeV(need)}`; },
+  // словами и ⚡, без ГэВ: игрок не знает заранее, какую энергию набрал (просьба игрока, пересмотр второго ревью №15)
+  coldWhy(need) { if (need > this.Emax()) return 'остыло: на неё удара уже не хватит'; let k = 1; while (k < LV_N && this.lvE(k) < need) k++; return `нужен удар сильнее: ${k}⚡`; },
   // Что родит удар: клетка ступени k, а если она закрыта — ближайшая ниже по строке
   /** @param {string} kinds @param {number} k @param {number} rs @param {boolean} [spont] @returns {Hit} */
   pickCell(kinds, k, rs, spont) {
@@ -771,9 +772,6 @@ const Particles = {
     if (this.antiPair(a, b)) { const m = this.meff(a), E = (/** @type {number} */ rs) => 2 * Math.sqrt(Math.max(0, (rs / 2) ** 2 - m * m)); return SM.Z.m - Z_WIN > 2 * m ? [E(SM.Z.m - Z_WIN), E(SM.Z.m + Z_WIN)] : null; }
     return null;
   },
-  // √s столкновения, если отпустить сейчас (у массивных лоб в лоб: 2·√(p² + m²))
-  /** @param {Focus} f */
-  rsOf(f) { const a = f.cap[0]; return f.cap.length === 2 && !this.isQ(a) ? 2 * Math.hypot(f.E / 2, this.meff(a)) : f.E; },
   // Разжать без удара (правая кнопка, X, на сенсоре — провести палец с ◉ на ✕): взятое разлетается от детектора, ничего не сталкивается;
   // ⚡, потраченная на это зажатие, возвращается. Возвращает true, если было что разжимать.
   drop() {
@@ -1947,7 +1945,7 @@ const Particles = {
         { t: 'Поле Хиггса застывает', h: 'частицы тяжелеют и замедляются: у них появляется масса. Часы эпохи пока стоят', s: 'у частиц есть масса', d: this.hig >= 1 },
         { t: 'Столкнуть два глюона в полную силу: генерация бозона Хиггса', h: `затем ${tap} по нему: снимок`, s: 'бозон Хиггса', d: has('H'), rx: { l: [['g', 'boson'], ['g', 'boson']], r: [['H', 'boson']], k: LV_N } },
         { t: 'Удержать вещество', h: 'с массой его можно поймать: создать пару столкновением и взять полем частицу и её античастицу', s: 'вещество в поле', d: !!this.learn.pair2 },
-        { t: 'Столкнуть частицу с её античастицей: генерация Z', h: 'отпустить, когда шкала в золотой полосе (≈91 ГэВ), и сделать снимок', s: 'Z открыт', d: has('Z'), rx: { l: [['e⁻', 'lepton'], ['e⁺', 'lepton']], r: [['Z', 'boson']], k: 0 } },
+        { t: 'Столкнуть частицу с её античастицей: генерация Z', h: 'отпустить, когда шкала в золотой полосе, и сделать снимок', s: 'Z открыт', d: has('Z'), rx: { l: [['e⁻', 'lepton'], ['e⁺', 'lepton']], r: [['Z', 'boson']], k: 0 } },
       ];
       // Эпоха 3: золотой плашки «для задания» у законов нет (второе ревью №7c) — покупка здесь никогда не обязательна:
       // руками распад достижим (недостижимое и не созданное reachNeed2 заменяет), а созданное, но уже слишком тяжёлое
@@ -2715,8 +2713,8 @@ const Particles = {
         line(sx + c * (Rg - 8), sy + s * (Rg - 8), sx + c * (Rg + 8), sy + s * (Rg + 8), !open ? NO_C : got ? GOLD : [255, 255, 255], got || !open ? 1 : .7, 2);
         const R = Rg + (Math.abs(c) > .5 ? 42 : 22), lx = sx + c * R, ly = sy + s * R; // сбоку надпись шире — дальше от круга
         const col = !open ? NO_C : got ? GOLD : [255, 255, 255];
-        // ⚡ ступени — и реальная энергия удара в ГэВ: остывает Вселенная — те же «4⚡» слабее (второе ревью №15)
-        label(`${k}⚡ · ${fmtGeV(this.lvE(k))}`, lx, ly - 8, 10, !open ? NO_C : got ? GOLD : [200, 210, 230], .85, 600);
+        // ⚡ ступени — без ГэВ (просьба игрока: энергия удара в цифрах мешала); остывание видно по красным ступеням
+        label(`${k}⚡`, lx, ly - 8, 10, !open ? NO_C : got ? GOLD : [200, 210, 230], .85, 600);
         if (this.cellKnown(x)) label(this.cellSym(x), lx, ly + 7, 13, col, .95, 800); // уже создавали — символ (красный — сейчас не создать)
         else { ring(lx, ly + 7, 8, col, .9, 1.5); label('?', lx, ly + 7.5, 11, col, .95, 800); } // ещё не создано, но можно — кружок с «?»
       }
@@ -2726,10 +2724,9 @@ const Particles = {
     if (this.isQ(f.cap[0])) {
       const k = f.lv || 0, x = k ? this.pickCell(kinds, k, this.lvE(k), false) : null, no = k && x && x.c && x.k < k;
       const top = k ? this.cellsAt(kinds, k)[0] : null, tw = top ? this.cellWhy(top, this.lvE(k), false) : '', show = no && top && !this.cellHidden(tw);
-      label(k ? `${k} ⚡ · ${fmtGeV(this.lvE(k))} → ${x && x.c ? (this.cellKnown(x) ? this.cellSym(x) : '?') : '—'}` : 'слабо', sx, sy + Rg + 50, 15, show ? NO_C : k ? (k === LV_N ? GOLD : [142, 229, 255]) : [200, 205, 220], .95, 800);
+      label(k ? `${k} ⚡ → ${x && x.c ? (this.cellKnown(x) ? this.cellSym(x) : '?') : '—'}` : 'слабо', sx, sy + Rg + 50, 15, show ? NO_C : k ? (k === LV_N ? GOLD : [142, 229, 255]) : [200, 205, 220], .95, 800);
       if (show && top) label(`${this.cellKnown(top) ? this.cellSym(top) : '?'}: ${tw || 'закрыто'}`, sx, sy + Rg + 68, 12, NO_C, .85, 600);
     }
-    else label(`√s ${fmtGeV(this.rsOf(f))}`, sx, sy - Rg - 32, 12, inH ? GOLD : [142, 229, 255], .95, 700);
   },
   // Энергия детектора — дуга из делений под кругом; пустая и нужна — мигает красным
   /** @param {number} sx @param {number} sy @param {number} r */

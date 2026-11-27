@@ -202,12 +202,15 @@ test('рецепт в задании: поколение II — только п�
   assert.equal(step(g2).k, 2, 'μ уже открыт в прошлом забеге — рецепт сразу целиком');
 });
 
-test('частицы: удару не хватает на массу — подпись в ГэВ: «остыло» или «сильнее», а не «мало энергии» (запас ⚡ ни при чём)', () => {
+test('частицы: удару не хватает на массу — словами и ⚡, без ГэВ: «остыло» или «сильнее», а не «мало энергии» (запас ⚡ ни при чём)', () => {
   const g = toField();
   g.ev(`(() => { const S = G.stage; S.hig = 1; for (const k of ['e', 'u', 'd', 'mu', 'c', 's', 'ta', 't', 'b']) { Codex.see(k); Codex.run.add(k); } })()`);
   g.ev('G.stage.T = 20');
-  assert.match(g.ev(`G.stage.cellWhy({ c: 't' }, G.stage.lvE(4), false)`), /^остыло: удару нужно 346 ГэВ, в полную силу — 120 ГэВ$/);
+  assert.match(g.ev(`G.stage.cellWhy({ c: 't' }, G.stage.lvE(4), false)`), /^остыло: на неё удара уже не хватит$/);
   g.ev('G.stage.T = 200');
-  assert.match(g.ev(`G.stage.cellWhy({ c: 't' }, G.stage.lvE(1), false)`), /^нужен удар сильнее: 346 ГэВ$/);
+  const why = g.ev(`G.stage.cellWhy({ c: 't' }, G.stage.lvE(1), false)`), k = +(why.match(/^нужен удар сильнее: (\d)⚡$/) || [])[1];
+  assert.ok(k > 1, 'подсказка называет ступень ⚡: ' + why);
+  assert.equal(g.ev(`G.stage.cellWhy({ c: 't' }, G.stage.lvE(${k}), false)`), '', `на ${k}⚡ уже рождается`);
+  assert.notEqual(g.ev(`G.stage.cellWhy({ c: 't' }, G.stage.lvE(${k - 1}), false)`), '', `на ${k - 1}⚡ ещё нет`);
   assert.equal(g.ev(`G.stage.cellWhy({ c: 't' }, G.stage.lvE(4), false)`), '');
 });
