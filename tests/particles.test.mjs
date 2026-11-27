@@ -159,20 +159,23 @@ test('Распады: цель t, которого игрок не создал,
   assert.ok(json(g, 'G.stage.reachNeed2()').includes('t'));
 });
 
-test('обучение: такт → снимок → сбор → три удара → обычный забег', () => {
+test('обучение: такт → свет ловится сам → три удара → снимок новой частицы → обычный забег', () => {
   const g = loadGame();
   g.ev(`document.getElementById('tutgo').onclick()`);
   assert.equal(g.ev('G.tutor'), true);
   g.ev(PREP.pump(.7));
   g.step(30);
   assert.equal(g.ev('G.stage.tut.i'), 1);
-  g.ev(`Codex.see('ph')`); g.step(5);
-  assert.equal(g.ev('G.stage.tut.i'), 2);
+  g.step(60 * 3); // фотон регистрируется сам, как в игре — без снимка
+  assert.equal(g.ev(`Codex.has('ph')`), true);
   g.ev(`(() => { const S = G.stage; for (let k = 0; k < TUT_ABS; k++) S.absorb(S.mk('ph', false, P.x + 3, P.y, 0, S.T * 3)); })()`);
   g.step(5);
-  assert.equal(g.ev('G.stage.tut.i'), 3);
+  assert.equal(g.ev('G.stage.tut.i'), 2);
   g.ev(PREP.hit);
   for (const k of [0, 1, 4]) g.ev(`__hit('ph', 'ph', ${k}, Math.max(G.stage.en, ${k}))`);
+  g.step(5);
+  assert.equal(g.ev('G.stage.tut.i'), 3);
+  g.ev(`(() => { const S = G.stage; S.mk('e', false, P.x, P.y, 0, .1).born = 1; S.shotCd = 0; S.snapshot(); })()`);
   g.step(60 * 4, true);
   assert.equal(g.ev('G.tutor'), false);
   assert.equal(g.store.get('proto.tut'), '1');

@@ -69,8 +69,10 @@ test('лавка: эпоха 3 — закон для задания: горяч�
     S.startEpoch(2); S.hig = 1; S.T = 40; S.need2 = ['c', 'mu', 'b']; S.hot = []; Cine.clear(); Cine.tick(99); })()`);
   g.step(60 * 6);
   assert.ok(!g.ev(`G.stage.hot.some(h => h.sp === 'c')`), 'без закона c у горячей точки пока не рождается');
+  // покупка в эпохе 3 не обязательна (второе ревью №7c): золотой плашки «для задания» нет, но закон в лавке и говорит, что сделает
+  assert.equal(g.ev('G.stage.taskRes()'), null, 'закон не «для задания»: руками распад достижим');
   g.ev('G.stage._pk = G.stage.taskRes()'); // как в renderShop
-  assert.equal(g.ev(`G.stage.shopItems()[0].r.k`), 'q2', 'закон для задания — первым в лавке');
+  assert.ok(g.ev(`G.stage.shopItems().some(it => it.r && it.r.k === 'q2')`), '«Кварки II» в лавке');
   assert.match(g.ev(`G.stage.resList().find(r => r.k === 'q2').about(0)`), /^сразу: горячая точка родит c/);
   buy(g, 'q2');
   g.step(60 * 2);
