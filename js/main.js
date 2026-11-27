@@ -128,8 +128,11 @@ addEventListener('blur', () => {
   mouse.down = false; keys.clear(); ptrs.clear(); steerId = null; pinch0 = null; mpan = null; mouse.idle = true;
 });
 cv.addEventListener('contextmenu', e => e.preventDefault());
-// правая кнопка — разжать взятое без удара (если этап это умеет и что-то держишь)
-cv.addEventListener('mousedown', e => { if (e.button === 2 && G.started && !G.paused && G.stage.drop) G.stage.drop(); });
+// отмена — одна на игру (словарь жестов): у этапа свой drop (частицы, яма звёзд) или рогатка этапа
+const stDrop = () => { const s = G.stage; return s.drop ? s.drop() : !!(s.sl && s.sl.drop && s.sl.drop()); };
+const stCanDrop = () => { const s = G.stage; return s.canDrop ? s.canDrop() : !!(s.sl && s.sl.canDrop && s.sl.canDrop()); };
+// правая кнопка — разжать взятое без удара (mousedown приходит и второй кнопкой при зажатой левой — pointerdown тогда нет)
+cv.addEventListener('mousedown', e => { if (e.button === 2 && G.started && !G.paused) stDrop(); });
 // Кнопка действия: тап — как клик, удержание — как зажатая кнопка мыши
 const actBtn = document.getElementById('act');
 actBtn.addEventListener('pointerdown', e => { e.preventDefault(); try { actBtn.setPointerCapture(e.pointerId); } catch (err) { /* без захвата */ } mouse.down = true; if (G.started) mouse.clicked = true; actBtn.classList.add('on'); });
@@ -160,9 +163,10 @@ function touchBar() {
   const hold = s.key === 'particles';
   on('act', G.started && hold && !G.paused && !s.finger); // пролог — рогатка шарика пальцем, ◉ не нужна
   actBtn.querySelector('small').textContent = s.key === 'particles' ? (!s.lit && !s.ep ? 'держать' : s.ep === 3 ? 'держать: щит' : 'тап: снимок · держать: поле') : '';
-  on('t-ff', G.started && s.enterKey); on('t-dash', G.started && s.dash);
+  on('t-ff', G.started && s.enterKey && !(G.started && !G.paused && stCanDrop())); on('t-dash', G.started && s.dash);
   // «✕ разжать» — пока держишь взятое (частицы): раньше это было касание вторым пальцем поверх ◉ — третий палец
-  on('t-drop', G.started && !G.paused && s.canDrop && s.canDrop());
+  const busy = G.started && !G.paused && stCanDrop(); // что-то в руке: ✕ — внизу у пальца, звук и ×4 прячутся (не задеть)
+  on('t-drop', busy); on('t-mute', !busy);
   on('t-cx', G.started && (!s.showCodex || s.showCodex() !== null)); on('t-x', false);
   on('t-help', G.started && !G.ended && !G.tutor && !G.paused);
   // взятое само поворачивается по ходу броска; но у фрагмента из нескольких атомов к цели может встать не тот — ⟲ ⟳ (как Q / E)
@@ -206,7 +210,8 @@ addEventListener('keydown', e => {
   if (G.stage.sling && /^Arrow/.test(e.code)) e.preventDefault(); // стрелки двигают карту, а не страницу
   if (e.code === 'Space' && !G.paused) { e.preventDefault(); G.stage.dash && G.stage.dash(); }
   if (!G.paused && (e.code === 'Enter' || e.code === 'NumpadEnter')) G.stage.enterKey && G.stage.enterKey();
-  if (e.code === 'KeyX') G.stage.detach && G.stage.detach();
+  if (e.code === 'KeyX' && !G.paused) { if (G.stage.detach) G.stage.detach(); else stDrop(); }
+  if (e.code === 'Escape' && !G.paused && !G.tutor) stDrop();
   if (e.code === 'KeyH' && !G.paused) helpAgain();
   if (/^Digit[1-9]$/.test(e.code)) { const i = +e.code.slice(5) - 1; if (G.paused) G.stage.pick && G.stage.pick(i); else G.stage.buy && G.stage.buy(i); }
   if (G.paused && (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter')) { e.preventDefault(); G.stage.closeCard && G.stage.closeCard(); return; }

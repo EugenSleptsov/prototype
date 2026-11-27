@@ -18,13 +18,13 @@
   canvas{display:block;cursor:crosshair;touch-action:none}
   body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
   #pname{-webkit-user-select:text;user-select:text}
-  /* сенсор: кнопка действия справа внизу, кнопки вместо клавиш над ней */
+  /* сенсор: кнопка действия справа внизу, кнопки вместо клавиш над ней; первая (✕) — нижняя, у самого пальца */
   #act,#tbar{display:none}
   body.touch #act{display:flex;position:fixed;right:max(16px,env(safe-area-inset-right));bottom:56px;width:96px;height:96px;border-radius:50%;border:2px solid #8fd0ffaa;background:#0b1a2acc;color:#dde3f0;z-index:6;flex-direction:column;align-items:center;justify-content:center;gap:3px;touch-action:none;font:inherit;padding:0;box-shadow:0 0 18px #8fd0ff33}
   #act span{font-size:32px;line-height:1;color:#8fd0ff}
   #act small{font-size:10px;opacity:.75;text-align:center;line-height:1.2;max-width:80px}
   #act.on{background:#8fd0ff40;border-color:#ffd27a;transform:scale(.95)}
-  body.touch #tbar{display:flex;flex-direction:column;gap:8px;position:fixed;right:max(16px,env(safe-area-inset-right));bottom:166px;z-index:6}
+  body.touch #tbar{display:flex;flex-direction:column-reverse;gap:8px;position:fixed;right:max(16px,env(safe-area-inset-right));bottom:166px;z-index:6}
   #tbar button{width:56px;height:44px;border-radius:12px;border:1px solid #ffffff33;background:#0b0f1ccc;color:#dde3f0;font:inherit;font-size:15px;touch-action:none;padding:0}
   body.touch #shop{left:max(12px,env(safe-area-inset-left));transform:none;max-width:calc(100vw - max(12px,env(safe-area-inset-left)) - max(16px,env(safe-area-inset-right)) - 108px);justify-content:flex-start}
   /* узкий сенсорный экран: лавка — одна строка с прокруткой, а не 2–3 ряда поверх поля */
@@ -502,20 +502,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=160"></script>
-<script src="js/gestures.js?v=160"></script>
-<script src="js/audio.js?v=160"></script>
-<script src="js/core.js?v=160"></script>
-<script src="js/universe.js?v=160"></script>
-<script src="js/codex.js?v=160"></script>
-<script src="js/sling.js?v=160"></script>
-<script src="js/s0_quarks.js?v=160"></script>
-<script src="js/s_particles.js?v=160"></script>
-<script src="js/s1_nuclei.js?v=160"></script>
-<script src="js/s_stars.js?v=160"></script>
-<script src="js/s2_atoms.js?v=160"></script>
-<script src="js/s3_molecules.js?v=160"></script>
-<script src="js/online.js?v=160"></script>
-<script src="js/main.js?v=160"></script>
+<script src="js/util.js?v=161"></script>
+<script src="js/gestures.js?v=161"></script>
+<script src="js/audio.js?v=161"></script>
+<script src="js/core.js?v=161"></script>
+<script src="js/universe.js?v=161"></script>
+<script src="js/codex.js?v=161"></script>
+<script src="js/sling.js?v=161"></script>
+<script src="js/s0_quarks.js?v=161"></script>
+<script src="js/s_particles.js?v=161"></script>
+<script src="js/s1_nuclei.js?v=161"></script>
+<script src="js/s_stars.js?v=161"></script>
+<script src="js/s2_atoms.js?v=161"></script>
+<script src="js/s3_molecules.js?v=161"></script>
+<script src="js/online.js?v=161"></script>
+<script src="js/main.js?v=161"></script>
 </body>
 </html>

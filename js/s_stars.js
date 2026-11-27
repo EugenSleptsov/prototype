@@ -142,6 +142,9 @@ const Stars = {
     this.float(o.x, o.y, txt, [255, 200, 150], 13);
   },
   cnt(k) { return this.o.filter(o => !o.dead && nkey(o) === k).length; },
+  // отмена (правая кнопка, X, Esc, ✕): в газе — яма без решения (облако не зажигается), в недрах — бросок рогатки
+  drop() { if (this.phase === 'gas') { if (!this.well) return false; mouse.cancel = true; mouse.down = false; return true; } return this.sl.drop(); },
+  canDrop() { return this.phase === 'gas' ? !!this.well : this.sl.canDrop(); },
 
   // ---------- фаза 1: облако ----------
   // зажал — в точке пальца гравитационная яма; масса комка — облачка ближе ST_NEAR; отпустил — решение: зажечь или нет

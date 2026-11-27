@@ -55,6 +55,9 @@ const ORGANIC = ['CH₃OH', 'C₂H₆', 'CH₃NH₂', 'C₂H₅OH', 'CH₃OCH₃
 const M_HEAVY = /** @type {[string, number][]} */ ([['C', 2], ['N', 2], ['O', 3]]), M_DRIP0 = 6, M_DRIP = 4;
 const M_START = /** @type {Record<string, number>} */ ({ C: 2, N: 2, O: 3 });
 const M_U = 5, M_VIEW = 78, M_DENS = .0012, M_CAP = 60, M_COST = 20;
+// бульон — M_SOUP молекул с C, N или O; законы «Синтез» варят не больше M_SOUP_UNI из них, остальное — рогаткой
+// (урок 33: закон не проходит уровень сам; раньше без единого касания бульон доходил до 10/10 за 105–136 с)
+const M_SOUP = 10, M_SOUP_UNI = 6;
 // соединения — {f: формула, n: название, c: состав, mb: кратная связь в ней (2 — двойная, 3 — тройная)}
 const COMP = [
   { f: 'H₂', n: 'водород', c: { H: 2 } }, { f: 'H₂O', n: 'вода', c: { H: 2, O: 1 } }, { f: 'NH₃', n: 'аммиак', c: { N: 1, H: 3 } },
@@ -83,7 +86,7 @@ const Mols = {
   enter(prev) {
     this.m = []; this.t = 0; this.clock = 0; this.hints = []; this.lowEMsgT = 0; this.floats = []; this.tk = {}; this.banner = -1.5;
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.found = []; this.res = new Set(); this.autoCd = 1; this.doneAt = null; this.cheated = false;
-    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, tear: 0, cut: 0 }; this.tore = false;
+    this.st = { bonds: 0, broke: 0, auto: 0, hand: 0, soup: 0, soupU: 0, tear: 0, cut: 0 }; this.tore = false;
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     // brought — сколько твоих нейтральных C, N, O пришло из «Атомов» (null — уровень открыт с титула); dripT — до следующего тяжёлого от Вселенной
     this.brought = prev && prev.ions ? { C: 0, N: 0, O: 0 } : null; this.dripT = M_DRIP0; this.broughtShown = false;
@@ -212,7 +215,7 @@ const Mols = {
   // какого тяжёлого не хватает: чего из нужного (M_HEAVY) свободного в кадре меньше всего по доле; всего хватает — null.
   // По доле, а не по порядку: иначе C, N, O всегда шли первыми
   needEl() {
-    const one = (/** @type {string} */ el) => this.m.filter(m => m.atoms.length === 1 && m.atoms[0].el === el && inView(m.x, m.y, 20)).length;
+    const one = (/** @type {string} */ el) => this.m.filter(m => m.atoms.length === 1 && m.atoms[0].el === el && inRef(m.x, m.y, 20)).length; // по кадру-эталону: отдалился — приток тот же
     let best = null, bq = 1;
     for (const [el, n] of M_HEAVY) { const q = one(el) / n; if (q < bq) { bq = q; best = el; } }
     return best;
@@ -281,8 +284,12 @@ const Mols = {
     // насыщенное, но не из каталога (пропан, CH₂(OH)₂…) — реакция удалась, просто это не бульон: хотя бы формула
     if (!cp) { if (src === 'hand') this.float(x, y - 10, `${this.formula(host)} · не из бульона`, [175, 185, 205], 12); return; }
     if (src === 'auto') { this.st.auto++; Uni.pay(this, this.res.has(cp.f) && !Uni.off(this, cp.f) ? cp.f : [...this.res].find(k => !Uni.off(this, k)) || cp.f, 2); } else if (src === 'hand') this.st.hand++;
-    // Вселенная учится — бульон варит она и ты вместе; H₂ в бульон не в счёт (иначе финал проходился штамповкой H + H)
-    if ((src === 'auto' || (src === 'hand' && this.res.size)) && heavy(cp)) { this.st.soup++; host.soup = true; }
+    // Вселенная учится — бульон варит она и ты вместе, но её доля — не больше M_SOUP_UNI: последнее — рогаткой;
+    // H₂ в бульон не в счёт (иначе финал проходился штамповкой H + H)
+    if (heavy(cp) && src === 'auto' && this.st.soupU < M_SOUP_UNI) {
+      this.st.soup++; this.st.soupU++; host.soup = 'auto';
+      if (this.st.soupU === M_SOUP_UNI) tipMsg('mols:soupU', `Законы сварили ${M_SOUP_UNI} из ${M_SOUP}: остальное бульону — рогаткой`);
+    } else if (heavy(cp) && src === 'hand' && this.res.size) { this.st.soup++; host.soup = 'hand'; }
     Codex.note('m:' + cp.f);
     if (!this.found.includes(cp.f)) {
       this.found.push(cp.f); this.kn += 15; Sfx.play('fresh');
@@ -340,7 +347,7 @@ const Mols = {
   splitBond(mol, bi) {
     const [i, j, si, sj] = mol.bonds[bi];
     if (mol.mine) this.st.cut++; // твоё разорвано — связь снова не оплачивается
-    if (mol.soup) { mol.soup = false; this.st.soup = Math.max(0, this.st.soup - 1); } // разобрал сваренное — в бульоне его больше нет
+    if (mol.soup) { if (mol.soup === 'auto') this.st.soupU = Math.max(0, this.st.soupU - 1); mol.soup = false; this.st.soup = Math.max(0, this.st.soup - 1); } // разобрал сваренное — в бульоне его больше нет
     mol.bonds.splice(bi, 1); mol.atoms[i].b[si] = -1; mol.atoms[j].b[sj] = -1;
     const comp = new Set([i]), st = [i];
     while (st.length) { const u = st.pop(); for (const v of mol.atoms[u].b) if (v >= 0 && !comp.has(v)) { comp.add(v); st.push(v); } }
@@ -462,7 +469,7 @@ const Mols = {
     const f = this.m.filter(m => !m.dead && !m.held && m.age > 1 && !(m.hand > 0) && !(m.auto > 0) && !(this.t - (m.mineT ?? -99) < M_MINE) && this.freeSlots(m) && inRef(m.x, m.y, -5));
     // последний водород — игроку: свободных атомов H в кадре не больше M_HKEEP — Вселенная их не берёт (иначе «Синтез H₂» съедал весь
     // водород, и недостроенные каркасы оставались голыми)
-    const isH = (/** @type {any} */ m) => m.atoms.length === 1 && m.atoms[0].el === 'H', hLow = this.m.filter(m => !m.dead && isH(m) && inView(m.x, m.y, 10)).length <= M_HKEEP;
+    const isH = (/** @type {any} */ m) => m.atoms.length === 1 && m.atoms[0].el === 'H', hLow = this.m.filter(m => !m.dead && isH(m) && inRef(m.x, m.y, 10)).length <= M_HKEEP;
     // и только что принесённый C, N или O — первые M_GIFT с тоже игроку: тяжёлых теперь мало (приток редкий), и «Синтез CH₄» иначе
     // съедал каждый пришедший углерод раньше, чем до него дотянется рогатка (органику с каркасом было не собрать)
     const keep = (/** @type {any} */ m) => (hLow && isH(m)) || (m.gift != null && this.t - m.gift < M_GIFT);
@@ -583,7 +590,7 @@ const Mols = {
       { t: 'Открыть 4 соединения', h: 'аммиак NH₃, метан CH₄, перекись H₂O₂…', items: fd.slice(0, 6).map(f => [f, true]), p: [Math.min(fd.length, 4), 4], s: '4 соединения', d: fd.length >= 4 },
       { t: 'Собрать органику: связь C–C, C–O или C–N', h: 'метанол CH₃OH, этан C₂H₆, метиламин CH₃NH₂, эфир CH₃OCH₃; тяжёлое в тяжёлое — бросок сильнее', s: 'органика', d: ORGANIC.some(f => fd.includes(f)) },
       { t: 'Сформировать законы', h: `${touch ? 'в лавке' : 'клавиши 1–4'}: «Синтез …»`, p: [Math.min(this.res.size, 2), 2], s: 'законы сформированы', d: this.res.size >= 2 },
-      { t: 'Первичный бульон', h: 'законы «Синтез» собирают открытое, рогатка помогает · H₂ не в счёт: нужны молекулы с C, N или O', p: [Math.min(this.st.soup, 10), 10], s: 'бульон готов', d: this.st.soup >= 10 },
+      { t: 'Первичный бульон', h: `законы «Синтез» сварят до ${M_SOUP_UNI}, остальное — рогаткой · H₂ не в счёт: нужны молекулы с C, N или O`, p: [Math.min(this.st.soup, M_SOUP), M_SOUP], s: 'бульон готов', d: this.st.soup >= M_SOUP },
     ];
   },
   starPool() {

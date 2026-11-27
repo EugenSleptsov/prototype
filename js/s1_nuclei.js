@@ -25,7 +25,8 @@ const ELEM = [['n', 'Нейтрон', 0], ['H', 'Водород', 1], ['He', 'Г
 const elemOf = Z => ELEM[clamp(Z, 0, ELEM.length - 1)];
 const NR = .8; // радиус нуклона в масштабе уровня атомов (части ядра передаются туда)
 // N_FLY — сколько летит брошенное (минимум), N_REACH — сколько оно пролетает самое меньшее: мягкий бросок летит дольше и долетает
-// Y_R — гелий считаем в круге этого радиуса вокруг центра кадра (не по всему, что сейчас живёт в мире: иначе доля зависела бы от зума)
+// Y_R — гелий считаем в круге этого радиуса вокруг места, где начался уровень (yc), — не по всему, что живёт в мире (иначе доля
+// зависела бы от зума), и не вокруг камеры: раньше сдвиг карты к своей кучке гелия поднимал долю, а с ней финиш и очки
 const Y_R = 12.6;
 const N_FRAC = [.15, .4]; // доля нейтронов во Вселенной: по итогу «Адронов» — не меньше и не больше
 // «Нуклеосинтез» сам доводит гелий лишь до SYN_TOP — дальше ⁴He куёт Вселенная только до A = 3 (²H, ³H, ³He — заготовки),
@@ -61,6 +62,7 @@ const Nuclei = {
     this.hr = prev && prev.hr != null ? (typeof prev.hr === 'function' ? prev.hr() : prev.hr) : 1.4;
     P.vx = P.vy = 0;
     if (!prev) P.x = P.y = 0;
+    this.yc = { x: P.x, y: P.y }; this.yEnd = null; // круг счёта гелия — здесь, на месте; доля на финише — застывает
     // итог «Адронов» решает состав Вселенной: доля нейтронов среди твоих барионов (не собрал — нейтронов мало)
     let mp = 0, mn = 0;
     if (prev && prev.groups) for (const grp of prev.groups.values()) { if (grp.kind === 'p') mp++; else if (grp.kind === 'n') mn++; }
@@ -100,7 +102,7 @@ const Nuclei = {
   },
   // Вселенная вокруг: не хватает в кадре — приходит из-за края; чужое далеко за краем растворяется
   tide(dt) {
-    dissolveFar(this.o, o => o.held || o.fly > 0 || Math.hypot(o.x - cam.x, o.y - cam.y) < Y_R); // круг, где считаем гелий, не растворяем — и при зуме
+    dissolveFar(this.o, o => o.held || o.fly > 0 || (zoneNear(this.yc) && Math.hypot(o.x - this.yc.x, o.y - this.yc.y) < Y_R)); // круг, где считаем гелий, не растворяем — ни при зуме, ни при сдвиге карты
     this.el = this.el.filter(e => !farOff(e));
     if (this.doneAt !== null) return;
     const have = this.o.filter(o => !o.dead && inView(o.x, o.y, 1)).length;
@@ -366,7 +368,7 @@ const Nuclei = {
     const goal = this.steps().every(s => s.d);
     this.stuckT = this.doneAt === null && this.stuck() ? (this.stuckT || 0) + dt : 0;
     if (this.doneAt === null && (goal || this.stuckT > 4 || this.clock > N_WIN)) {
-      this.doneAt = this.clock; this.endCd = 2; this.sl.held = null; this.failed = !goal;
+      this.doneAt = this.clock; this.endCd = 2; this.sl.held = null; this.failed = !goal; this.yEnd = this.Y(); // очки и гелий «Звёзд» — по доле на финише, а не через 2 с
       for (const o of this.o) o.held = false;
       if (!goal) this.float(P.x, P.y - 2, this.clock > N_WIN ? 'остывание: синтез окончен' : 'нейтронов больше нет, синтез окончен', [200, 210, 240], 16);
       this.tickStars(true);
@@ -381,12 +383,13 @@ const Nuclei = {
   // гелию больше не из чего взяться: нет свободных нейтронов, ²H, ³H и пары ³He — и Вселенная почти не приносит нейтронов
   stuck() { const c = this.counts(); return this.clock > 60 && c.n === 0 && c.mid - c.he3 === 0 && c.he3 < 2; },
   // доля массы в гелии-4 и всём, что из него выросло (³He не в счёт — он ещё «недостроен»), среди всех ядер вокруг
-  // считаем в круге Y_R вокруг центра кадра; знаменатель — не меньше, чем вещества там по плотности Вселенной:
-  // отъехал зумом (в кадре реже) или приблизил — доля от этого не растёт
+  // считаем в круге Y_R вокруг места начала уровня (yc); знаменатель — не меньше, чем вещества там по плотности Вселенной:
+  // отъехал зумом (в кадре реже), приблизил или сдвинул карту — доля от этого не растёт. Уровень кончился — доля застыла (yEnd)
   Y() {
+    if (this.yEnd != null) return this.yEnd;
     let m = 0, all = 0;
     for (const o of this.o) {
-      if (o.dead || Math.hypot(o.x - cam.x, o.y - cam.y) > Y_R) continue;
+      if (o.dead || Math.hypot(o.x - this.yc.x, o.y - this.yc.y) > Y_R) continue;
       all += o.Z + o.N; if (o.Z >= 2 && o.Z + o.N >= 4) m += o.Z + o.N;
     }
     return m / Math.max(1, all, N_DENS * Math.PI * Y_R * Y_R);
@@ -488,6 +491,7 @@ const Nuclei = {
     else if (N_BIND[nkey(o)] && this.T() > .3 && this.doneAt === null) ring(sx, sy, o.rad * z + 3, [255, 240, 170], .18 * a, 1, [3, 4]); // хрупкое, пока горячо
   },
   draw(al) {
+    { const [cx, cy] = W2S(this.yc.x, this.yc.y); ring(cx, cy, Y_R * cam.z, [255, 225, 150], .08 * al, 1, [6, 10]); } // где считается гелий
     const z = cam.z;
     for (const g of this.g) {
       const [sx, sy] = W2S(g.x, g.y), c = g.E > 2.4 ? [220, 200, 255] : g.E > 1 ? [255, 255, 230] : [255, 190, 120];

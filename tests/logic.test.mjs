@@ -23,7 +23,7 @@ test('ядра: ⁴He + ⁴He — не реакция (без «нового» �
   assert.equal(g.ev(`G.stage.o.filter(o => o.thrown === 'auto').length`), 0);
 });
 
-test('атомы: доля нейтральных — по ионам у кадра, улетевшее далеко голое ядро её не держит; пустой кадр — не 100 %', () => {
+test('атомы: доля нейтральных — по зоне у точки входа, улетевшее само голое ядро её не держит, брошенное тобой — держит; пустой кадр — не 100 %', () => {
   const g = toStage('atoms');
   g.ev(`for (const i of G.stage.ions) i.dead = true; G.stage.ions = [];
     const a = G.stage.ion(8, P.x, P.y, 1); a.ne = 8; G.stage.ions.push(a);
@@ -35,7 +35,9 @@ test('атомы: доля нейтральных — по ионам у кад�
     const i = G.stage.ion(1, P.x + (k % 9) * .8 - 3, P.y + Math.floor(k / 9) * .8, 1); i.ne = 1; G.stage.ions.push(i); }`);
   assert.equal(g.ev('G.stage.neutral()'), 1, 'кадр полон — все нейтральны');
   g.ev('P.x += viewRadius() * 6; cam.x = P.x');
-  assert.equal(g.ev('G.stage.neutral()'), 0, 'там, где голое ядро, — 0');
+  assert.equal(g.ev('G.stage.neutral()'), 1, 'счёт — по зоне у точки входа, а не по камере: уехал к голому ядру — доля та же');
+  g.ev('G.stage.ions.find(i => i.mine && i.ne < i.Z).thr = true');
+  assert.ok(g.ev('G.stage.neutral()') < 1, 'голое ядро, брошенное тобой, в счёте и вдали');
 });
 
 test('молекулы: финал — итоги уровня и вехи последнего кадра в очках', () => {

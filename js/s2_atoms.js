@@ -43,6 +43,10 @@ const HUNT_AT = .75, HUNT_N = 4; // нейтральных больше — го
 // пропала из виду, а элемент ещё не одет — следующая через DUST_GAP с (уровень проходим и без твоей звезды)
 const DUST_T = 25, DUST_K = .3, DUST_GAP = 15;
 const A_VIEW = 14.5, A_DENS = .025, A_CAP = 40, A_ECAP = 30, A_COST = 30, A_GOAL = .9, TR_LIFE = 1.1, TR_W = .55; // TR_W — полуширина следа (мир)
+// запас следа (REVIEW_DESIGN 5.2): росчерк тратит INK на единицу длины, запас копится INK_REG в секунду; кончился — след
+// рвётся и продолжается, только когда накопится INK_GO. Точный росчерк поперёк электрона стоит 1–2 ед., каракули по всему
+// экрану — нет (раньше слепой зигзаг одним зажатием без закона давал 74–79 % нейтральных за 2 минуты)
+const INK_MAX = 8, INK_REG = 2.5, INK_GO = 2;
 const AT_EL = { 1: ['H', [235, 235, 240]], 2: ['He', [200, 250, 255]], 3: ['Li', [200, 120, 255]], 6: ['C', [150, 150, 165]], 7: ['N', [110, 145, 255]], 8: ['O', [250, 95, 80]] };
 const atSym = Z => (AT_EL[Z] || [elemOf(Z)[0]])[0];
 const atCol = Z => (AT_EL[Z] || [0, [220, 220, 230]])[1];
@@ -77,7 +81,8 @@ const Atoms = {
     this.once('hold', 'Атом — рогаткой, как везде: оттянуть и отпустить — встанет в конце пунктира. Пока держишь — стоит, заторможенные рядом садятся. Тормозит и осаживает — след');
   },
   /** @param {{x: number, y: number, vx: number, vy: number, Z: number, ne: number}} b @param {number} vx @param {number} vy */
-  launch(b, vx, vy) { b.vx = vx; b.vy = vy; },
+  // брошенный тобой голый ион идёт в долю, где бы ни встал, пока не одет: выбросить его за край счёта — не способ (REVIEW_DESIGN 5.4)
+  launch(b, vx, vy) { b.vx = vx; b.vy = vy; if (Math.hypot(vx, vy) > .5) b.thr = true; },
   // путь броска: ион тормозится туманностью (ION_DRAG) и встаёт; у точки остановки — сколько там заторможенных e⁻
   /** @param {{x: number, y: number, vx: number, vy: number, Z: number, ne: number}} b @param {number} vx @param {number} vy */
   predict(b, vx, vy) {
@@ -90,10 +95,11 @@ const Atoms = {
   enter(prev) {
     this.t = 0; this.clock = 0; this.Ta = 1; this.ions = []; this.el = []; this.ph = []; this.tr = []; this.floats = [];
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.rs = { rec: 0, red: 0 }; this.banner = -1.5; this.tk = {}; this.doneAt = null; this.endCd = -1;
-    this.advanced = false; this.cheated = false; this.seenN = new Set(); this.phT = 0; this.was = false; this.stroke = 0; this.grab = null; this.trOn = false;
+    this.advanced = false; this.cheated = false; this.seenN = new Set(); this.phT = 0; this.was = false; this.stroke = 0; this.grab = null; this.trOn = false; this.ink = INK_MAX; this.dry = false;
     this.sl = new Sling(this);
     this.st = { brakes: 0, ionized: 0, best: 0, relaxed: 0, cascade: 0, cut: 0, shield: 0, held: 0 }; this.caps = { hand: 0, auto: 0 }; this.msgs = new Set();
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
+    this.zc = { x: P.x, y: P.y }; // туманность считается здесь, на месте сверхновой, а не там, куда уехала карта (REVIEW_DESIGN 5.4)
     this.fromStars = !!(prev && prev.o); this.alien = []; this.dustAt = {};
     // ионы — ядра со «Звёзд», каждое там, куда его вынесла сверхновая, и с той же скоростью (структура ядра больше не видна — голый ион)
     if (prev && prev.o) for (const o of prev.o) {
@@ -134,8 +140,9 @@ const Atoms = {
     this.stars = pickStars(this.starPool());
   },
   float(x, y, txt, c = [140, 220, 255], sz = 13) { this.floats.push({ x, y, t: 0, txt, c, sz }); Fly.from(x, y, txt); },
-  // ex — сколько электронов на возбуждённой орбите (внешние из ne), exT — сколько ей ещё жить, by — кто их поймал, kDone — K-оболочка закрыта (награда — раз)
-  ion(Z, x, y, age) { return { Z, ne: 0, ex: 0, exT: 0, exAt: -9, by: null, kDone: false, x, y, vx: randn() * .3, vy: randn() * .3, age, rot: Math.random() * TAU, mine: false, src: null }; },
+  // ex — сколько электронов на возбуждённой орбите (внешние из ne), exT — сколько ей ещё жить, exH — сколько из них поймано следом,
+  // hN — сколько электронов иона поймано следом за всё время (ручная цена — на электрон, а не на ион), kDone — K-оболочка закрыта (награда — раз)
+  ion(Z, x, y, age) { return { Z, ne: 0, ex: 0, exT: 0, exAt: -9, exH: 0, hN: 0, kDone: false, x, y, vx: randn() * .3, vy: randn() * .3, age, rot: Math.random() * TAU, mine: false, src: null }; },
   /** подсказка словами — один раз за уровень @param {string} k @param {string} txt */
   once(k, txt) { if (!this.msgs.has(k)) { this.msgs.add(k); tipMsg(this.key + ':' + k, txt); } }, // урок — раз за всю игру
   // ион Вселенной: в основном водород и гелий, тяжёлым — по равной доле на C, N и O; чужой (не из твоей звезды) —
@@ -183,7 +190,7 @@ const Atoms = {
   },
   // Вселенная вокруг: ионов в кадре не хватает — приходят из-за края (после «Рекомбинации» — часто уже нейтральными); чужое вдали растворяется
   tide(dt) {
-    dissolveFar(this.ions);
+    dissolveFar(this.ions, i => zoneNear(this.zc) && this.counted(i)); // туманность, где считается доля, не растворяется — и когда карта уехала
     this.ions = this.ions.filter(i => !i.dead);
     if (this.doneAt !== null) return;
     const have = this.ions.filter(i => inView(i.x, i.y, 1)).length;
@@ -200,28 +207,36 @@ const Atoms = {
   recOn() { return !!this.rs.rec && !Uni.off(this, 'rec'); },
   // знаменатель — не меньше A_SPARSE обычного числа ионов кадра: увёл камеру в пустоту, где пара нейтральных, —
   // это не «туманность прозрачна», недостающие ионы считаются голыми (игрок: «отодвинул где ничего нет — 100 %»)
-  neutral() { let n = 0, z = 0; for (const i of this.ions) if (!i.dead && inRef(i.x, i.y, A_REFM)) { n += Math.min(i.ne, i.Z); z += i.Z; } return n / Math.max(z, this.zFloor(), 1); },
+  // возбуждённый атом ещё светится — нейтральным он станет, когда электрон спрыгнет на основную (ne − ex)
+  counted(i) { return !i.dead && (inZone(this.zc, i.x, i.y, A_REFM) || (i.thr && i.ne < i.Z)); },
+  neutral() { let n = 0, z = 0; for (const i of this.ions) if (this.counted(i)) { n += Math.min(i.ne - (i.ex || 0), i.Z); z += i.Z; } return n / Math.max(z, this.zFloor(), 1); },
   zFloor() { return A_SPARSE * popWant(A_DENS, A_CAP, refZ()); },
-  sparse() { let z = 0; for (const i of this.ions) if (!i.dead && inRef(i.x, i.y, A_REFM)) z += i.Z; return z < this.zFloor(); },
+  sparse() { let z = 0; for (const i of this.ions) if (this.counted(i)) z += i.Z; return z < this.zFloor(); },
   // последние проценты — охота: голые (и недоодетые) ионы, что идут в долю, когда нейтральных больше HUNT_AT
   huntList() {
     if (this.doneAt !== null || this.neutral() <= HUNT_AT) return [];
-    return this.ions.filter(i => !i.dead && i.ne < i.Z && inRef(i.x, i.y, A_REFM));
+    return this.ions.filter(i => i.ne < i.Z && this.counted(i));
   },
 
   // ---------- след ----------
-  tickTrail(live) {
+  tickTrail(live, dt) {
     const down = live && mouse.down && !G.paused && this.doneAt === null;
+    this.ink = Math.min(INK_MAX, this.ink + INK_REG * dt);
     if (down && !this.was) { // нажал на атом — его берёт рогатка (sl), мимо — новый росчерк следа
       const [x, y] = S2W(mouse.x, mouse.y);
       this.trOn = !this.ionAt(x, y);
-      if (this.trOn) { this.stroke++; this.strokeN = 0; this.tr = []; }
+      if (this.trOn) { this.stroke++; this.strokeN = 0; this.tr = []; this.dry = this.ink < INK_GO; }
     }
     if (!down) this.trOn = false;
     this.was = down;
     if (down && this.trOn) {
       const [x, y] = S2W(mouse.x, mouse.y), l = this.tr[this.tr.length - 1];
-      if (!l || Math.hypot(l.x - x, l.y - y) > .12) this.tr.push({ x, y, t: G.T });
+      if (this.dry) { // запас кончился: след ждёт, пока накопится, и идёт дальше с разрывом (разрыв — конец «росчерка»)
+        if (this.ink >= INK_GO) { this.dry = false; this.tr.push({ x, y, t: G.T, gap: true }); }
+      } else if (!l) this.tr.push({ x, y, t: G.T });
+      else { const d = Math.hypot(l.x - x, l.y - y);
+        if (d > .12) { if (d <= this.ink) { this.ink -= d; this.tr.push({ x, y, t: G.T }); }
+          else { this.dry = true; this.strokeN = 0; this.once('ink', 'След иссяк: запас копится заново. Точный короткий росчерк поперёк электрона дешевле каракулей'); } } }
     }
     this.tr = this.tr.filter(p => G.T - p.t < TR_LIFE);
   },
@@ -253,7 +268,7 @@ const Atoms = {
     if (live && this.doneAt === null) { this.dustTick(); if (this.huntList().length) this.once('hunt', 'Почти: ещё светятся отмеченные голые ионы, за краем кадра — стрелки к ним'); }
     for (const f of this.floats) f.t += dt;
     this.floats = this.floats.filter(f => f.t < 1.6);
-    this.tickTrail(live);
+    this.tickTrail(live, dt);
     if (live && this.doneAt === null) this.sl.update(); else if (this.sl.held) this.sl.held = null;
     this.grab = this.sl.held && !this.sl.held.dead ? this.sl.held : null; // взятый рогаткой — стоит
     const vth = this.vth();
@@ -268,7 +283,7 @@ const Atoms = {
     if (live && this.tr.length > 1) for (const io of this.ions) {
       if (!(io.ex > 0)) continue;
       for (let i = 1; i < this.tr.length; i++) {
-        const p = this.tr[i - 1], q = this.tr[i];
+        const p = this.tr[i - 1], q = this.tr[i]; if (q.gap) continue;
         if (q.t > io.exAt + .25 && segDist(io.x, io.y, p.x, p.y, q.x, q.y) < .9) { this.relax(io, 'hand'); break; }
       }
     }
@@ -300,7 +315,7 @@ const Atoms = {
       e.x += e.vx * dt; e.y += e.vy * dt;
       // пересёк след или прошёл рядом с ним — тормозит
       if (live && e.brk <= 0 && this.tr.length > 1) for (let i = 1; i < this.tr.length; i++) {
-        const p = this.tr[i - 1], q = this.tr[i];
+        const p = this.tr[i - 1], q = this.tr[i]; if (q.gap) continue;
         if (segX(ox, oy, e.x, e.y, p.x, p.y, q.x, q.y) || segDist(e.x, e.y, p.x, p.y, q.x, q.y) < TR_W) { this.brake(e, 'hand'); break; }
       }
       if (farOff(e)) e.dead = true;
@@ -324,7 +339,7 @@ const Atoms = {
       if (p.esc) continue; // ушёл из туманности — атомов и электронов на пути больше нет
       // перечеркнул УФ следом — рассеян в безвредный видимый свет
       if (live && p.hard && this.tr.length > 1) for (let i = 1; i < this.tr.length; i++) {
-        const a = this.tr[i - 1], b = this.tr[i];
+        const a = this.tr[i - 1], b = this.tr[i]; if (b.gap) continue;
         if (segX(ox, oy, p.x, p.y, a.x, a.y, b.x, b.y) || segDist(p.x, p.y, a.x, a.y, b.x, b.y) < TR_W * 1.3) { this.cutUV(p); break; }
       }
       for (const io of this.ions) {
@@ -363,7 +378,7 @@ const Atoms = {
   // пойман — но сперва на возбуждённой орбите: награда за атом — когда спрыгнет на основную
   capture(io, e) {
     e.dead = true; io.ne++; io.ex = (io.ex || 0) + 1; io.exT = EX_T; io.exAt = G.T;
-    if (e.by === 'hand') { this.caps.hand++; io.by = 'hand'; } else { this.caps.auto++; if (io.by !== 'hand') io.by = 'auto'; }
+    if (e.by === 'hand') { this.caps.hand++; io.exH = (io.exH || 0) + 1; io.hN = (io.hN || 0) + 1; } else this.caps.auto++;
     fxRing(io.x, io.y, .3, atCol(io.Z), 1.6, .5);
     Sfx.play('catch', Math.min(3, io.ne - 1));
     this.once('ex', 'Электрон пойман, но дрожит на внешней орбите, и свет легко его сбивает. Осадить его — провести следом через атом');
@@ -374,7 +389,9 @@ const Atoms = {
   relax(io, how, by) {
     if (!(io.ex > 0)) return;
     io.ex = 0; io.exT = 0;
-    const c = atSpec(io.Z), s = atSym(io.Z), me = how !== 'self' || io.by === 'hand'; io.by = null;
+    // me — осадил ты (след или каскад): ручная цена; спрыгнул сам — цена Вселенной, но если электрон поймал ты (exH),
+    // ✦ всё равно твои (раньше самоосаживание пойманного следом платило полную ручную цену — и K-оболочку)
+    const c = atSpec(io.Z), s = atSym(io.Z), me = how !== 'self', mineE = me || (io.exH || 0) > 0; io.exH = 0;
     fxFlash(io.x, io.y, how === 'self' ? .9 : 1.6, c, how === 'self' ? .35 : .65); fxRing(io.x, io.y, .3, c, how === 'self' ? 1.3 : 2.4, .55);
     const a = by ? Math.atan2(by.vy, by.vx) : Math.random() * TAU, sx = by ? by.x - Math.sin(a) * .25 : io.x, sy = by ? by.y + Math.cos(a) * .25 : io.y;
     this.ph.push({ x: sx, y: sy, vx: Math.cos(a) * RES_V, vy: Math.sin(a) * RES_V, t: 0, hard: false, E: 2, res: io.Z, from: io, hand: how !== 'self', life: 1.6 });
@@ -384,18 +401,18 @@ const Atoms = {
     else if (how === 'casc') { this.st.cascade++; pts += 2; txt = `каскад ${is}`; Sfx.play('catch', 3); this.once('casc', 'Фотон той же линии осадил такой же атом и летит дальше вдвоём с копией: каскад'); }
     if (io.Z > 2 && io.ne >= 2 && !io.kDone) { io.kDone = true; if (me) { pts += 2; txt = (txt || is) + ' · K-оболочка'; } }
     if (io.ne >= io.Z) { // нейтральный атом — своими руками дороже
-      Codex.note('a:' + io.Z); pts += me ? 4 : 2; if (!txt || how === 'self') txt = s;
+      Codex.note('a:' + io.Z); pts += me && (io.hN || 0) * 2 >= io.Z ? 4 : 2; if (!txt || how === 'self') txt = s; // ручная цена — если хотя бы половину электронов поймал ты
       if (!this.seenN.has(io.Z)) { this.seenN.add(io.Z); pts += 10; txt = `НОВЫЙ АТОМ ${s} · ${elemOf(io.Z)[1].toLowerCase()}`; big = true; Sfx.play('fresh'); }
       fxFlash(io.x, io.y, 1.4, atCol(io.Z), .6);
       if (io.mine && io.Z >= 6) { pts *= 2; txt += ' · из своей звезды ×2'; } // выкованное тобой вещество — дороже: переждать «Звёзды» не то же самое
     }
     if (!pts) return;
-    if (me) this.kn += pts; else Uni.pay(this, 'rec', pts); // осадила и собрала Вселенная — в сводку
+    if (mineE) this.kn += pts; else Uni.pay(this, 'rec', pts); // осадила и собрала Вселенная — в сводку
     this.float(io.x, io.y - .8, `${txt} +${pts} ✦`, big ? [255, 215, 110] : c, big ? 16 : 13);
   },
   ionize(io, p) {
     const exc = io.ex > 0;
-    io.ne--; this.st.ionized++; if (exc) io.ex--; if (!io.ex) io.by = null;
+    io.ne--; this.st.ionized++; if (exc) io.ex--; io.exH = Math.min(io.exH || 0, io.ex);
     const a = Math.atan2(p.vy, p.vx) + randn() * .5, v = 12;
     this.el.push({ x: io.x, y: io.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, k: 1, slow: 0, brk: .5, by: null, age: 1 });
     fxFlash(io.x, io.y, .9, [255, 255, 255], .3);
@@ -490,7 +507,7 @@ const Atoms = {
     }
     // след
     for (let i = 1; i < this.tr.length; i++) {
-      const p = this.tr[i - 1], q = this.tr[i], k = 1 - (G.T - q.t) / TR_LIFE;
+      const p = this.tr[i - 1], q = this.tr[i], k = 1 - (G.T - q.t) / TR_LIFE; if (q.gap) continue;
       const [x1, y1] = W2S(p.x, p.y), [x2, y2] = W2S(q.x, q.y);
       line(x1, y1, x2, y2, GOLD, .75 * k * al, 3 + 4 * k);
     }
@@ -551,6 +568,8 @@ const Atoms = {
       }
     }
     if (!G.prev) this.drawHunt(al);
+    // запас следа — дуга у пальца, пока ведёшь след (кончился — красная, ждёт INK_GO)
+    if (this.trOn && this.ink < INK_MAX - .05) { const f = this.ink / INK_MAX; ring(mouse.x, mouse.y, 18, [255, 255, 255], .12 * al, 2); arc(mouse.x, mouse.y, 18, -Math.PI / 2, -Math.PI / 2 + TAU * f, this.dry ? [255, 130, 110] : GOLD, .8 * al, 3); }
     this.sl.draw(al); // рогатка атома: резинка, пунктир до остановки, вердикт
     for (const fl of this.floats) { const [fx, fy] = W2S(fl.x, fl.y); labelIn(fl.txt, fx, fy - 16 - fl.t * 26, fl.sz, fl.c, clamp(1.6 - fl.t, 0, 1), 700); }
     ctx.globalAlpha = 1;
