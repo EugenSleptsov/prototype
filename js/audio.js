@@ -34,7 +34,7 @@ const Sfx = {
   },
   arp(notes, step, dur, vol, type = 'triangle') { notes.forEach((f, i) => this.tone(type, f, f, dur, vol, i * step)); },
   // минимальный интервал между одинаковыми звуками — чтобы поток событий не превращался в треск
-  GAP: { catch: .06, decay: .12, pop: .15, fizzle: .25, pert: .03, grab: .08, annih: .1 },
+  GAP: { catch: .06, decay: .12, pop: .15, fizzle: .25, pert: .03, grab: .08, annih: .1, bounce: .15, bond: .05 },
   play(name, v = 0) {
     if (!this.ctx || this.muted) return;
     const now = this.ctx.currentTime;
@@ -49,6 +49,9 @@ const Sfx = {
     if (q > 0) this.hO.frequency.setTargetAtTime(90 + 380 * q * q, t, .04);
   },
   S: {
+    // «Молекулы»: связь — чистый тон, выше и с обертоном у кратной (n = 1…3); отскок — глухой толчок (v — сила удара 0…1)
+    bond(n) { const f = [0, 523, 659, 784][n] || 523; this.tone('sine', f, f * 1.5, .1, .1); if (n > 1) this.tone('triangle', f * 2, f * 2, .12, .05, .05); },
+    bounce(v) { this.tone('sine', 150, 80, .1, .05 + .07 * v); this.noise(.04, .05, 700, true); },
     snap() { this.noise(.045, .22, 3200); this.tone('square', 1600, 900, .035, .04); },
     fresh() { this.arp([659, 880, 1319], .075, .16, .14); },
     catch(c) { const f = [520, 620, 780, 1040][c] || 520; this.tone('sine', f, f * 1.25, .07, .05 + .03 * c); },
