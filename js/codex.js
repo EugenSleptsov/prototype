@@ -209,9 +209,21 @@ const smConv = k => {
     : ` Условность игры: ${'uct'.includes(k) ? 'u, c, t рождает γ + g' : 'd, s, b рождает g + g'}, в природе любой из этих ударов рождает кварки любого аромата, если хватает энергии.`;
   return who + (SM[k].gen > 1 ? ' Поколения открываются по порядку — тоже условность: в горячей Вселенной все рождались сразу.' : '');
 };
+// Шпаргалка удара (второе ревью №15): пара квантов × ступень ⚡ — что рождается (матрица MATRIX уровня частиц).
+// Только открытое в забеге, остальное — «?»; пока не открыт свет — шпаргалки нет.
+function rxSheet() {
+  if (typeof MATRIX === 'undefined' || !Codex.run.has('ph')) return '';
+  const has = k => Codex.run.has(k);
+  const cell = sp => sp === 'jets' ? (has('g') ? 'u ū g' : '?') + (has('W') ? ' · W⁺W⁻' : '')
+    : sp === 'tg' ? (has('t') ? 't t̄ g' : '?') : has(sp) ? SM[sp].sym : '?';
+  const head = '<span></span>' + MATRIX.phph.map((_, i) => `<span style="opacity:.6">${i + 1}⚡</span>`).join('');
+  const rows = Object.keys(MATRIX).map(kd => `<span style="opacity:.6;text-align:left;white-space:nowrap">${PAIR_N[kd]}</span>` + MATRIX[kd].map(sp => `<b style="opacity:${cell(sp).startsWith('?') ? .45 : 1}">${cell(sp)}</b>`).join('')).join('');
+  return `<div class="rxs" style="margin-top:12px;font-size:12px;opacity:.75">Удар: пара квантов × ступень</div>`
+    + `<div class="rxs" style="display:grid;grid-template-columns:auto repeat(${MATRIX.phph.length},1fr);gap:5px 10px;margin-top:6px;font-size:13px;text-align:center">${head}${rows}</div>`;
+}
 const CX = {
   sm: {
-    n: 'Частицы', title: 'Стандартная модель', cols: 5, empty: 'Выбрать открытую частицу: масса, заряд, распады.',
+    n: 'Частицы', title: 'Стандартная модель', cols: 5, get empty() { return 'Выбрать открытую частицу: масса, заряд, распады.' + rxSheet(); },
     head: () => { const gc = genCur(); return [1, 2, 3].map(g => `<div class="gh ${g < gc ? 'done' : g === gc ? 'cur' : ''}">${g < gc ? '✓ ' : ''}${GEN_N[g]}</div>`).join('') + '<div class="gh">бозоны</div><div class="gh"></div>'; },
     items: () => Codex.LAYOUT.flat().map(k => {
       if (!k) return { gap: true };

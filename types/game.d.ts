@@ -183,7 +183,8 @@ interface Wave { n: number; cd: number; dir: number | null; cur: { list: Q[]; t:
 interface Safe { a: number; r: number; w: number; t0: number; q: string[] }
 interface Stored { fl: string; col: number }
 interface Handoff { x: number; y: number; vx: number; vy: number; fl: string; col: number }
-interface Tut { i: number; t: number; abs: number; weak: number; lep: number; q: number; end: number }
+/** Обучение: шаг; сколько поймано света; удары слабо / на 1 ⚡ / изо всех сил; снимков новой частицы */
+interface Tut { i: number; t: number; abs: number; weak: number; lep: number; q: number; snap: number; end: number }
 interface CoachPick { kind: string; o?: Q; o2?: Q; el?: HTMLElement }
 interface Coach { idle: number; t: number; kind: string | null; o?: Q | null; o2?: Q | null; el?: HTMLElement | null }
 /** Освоенные жесты (подсказки гаснут) */
@@ -253,6 +254,8 @@ interface ParticlesState {
   /** таймер запаса u/d; когда t Вселенной последний раз зарядил ⚡ (время уровня) */
   udT: number; tAt: number;
   handoff: Handoff[] | null; stockOut: boolean; finale: number;
+  /** эпоха 4 остыла, а цели нет — уровень дальше без бонуса */
+  failed: boolean;
   /** цели забега: эпоха 1 — что открыть, эпоха 3 — чьи распады снять */
   need0: string[]; need2: string[];
   st: EpochStat;
