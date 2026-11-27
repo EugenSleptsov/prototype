@@ -86,7 +86,7 @@ test('ступени удара: без энергии заряд встаёт �
 
 test('матрица до Хиггса: γ+γ → e, закрытые поколения откатываются вниз, 4 ⚡ — три струи', () => {
   const g = toField();
-  assert.deepEqual(json(g, `__hit('ph', 'ph', 0)`).born, []);
+  assert.deepEqual(json(g, `__hit('ph', 'ph', 0)`).born, ['e', '~e']); // лестница 1–4 без нуля: взял пару — уже ступень 1
   assert.deepEqual(json(g, `__hit('ph', 'ph', 1)`).born, ['e', '~e']);
   assert.deepEqual(json(g, `__hit('ph', 'ph', 2)`).born, ['e', '~e']); // μ закрыт, пока не снят e
   assert.deepEqual(json(g, `__hit('ph', 'ph', 4)`).born, ['g', 'u', '~u']);
@@ -195,7 +195,7 @@ test('рецепт в задании: поколение II — только п�
   g.ev(`__hit('ph', 'ph', 1)`);
   s = step(g);
   assert.equal(s.k, 2, 'два промаха — рецепт целиком');
-  assert.match(s.h, /два фотона посильнее/);
+  assert.match(s.h, /два фотона на 2 ⚡/);
 
   const g2 = toField({ storage: { protoCodex: JSON.stringify(['ph', 'mu']) } });
   setup(g2);

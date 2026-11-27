@@ -542,10 +542,10 @@ const Mols = {
   /** @returns {[string, string]} */
   broughtLine() {
     const c = this.brought, els = M_HEAVY.map(([e]) => e);
-    if (!c) return [`с нуля: ${els.map(e => `${e} ×${M_START[e]}`).join(' · ')} от Вселенной`, ''];
+    if (!c) return [`с нуля: стартовый набор ${els.map(e => `${e} ×${M_START[e]}`).join(' · ')}`, ''];
     const have = els.filter(e => c[e] > 0), miss = els.filter(e => !(c[e] > 0));
-    if (!have.length) return ['из «Атомов»: ни C, ни N, ни O', 'их принесёт Вселенная — по одному и не сразу'];
-    return [`из «Атомов»: ${have.map(e => `${e} ×${c[e]}`).join(' · ')}`, miss.length ? `${miss.join(', ')} — от Вселенной, по одному и не сразу` : 'всё своё: от Вселенной — водород, тяжёлые редко'];
+    if (!have.length) return ['из «Атомов»: ни C, ни N, ни O', 'их принесёт приток — по одному и не сразу'];
+    return [`из «Атомов»: ${have.map(e => `${e} ×${c[e]}`).join(' · ')}`, miss.length ? `${miss.join(', ')} — притоком, по одному и не сразу` : 'всё своё; приток — водород, тяжёлые редко'];
   },
   // Shift + колесо — поворот взятого шагом (сразу в угол: скорость вращения Q / E обнуляет каждый кадр)
   wheel(dy) { if (this.sl.held && dy) { this.sl.held.a += Math.sign(dy) * .26; this.sl.held.manRot = true; } },
@@ -583,7 +583,7 @@ const Mols = {
       { t: 'Открыть 4 соединения', h: 'аммиак NH₃, метан CH₄, перекись H₂O₂…', items: fd.slice(0, 6).map(f => [f, true]), p: [Math.min(fd.length, 4), 4], s: '4 соединения', d: fd.length >= 4 },
       { t: 'Собрать органику: связь C–C, C–O или C–N', h: 'метанол CH₃OH, этан C₂H₆, метиламин CH₃NH₂, эфир CH₃OCH₃; тяжёлое в тяжёлое — бросок сильнее', s: 'органика', d: ORGANIC.some(f => fd.includes(f)) },
       { t: 'Сформировать законы', h: `${touch ? 'в лавке' : 'клавиши 1–4'}: «Синтез …»`, p: [Math.min(this.res.size, 2), 2], s: 'законы сформированы', d: this.res.size >= 2 },
-      { t: 'Первичный бульон', h: 'Вселенная собирает открытое, рогатка ей помогает · H₂ не в счёт: нужны молекулы с C, N или O', p: [Math.min(this.st.soup, 10), 10], s: 'бульон готов', d: this.st.soup >= 10 },
+      { t: 'Первичный бульон', h: 'законы «Синтез» собирают открытое, рогатка помогает · H₂ не в счёт: нужны молекулы с C, N или O', p: [Math.min(this.st.soup, 10), 10], s: 'бульон готов', d: this.st.soup >= 10 },
     ];
   },
   starPool() {

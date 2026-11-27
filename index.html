@@ -26,7 +26,7 @@
   #act.on{background:#8fd0ff40;border-color:#ffd27a;transform:scale(.95)}
   body.touch #tbar{display:flex;flex-direction:column;gap:8px;position:fixed;right:max(16px,env(safe-area-inset-right));bottom:166px;z-index:6}
   #tbar button{width:56px;height:44px;border-radius:12px;border:1px solid #ffffff33;background:#0b0f1ccc;color:#dde3f0;font:inherit;font-size:15px;touch-action:none;padding:0}
-  body.touch #shop{left:12px;transform:none;max-width:calc(100vw - 136px);justify-content:flex-start}
+  body.touch #shop{left:max(12px,env(safe-area-inset-left));transform:none;max-width:calc(100vw - max(12px,env(safe-area-inset-left)) - max(16px,env(safe-area-inset-right)) - 108px);justify-content:flex-start}
   /* узкий сенсорный экран: лавка — одна строка с прокруткой, а не 2–3 ряда поверх поля */
   @media (max-width:700px){body.touch #shop{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;width:auto}body.touch #shop::-webkit-scrollbar{display:none}body.touch #shop button{flex:0 0 auto}}
   #t-drop{border-color:#ff9a8a88!important;color:#ffb4a8!important}
@@ -50,6 +50,7 @@
   #controls b{font-weight:600;color:#ffd27a;opacity:.9;text-transform:uppercase;font-size:10px;letter-spacing:.06em;padding-top:1px}
   #help{position:fixed;left:max(16px,env(safe-area-inset-left));bottom:46px;width:28px;height:28px;border-radius:50%;border:1px solid #ffffff33;background:#0b0f1ccc;color:#dde3f0;font:700 14px system-ui,sans-serif;z-index:6;cursor:pointer;padding:0}
   #help:hover{border-color:#ffd27a88;color:#ffd27a}
+  body.touch #help{display:none!important} /* на сенсоре «?» — в столбце кнопок справа: слева внизу она ложилась на лавку */
   #msg{position:fixed;left:50%;top:20%;transform:translateX(-50%);font-size:18px;opacity:0;transition:opacity .5s;text-align:center;pointer-events:none;max-width:80vw}
   .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#05030acc;z-index:5}
   .overlay>div{max-width:560px;padding:24px;line-height:1.55}
@@ -124,6 +125,7 @@
   /* «Законы Вселенной»: что научено и сколько ✦ это приносит */
   #uni{position:fixed;right:16px;bottom:110px;width:230px;box-sizing:border-box;z-index:4;pointer-events:auto;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;font-size:12px;color:#dde3f0;background:#0b0f1c99;border:1px solid #ffffff1a;border-radius:10px;padding:6px 8px 4px}
   #uni .uh{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;opacity:.85;margin-bottom:4px;white-space:nowrap}
+  #uni .uh .un{display:none}
   #uni .uh em{font-style:normal;color:#8fe8b0;font-weight:800;letter-spacing:0;text-transform:none;font-size:12px}
   #uni .ur{display:grid;grid-template-columns:auto 1fr auto auto;grid-template-rows:auto auto;column-gap:6px;align-items:center;padding:3px 0;border-top:1px solid #ffffff0d}
   #uni .ur .ic{grid-row:1/3;min-width:22px;height:22px;padding:0 4px;box-sizing:border-box;border-radius:5px;background:#ffffff12;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#ffd27a}
@@ -146,12 +148,25 @@
   @keyframes uniFl{0%{color:#fff;text-shadow:0 0 10px #8fe8b0}100%{text-shadow:none}}
   /* узкий экран: справа — кнопки касания; сводка — строкой значков над лавкой */
   @media (max-width:700px){
-    #uni{right:auto;left:12px;width:auto;max-width:calc(100vw - 136px);display:flex;flex-wrap:wrap;gap:3px 8px;padding:4px 7px}
+    #uni{right:auto;left:max(12px,env(safe-area-inset-left));width:auto;max-width:calc(100vw - max(12px,env(safe-area-inset-left)) - max(16px,env(safe-area-inset-right)) - 108px);display:flex;flex-wrap:wrap;gap:3px 8px;padding:4px 7px}
     #uni .uh{flex-basis:100%;margin:0}
     #uni .ur{display:flex;gap:3px;border:0;padding:0}
     #uni .ur b,#uni .ur i{display:none}
     #uni .ur .ic{min-width:18px;height:18px;font-size:10px}
     #uni .ur em s{display:none}
+    /* телефон: законы — фишкой «Законы · N  +x ✦/мин»; тап — список поверх поля, тап мимо — свернуть */
+    body.touch #uni .uh{cursor:pointer;gap:8px}
+    body.touch #uni .uh span:first-child{display:none}
+    body.touch #uni .uh .un{display:inline}
+    body.touch #uni .uh .un::after{content:' ▴';opacity:.7}
+    body.touch #uni .ur{display:none}
+    body.touch #uni.open{display:block;width:min(300px,calc(100vw - max(12px,env(safe-area-inset-left)) - max(16px,env(safe-area-inset-right)) - 68px));max-width:none;background:#0b0f1cf2;z-index:25;padding:8px 10px 6px}
+    body.touch #uni.open .uh{margin-bottom:6px}
+    body.touch #uni.open .uh .un::after{content:' ▾'}
+    body.touch #uni.open .ur{display:grid;gap:0 6px;border-top:1px solid #ffffff0d;padding:5px 0}
+    body.touch #uni.open .ur b,body.touch #uni.open .ur i{display:block}
+    body.touch #uni.open .ur .ic{min-width:24px;height:24px;font-size:11px}
+    body.touch #uni.open .ur em s{display:inline}
   }
   #codex b{display:block;font-size:10px;opacity:.75;font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
   #codex b i{font-style:normal;border:1px solid #ffffff40;border-radius:4px;padding:0 4px;margin-left:4px;font-size:9px;opacity:.8}
@@ -413,7 +428,7 @@
   #epoch .pc .k{align-self:flex-start;background:#ffffff22;border-radius:3px;padding:0 6px;font-size:11px;display:inline;margin:0;opacity:1}
   #pname{font:inherit;font-size:15px;padding:7px 10px;border-radius:8px;border:1px solid #ffffff33;background:#ffffff10;color:#fff;width:200px}
   .cs.quark{background:#7a3d9a}.cs.lepton,.cs.nu{background:#2f7a4e}.cs.boson{background:#9a4a2e}.cs.res{background:#5a4416;color:#ffd27a}
-  @media (max-width:700px){#laws{display:none}#upg{bottom:auto;top:60%}#shop{flex-wrap:wrap;justify-content:center;width:96vw}#shop button{min-width:0}#codex{display:none!important}#hud{max-width:none;right:16px}}
+  @media (max-width:700px){#laws{display:none}#upg{bottom:auto;top:60%}#shop{flex-wrap:wrap;justify-content:center;width:96vw}#shop button{min-width:0}body.touch #codex{display:none!important}#codex .cxg{display:none}#codex b{margin:0}#hud{max-width:none;right:16px}} /* узкий ПК-экран: Кодекс — фишкой (на сенсоре — кнопка ⚛) */
 </style>
 </head>
 <body>
@@ -445,6 +460,7 @@
 <div id="tbar">
   <button id="t-drop" data-key="KeyX" aria-label="разжать без удара">✕</button>
   <button id="t-cx" data-key="KeyC" aria-label="кодекс">⚛</button>
+  <button id="t-help" data-key="KeyH" aria-label="подсказки уровня снова">?</button>
   <button id="t-mute" data-key="KeyM" aria-label="звук">🔊</button>
   <button id="t-ff" data-key="Enter" aria-label="ускорить время">×4</button>
   <button id="t-dash" data-key="Space" aria-label="рывок">⇢</button>
@@ -486,20 +502,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=159"></script>
-<script src="js/gestures.js?v=159"></script>
-<script src="js/audio.js?v=159"></script>
-<script src="js/core.js?v=159"></script>
-<script src="js/universe.js?v=159"></script>
-<script src="js/codex.js?v=159"></script>
-<script src="js/sling.js?v=159"></script>
-<script src="js/s0_quarks.js?v=159"></script>
-<script src="js/s_particles.js?v=159"></script>
-<script src="js/s1_nuclei.js?v=159"></script>
-<script src="js/s_stars.js?v=159"></script>
-<script src="js/s2_atoms.js?v=159"></script>
-<script src="js/s3_molecules.js?v=159"></script>
-<script src="js/online.js?v=159"></script>
-<script src="js/main.js?v=159"></script>
+<script src="js/util.js?v=160"></script>
+<script src="js/gestures.js?v=160"></script>
+<script src="js/audio.js?v=160"></script>
+<script src="js/core.js?v=160"></script>
+<script src="js/universe.js?v=160"></script>
+<script src="js/codex.js?v=160"></script>
+<script src="js/sling.js?v=160"></script>
+<script src="js/s0_quarks.js?v=160"></script>
+<script src="js/s_particles.js?v=160"></script>
+<script src="js/s1_nuclei.js?v=160"></script>
+<script src="js/s_stars.js?v=160"></script>
+<script src="js/s2_atoms.js?v=160"></script>
+<script src="js/s3_molecules.js?v=160"></script>
+<script src="js/online.js?v=160"></script>
+<script src="js/main.js?v=160"></script>
 </body>
 </html>

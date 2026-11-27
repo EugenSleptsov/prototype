@@ -93,6 +93,8 @@ addEventListener('pointerdown', e => {
   Sfx.unlock(); G.inT = G.T; // звук включается первым жестом игрока (так требует браузер); inT — игрок здесь (законы платят)
   if (Cine.stop) { e.stopPropagation(); Cine.skip(); if (e.pointerType !== 'mouse') touchMode(); return; } // кадр-пауза: касание — дальше, в игру не идёт
   if (Spot.on) { e.stopPropagation(); Spot.skip(); return; } // стоп-кадр со стрелкой: так же
+  // открытый список законов (телефон): касание мимо — свернуть; касание поля только сворачивает и в игру не идёт
+  { const u = byId('uni'); if (u.classList.contains('open') && !(e.target instanceof Node && u.contains(e.target))) { u.classList.remove('open'); if (e.target === cv) { e.stopPropagation(); return; } } }
   if (e.pointerType === 'mouse') {
     if (e.button !== 0) { if (G.stage.sling && e.target === cv) mpan = { x: e.clientX, y: e.clientY }; return; } // правая/средняя — тянуть карту (где карта своя), иначе — ничего
     if (e.target !== cv) return; // кнопки, лавка, кодекс — не поле
@@ -162,6 +164,7 @@ function touchBar() {
   // «✕ разжать» — пока держишь взятое (частицы): раньше это было касание вторым пальцем поверх ◉ — третий палец
   on('t-drop', G.started && !G.paused && s.canDrop && s.canDrop());
   on('t-cx', G.started && (!s.showCodex || s.showCodex() !== null)); on('t-x', false);
+  on('t-help', G.started && !G.ended && !G.tutor && !G.paused);
   // взятое само поворачивается по ходу броска; но у фрагмента из нескольких атомов к цели может встать не тот — ⟲ ⟳ (как Q / E)
   const rot = s.key === 'molecules' && G.started && !G.paused && !!(s.sl && s.sl.held && s.sl.held.atoms && s.sl.held.atoms.length >= 2);
   on('t-rl', rot); on('t-rr', rot);
@@ -177,6 +180,8 @@ function touchBar() {
   let downK = '', downT = 0;
   uni.addEventListener('pointerdown', e => { downK = rowK(e.target); downT = performance.now(); });
   uni.addEventListener('click', e => {
+    // телефон: шапка сводки — свернуть / развернуть список законов
+    if (isTouch() && e.target instanceof Element && e.target.closest('.uh')) { uni.classList.toggle('open'); downK = ''; return; }
     const k = rowK(e.target) || (performance.now() - downT < 800 ? downK : '');
     downK = '';
     if (k) Uni.toggle(G.stage, k);

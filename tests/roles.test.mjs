@@ -18,7 +18,7 @@ test('e: e⁻ и e⁺ поворачивают друг к другу и гас�
   for (let i = 0; i < 3 * 60 && !g.ev('__a.dead'); i++) g.step(1);
   assert.ok(g.ev('__a.dead && __b.dead'), 'пара встретилась');
   assert.ok(g.ev('G.stage.kn - __kn') >= 1, 'вспышка в кадре дала ✦');
-  assert.ok(g.ev(`G.stage.floats.some(f => f.txt.startsWith('e⁺e⁻ → γγ'))`));
+  assert.ok(!g.ev(`G.stage.floats.some(f => f.txt.includes('+1 ✦') || f.txt.includes('+1 ⚡'))`), 'без надписи «+1 ✦ +1 ⚡» — только вспышка и искра');
 });
 
 test('e: без исследования параллельные e⁻ и e⁺ друг друга не ищут', () => {

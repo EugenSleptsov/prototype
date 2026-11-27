@@ -99,7 +99,7 @@ test('частицы: свет рождается в основном в гор�
   const q = inZone => g.ev(`(() => { const S = G.stage; for (const o of S.p) o.dead = true; S.p = []; S.en = 99;
     if (${inZone}) { S.hz[0].x = P.x; S.hz[0].y = P.y; } else { S.hz[0].x = P.x + 50; }
     const a = S.mk('ph', false, P.x, P.y, 0, 1), b = S.mk('ph', false, P.x, P.y, 0, 1); a.born = b.born = 1; a.cap = b.cap = true;
-    S.focus = { cap: [a, b], q: 0, E: 0, lv: 0, ang: 0, t: 0 }; for (let i = 0; i < 30; i++) S.tickFocus(1 / 60); return S.focus.q; })()`);
+    S.focus = { cap: [a, b], q: 0, E: 0, lv: 0, ang: 0, t: 0 }; for (let i = 0; i < 30; i++) S.tickFocus(1 / 60); return S.focus.q - 1 / LV_N; })()`); // взял пару — сразу ступень 1: сравниваем прирост сверх неё
   assert.ok(q(true) > q(false) * 1.3, 'в горячей области шкала удара бежит быстрее');
 });
 

@@ -645,7 +645,7 @@ const Quarks = {
   shopItems() {
     if (this.doneAt !== null) return [];
     const it = [];
-    if (!this.rs.conf && (this.handN >= HAND_Q || this.steps0())) it.push({ k: 'conf', ic: '◬', name: 'Конфайнмент', about: 'Вселенная сама собирает белое', c: CONF_COST });
+    if (!this.rs.conf && (this.handN >= HAND_Q || this.steps0())) it.push({ k: 'conf', ic: '◬', name: 'Конфайнмент', about: 'сборка белого: соседние цвета — в бесцветное', c: CONF_COST });
     if (this.handN >= 1) it.push({ k: 'gen', ic: '≋', name: 'Приток плазмы', about: `+${GEN_PER} кварков каждого цвета`, c: this.genCost(), opt: true });
     return it;
   },
@@ -659,7 +659,7 @@ const Quarks = {
     this.spent += it.c; this.rs[it.k] = 1; this.autoCd = .5; Sfx.play('upgrade'); Uni.learn(this, it.k, it.ic, it.name, UNI_LVL);
     fxRing(this.C.x, this.C.y, 1, GOLD, Q_R0, 1.4);
     this.float(this.C.x, this.C.y - 1.5, `${it.ic} ${it.name}`, GOLD, 16);
-    msg('Конфайнмент: в холоде цветное не живёт — Вселенная сама сводит соседние цвета в белое');
+    msg('Конфайнмент: в холоде цветное не живёт — соседние цвета сводятся в белое');
   },
   // вакуум рождает пару: антикварк и кварк того же цвета — рядом, в горячем диске (шаг «погасить антикварк» всегда выполним)
   vacPair() {

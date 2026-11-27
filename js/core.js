@@ -317,9 +317,11 @@ const Fly = {
   /** @type {Stage | null} */ of: null,
   tx: 0, ty: 0, seen: -9, pulse: -9, lag: 0,
   /** надпись в мире: «+N ✦» в тексте — искры от неё @param {number} wx @param {number} wy @param {string} txt */
-  from(wx, wy, txt) { const m = /\+(\d+(?:[.,]\d+)?) ✦/.exec(txt); if (m) { const [x, y] = W2S(wx, wy); this.add(x, y - 16, +m[1].replace(',', '.')); } },
-  /** от элемента страницы (строка «Законов Вселенной») @param {string} sel @param {number} v */
-  fromEl(sel, v) { const el = document.querySelector(sel); if (!el) return; const r = el.getBoundingClientRect(); if (r.width) this.add(r.left + 14, r.top + r.height / 2, v); },
+  from(wx, wy, txt) { const m = /\+(\d+(?:[.,]\d+)?) ✦/.exec(txt); if (m) this.atW(wx, wy, +m[1].replace(',', '.')); },
+  /** без надписи: рутинный доход (пойманный свет, вспышка, закон) — только искры @param {number} wx @param {number} wy @param {number} v */
+  atW(wx, wy, v) { const [x, y] = W2S(wx, wy); this.add(x, y - 16, v); },
+  /** от элемента страницы (строка «Законов Вселенной»); вернёт, вылетела ли искра (элемент на экране) @param {string} sel @param {number} v @returns {boolean} */
+  fromEl(sel, v) { const el = document.querySelector(sel); if (!el) return false; const r = el.getBoundingClientRect(); if (!r.width) return false; this.add(r.left + 14, r.top + r.height / 2, v); return true; },
   /** @param {number} sx @param {number} sy @param {number} v */
   add(sx, sy, v) {
     if (!(v > 0) || G.T - this.seen > .5 || this.of !== G.stage || this.q.length > 60) return;
@@ -655,6 +657,44 @@ const Tally = {
   },
 };
 
+// ---------- Счётчик «Во Вселенной»: сколько чего сейчас в мире — числом (общий для уровней) ----------
+// Уровень даёт строки { k, sym, c, n, seen }: k — ключ, sym — подпись, c — цвет, n — сколько сейчас, seen — открыто ли
+// (не открытое — «?», без числа). Число изменилось — оно на COUNT_FL с вспыхивает (больше — зелёным, меньше — красным),
+// а справа на миг всплывает разница «+2» / «−1». Столбцом (draw) или одной строкой (line = true, узкий экран).
+const COUNT_FL = 1.2;
+/** @typedef {{ k: string, sym: string, c: RGB, n: number, seen: boolean }} CountRow */
+const Counts = {
+  /** @type {Map<string, { n: number, d: number, t: number }>} */ last: new Map(),
+  /** @type {Stage | null} */ of: null,
+  /** число строки и его последняя перемена: d — на сколько, a — яркость вспышки 0…1 @param {string} k @param {number} n */
+  note(k, n) {
+    if (this.of !== G.stage) { this.last.clear(); this.of = G.stage; } // новый уровень — без чужих вспышек
+    const r = this.last.get(k);
+    if (!r) { this.last.set(k, { n, d: 0, t: -9 }); return { d: 0, a: 0 }; }
+    if (n !== r.n) { r.d = n - r.n; r.n = n; r.t = G.T; }
+    return { d: r.d, a: clamp(1 - (G.T - r.t) / COUNT_FL, 0, 1) };
+  },
+  /** @param {string} title @param {CountRow[]} rows @param {number} x @param {number} y @param {number} alpha @param {boolean} [line] */
+  draw(title, rows, x, y, alpha, line = false) {
+    ctx.save(); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.globalAlpha = alpha * .9; ctx.font = '600 10px system-ui,sans-serif'; ctx.fillStyle = 'rgba(220,225,240,.6)'; ctx.fillText(title, x, y);
+    let cx = x + ctx.measureText(title).width + 12;
+    rows.forEach((R, i) => {
+      const { d, a } = this.note(R.k, R.n), up = d > 0, fc = R.seen && a > 0 ? mixc([235, 240, 250], up ? [140, 235, 170] : [255, 140, 120], a) : [235, 240, 250];
+      const ry = line ? y : y + 16 + i * 16, sx = line ? cx : x;
+      ctx.globalAlpha = alpha * (R.seen ? 1 : .45);
+      ctx.font = '600 12px system-ui,sans-serif'; ctx.fillStyle = rgb(R.c, 1); ctx.fillText(R.seen ? R.sym : '?', sx, ry);
+      if (!R.seen) { if (line) cx += 22; return; }
+      const nx = line ? sx + ctx.measureText(R.sym).width + 4 : x + 30;
+      ctx.font = `800 ${line ? 12 : 13}px system-ui,sans-serif`; ctx.fillStyle = rgb(fc, 1); ctx.fillText(String(R.n), nx, ry);
+      const nw = ctx.measureText(String(R.n)).width;
+      if (d && a > 0) { ctx.globalAlpha = alpha * a; ctx.font = '700 10px system-ui,sans-serif'; ctx.fillStyle = rgb(up ? [140, 235, 170] : [255, 140, 120], 1); ctx.fillText(up ? `+${d}` : `−${-d}`, nx + nw + 4, ry - 4 * (1 - a)); }
+      if (line) cx = nx + nw + 14;
+    });
+    ctx.restore();
+  },
+};
+
 // ---------- Законы Вселенной: чему научил — работает без тебя и понемногу приносит ✦ ----------
 // Строка на каждый закон уровня («Сформировать закон»): ровный доход rate (✦/мин, выплачивается по 1 ✦) и всё, что принесла.
 // События, за которые Вселенная платит и так (её барионы, вспышки e⁺e⁻, снятые распады…), идут через pay() —
@@ -713,7 +753,7 @@ const Uni = {
     for (const r of S.uni || []) {
       if (!r.rate || !this.on(S, r.k) || (r.acc += r.rate / 60 * dt) < 1) continue;
       r.acc -= 1; this.pay(S, r.k, 1);
-      if (!(S.uniPop && S.uniPop(r.k))) Fly.fromEl(`#uni .ur[data-k="${r.k}"]`, 1); // не на виду — искра из строки закона
+      if (!(S.uniPop && S.uniPop(r.k)) && !Fly.fromEl(`#uni .ur[data-k="${r.k}"]`, 1)) Fly.fromEl('#uni .uh', 1); // не на виду — искра из строки закона (свёрнута на телефоне — из фишки)
     }
   },
   /** всего принесла Вселенная на уровне @param {Stage} S */
@@ -739,7 +779,7 @@ const Uni = {
         `<span class="ic">${r.ic}</span><b>${r.name}${r.lv > 1 ? ` <small>×${r.lv}</small>` : ''}</b><em>${got}</em><u class="sw${dis ? '' : ' on'}"></u>` +
         `<i>${dis ? 'выключен (щелчок включает)' : pm ? fmtPm(pm) + '/мин' : 'не в эту эпоху'}</i></div>`;
     }).join('');
-    const html = `<div class="uh"><span>Законы Вселенной</span><em>${afk() ? 'ждут тебя' : `+${fmtPm(tot)} ✦/мин`}</em></div>` + rows;
+    const html = `<div class="uh" title="Законы Вселенной"><span>Законы Вселенной</span><span class="un">Законы · ${L.length}</span><em>${afk() ? 'ждут тебя' : `+${fmtPm(tot)} ✦/мин`}</em></div>` + rows;
     if (el._h !== html) { el._h = html; el.innerHTML = html; }
     // над лавкой (она бывает в два ряда) и не налезая на сетку кодекса сверху
     const sh = byId('shop'), cx = byId('codex');

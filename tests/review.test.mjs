@@ -177,12 +177,12 @@ test('«Свет» III — не больше света, а вдвое боль�
   assert.match(g.ev(`G.stage.resList().length ? '' : 'x'`) + g.ev(`(() => { G.stage.rs.ph = 2; const r = G.stage.resList().find(r => r.k === 'ph'); return r ? r.about(2) : ''; })()`), /горячих областей вдвое больше/);
 });
 
-test('метрики «Во Вселенной»: число e±, μ±, τ± и γ в мире и корзина', () => {
+test('счётчик «Во Вселенной»: число e±, μ±, τ± и γ в мире', () => {
   const g = toStage('particles');
   g.ev(`(() => { const S = G.stage; for (const o of S.p) o.dead = true; S.p = []; for (let i = 0; i < 3; i++) S.pair('mu', P.x + 2, P.y + i, .3); S.mk('e', false, P.x, P.y + 3, 0, .3); })()`);
-  assert.equal(g.ev(`JSON.stringify(G.stage.metric('mu'))`), JSON.stringify({ n: 6, bin: 3 }), 'μ⁺ и μ⁻ — вместе; 6 — третья корзина');
+  assert.equal(g.ev(`G.stage.metric('mu').n`), 6, 'μ⁺ и μ⁻ — вместе');
   assert.equal(g.ev(`G.stage.metric('e').n`), 1);
-  assert.equal(g.ev(`G.stage.metric('ta').bin`), 0);
+  assert.equal(g.ev(`G.stage.metric('ta').n`), 0);
   g.ev(`G.stage.p.find(o => o.sp === 'e').fade = 1`);
   assert.equal(g.ev(`G.stage.metric('e').n`), 0, 'гаснущий — уже не в счёт');
 });

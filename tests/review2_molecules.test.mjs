@@ -57,7 +57,7 @@ test('второе ревью № 6: твои C, N, O из «Атомов» — 
   g.step(2);
   const fl = g.ev(`G.stage.floats.map(f => f.txt)`);
   assert.ok(fl.includes('из «Атомов»: C ×3 · N ×2 · O ×4'), fl.join(' | '));
-  assert.ok(fl.includes('всё своё: от Вселенной — водород, тяжёлые редко'), fl.join(' | '));
+  assert.ok(fl.includes('всё своё; приток — водород, тяжёлые редко'), fl.join(' | '));
   // израсходовал своё — следующий тяжёлый придёт не раньше M_DRIP с
   g.ev('G.stage.autoChem = () => {}'); g.step(60);
   g.ev(`for (const m of ${heavyFree}) m.dead = true; G.stage.m = G.stage.m.filter(m => !m.dead); globalThis.__t0 = G.stage.clock;
@@ -132,5 +132,5 @@ test('второе ревью № 6: с титула — стартовый на
   assert.equal(g.ev(`G.stage.m.filter(m => m.atoms.some(a => a.el !== 'H')).length`), 7, 'кроме набора — водород');
   g.step(2);
   const fl = g.ev(`G.stage.floats.map(f => f.txt)`);
-  assert.ok(fl.includes('с нуля: C ×2 · N ×2 · O ×3 от Вселенной'), fl.join(' | '));
+  assert.ok(fl.includes('с нуля: стартовый набор C ×2 · N ×2 · O ×3'), fl.join(' | '));
 });

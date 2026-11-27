@@ -368,7 +368,7 @@ const Nuclei = {
     if (this.doneAt === null && (goal || this.stuckT > 4 || this.clock > N_WIN)) {
       this.doneAt = this.clock; this.endCd = 2; this.sl.held = null; this.failed = !goal;
       for (const o of this.o) o.held = false;
-      if (!goal) this.float(P.x, P.y - 2, this.clock > N_WIN ? 'Вселенная остыла, синтез окончен' : 'нейтронов больше нет, синтез окончен', [200, 210, 240], 16);
+      if (!goal) this.float(P.x, P.y - 2, this.clock > N_WIN ? 'остывание: синтез окончен' : 'нейтронов больше нет, синтез окончен', [200, 210, 240], 16);
       this.tickStars(true);
     }
     if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; if (!this.failed) addScore(this.Y() * 2000); advance(); } // звёздам — твои же ядра, на тех же местах // итоги — сбоку, без паузы
