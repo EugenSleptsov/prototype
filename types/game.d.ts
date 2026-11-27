@@ -180,7 +180,8 @@ interface Hot { x: number; y: number; t: number; sp: string; done?: boolean }
 interface HotZone { x: number; y: number; r: number; t: number; L: number; em?: number }
 interface Ripple { x: number; y: number; t: number }
 /** Эпоха 4: волна антивещества (cur — летящая сейчас) */
-interface Wave { n: number; cd: number; dir: number | null; cur: { list: Q[]; t: number; eaten0: number } | null }
+/** edu — впервые первая волна учебная (две медленные античастицы) */
+interface Wave { n: number; cd: number; dir: number | null; cur: { list: Q[]; t: number; eaten0: number } | null; edu?: boolean }
 /** Тройка, сбережённая Вселенной */
 interface Safe { a: number; r: number; w: number; t0: number; q: string[] }
 interface Stored { fl: string; col: number }

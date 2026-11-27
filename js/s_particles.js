@@ -44,8 +44,9 @@ const THROW_V = 5, THROW_R = .85; // скорость детектора для 
 // Энергия детектора: появляется, когда открыт фотон; пополняется пойманными фотонами,
 // тратится на снимки и на разгон квантов полем
 const E_CAP = 10, E_START = 0, E_SHOT = 1, E_FIELD = 2, PH_C = [255, 238, 150];
-// Норматив времени эпохи (с): каждая секунда быстрее даёт +2 к итогу. В эпохе 4 вместо скорости — сохранённое вещество.
-const PAR = [0, 60, 60]; // норматив эпохи, с (0 — нет: эпоха 1 — учебные главы, спешка там вредна; часы идут с конца пролога)
+// Норматива времени нет (урок 42): эпохи 1–3 — учебные главы, спешка там вредна; эпоха 4 — экзамен, её часы — остывание.
+// Передышка между эпохами: впервые глава следующей эпохи — дольше (итоги, Вселенная повторяет твой закон), потом — коротко
+const GAP_NEW = 6, GAP = 2.5;
 const PH_DENS = [.15, .45, .45]; // закон «Свет»: доля квантов в мире по уровням (до закона — скудный остаток разогрева: свет кончается, его ешь;
 // второй уровень — не больше света, а вдвое больше горячих областей)
 // Счётчик «Во Вселенной» (Counts в core.js): сколько чего сейчас в мире — числом, перемена вспыхивает
@@ -191,7 +192,13 @@ const CHAPTERS = {
   4: { n: 'Закон', line: 'Свет кончается: ты его ешь. Отдай знания ✦ закону — и Вселенная будет светить сама' },
   5: { n: 'Полный удар', line: 'Чем сильнее удар, тем тяжелее рождённое. 4 ⚡ — три струи, и в одной из них глюон' },
   6: { n: 'Вещество', line: 'Свет и глюоны, сведённые с нужной силой, рождают кварки u и d. Из них потом сделано всё вокруг' },
+  // эпохи 2–4 — глава на эпоху
+  7: { n: 'Хиггс', line: 'Масса — это вес: тяжёлое тянется медленно, и полем его можно удержать. Частица с античастицей, отпущенные в золотой полосе, — Z' },
+  8: { n: 'Распады', line: 'Тяжёлое живёт миг и распадается цепочкой: t → b → c, τ → μ. Снимок — по золотой вершине, где оно распалось' },
+  9: { n: 'Аннигиляция', line: 'Экзамен: Вселенная остывает, часы идут. Зажми — щит отталкивает антикварки; кварки трёх цветов — тройка R·G·B, она переживёт' },
 };
+// лента главы: впервые — дольше, в повторном забеге — коротко (главу уже знаешь)
+const CH_T = 6.5, CH_T_KNOWN = 3;
 // Пустота — шаг ноль: игра начинается с ничего. Строки предыстории проявляются по одной, «зажми» — с VOID_MIN с;
 // первое нажатие проявляет поле и сразу становится первым толчком.
 const VOID_MIN = .3, VOID_STEP = 1.3; // .3 — только чтобы нажатие «Начать» не стало толчком: дальше старт по первому нажатию (разбор ревью)
@@ -637,13 +644,15 @@ const Particles = {
     ghostCursor(x, y, press, a);
     label(txt, x, y + 36, 12, [255, 255, 255], Math.min(1, a * 1.6), 700);
   },
-  // главы эпохи 1: шаг из новой главы стал текущим — лента с названием и одной мыслью (игра идёт)
-  chapOf() { const cur = this.steps().find(s => !s.d); return cur && cur.ch || this.chap; },
+  // главы: в эпохе 1 — по шагам задания (ch), эпохи 2–4 — глава на эпоху (7–9).
+  // Шаг из новой главы стал текущим — лента с названием и одной мыслью (игра идёт); в эпохах 2–4 — после плашки эпохи
+  chapOf() { if (this.ep) return 6 + this.ep; const cur = this.steps().find(s => !s.d); return cur && cur.ch || this.chap; },
   tickChapter() {
-    if (this.ep !== 0 || !this.lit || this.litT < 4 || this.epDone) return;
+    if (this.epDone || this.advanced || (this.ep ? this.epT < 4.5 : !this.lit || this.litT < 4)) return;
     const ch = this.chapOf(); if (ch <= this.chap) return;
     this.chap = ch; const C = CHAPTERS[ch]; if (!C) return;
-    Cine.show(`<div class="ck">Глава ${ch}</div><div class="cn">${C.n}</div><div class="cp">${C.line}</div>`, 6.5, 0, true);
+    const seen = Known.has('chap:' + ch); Known.add('chap:' + ch);
+    Cine.show(`<div class="ck">Глава ${ch}</div><div class="cn">${C.n}</div><div class="cp">${C.line}</div>`, seen ? CH_T_KNOWN : CH_T, 0, true);
   },
   // лавка ✦ — с главы «Закон»: раньше знания копятся, а тратить их ещё не на что
   shopOk() { return this.ep > 0 || this.rs.ph > 0 || this.chap >= 4; },
@@ -1813,7 +1822,7 @@ const Particles = {
     if (i === 1) this.higgsOn();
     if (i === 2) this.need2 = this.reachNeed2();
     if (i === 3) {
-      this.wave = { n: 0, cd: 8, dir: null, cur: null };
+      const edu = !Known.has('chap:9'); this.wave = { n: 0, cd: edu ? 11 : 8, dir: null, cur: null, edu }; // впервые первая волна — учебная, и позже: сначала лента главы
       let ng = 0; for (const o of this.p) if (o.sp === 'g' && ++ng > G_MAX4) o.fade = 1; // глюоны прошлых эпох уходят
       // остатки Вселенной: кварки и антикварки почти поровну — с небольшим перевесом вещества
       for (const o of this.p) if (!this.isQ(o)) o.fade = 1;
@@ -1838,10 +1847,10 @@ const Particles = {
   // Итоги эпохи — сбоку, игру не останавливают (Tally.note)
   showResult() {
     const i = this.ep, pts = Math.round(this.kn - this.epKn0), t = this.doneAt;
-    const par = PAR[i], bonus = t === null || !par ? 0 : Math.max(0, Math.round((par - t) * 2)), total = pts + bonus, won = starsWon(this.stars);
-    this.lvlTotal += total; addScore(bonus * 10);
+    const total = pts, won = starsWon(this.stars);
+    this.lvlTotal += total;
     const place = this.cheated ? null : LB.add('e' + i, { n: LB.name(), s: total, p: pts, t: t === null ? null : Math.floor(t), d: Date.now() }).place;
-    Tally.note(`ЭПОХА ${i + 1} · ВЫПОЛНЕНА`, EPOCHS[i].name, [['⏱ эпоха', fmtClock(t)], ['✦ добыто', pts], ...(par ? [/** @type {[string, string, string]} */ ([`быстрее ${fmtClock(par)}`, '+' + bonus, 'tb'])] : []), ['итог', total, 'tl']],
+    Tally.note(`ЭПОХА ${i + 1} · ВЫПОЛНЕНА`, EPOCHS[i].name, [['⏱ эпоха', fmtClock(t)], ['✦ добыто', pts], ['итог', total, 'tl']],
       this.stars, place, '');
     Sfx.play('segment');
   },
@@ -1981,7 +1990,7 @@ const Particles = {
       const C = W.cur; C.list = C.list.filter(o => !o.dead); C.t += dt;
       if (C.list.length && C.t < 16) return;
       const lost = this.st.eaten - C.eaten0;
-      if (!lost) { this.kn += 5; this.st.waves++; Sfx.play('goal'); this.float(P.x, P.y - this.hr() - .5, `волна ${W.n} отбита ✓ +5 ✦`, [140, 235, 170], 16); }
+      if (!lost) { this.kn += 5; this.st.waves++; Sfx.play('goal'); this.float(P.x, P.y - this.hr() - .5, `${W.edu && W.n === 1 ? 'учебная волна' : 'волна ' + W.n} отбита ✓ +5 ✦`, [140, 235, 170], 16); }
       else this.float(P.x, P.y - this.hr() - .5, `волна ${W.n} прорвалась: −${lost} ◉`, [255, 130, 130], 15);
       W.cur = null; W.cd = WAVE_CD;
       return;
@@ -1989,12 +1998,13 @@ const Particles = {
     if (W.dir == null) W.dir = Math.random() * TAU;
     if ((W.cd -= dt) > 0) return;
     W.n++;
-    const N = Math.min(8, 3 + W.n), list = [];
+    const edu = W.edu && W.n === 1, N = edu ? 2 : Math.min(8, 3 + W.n), list = [];
     for (let k = 0; k < N; k++) {
       const a = W.dir + rnd(-.4, .4), d = Math.min(viewRadius() * rnd(1, 1.3), this.wr() - .3); // дальше края мира — перенесло бы на ту сторону
-      const o = this.mk(pick(['u', 'd']), true, P.x + Math.cos(a) * d, P.y + Math.sin(a) * d, a + Math.PI, rnd(.1, .3));
+      const o = this.mk(pick(['u', 'd']), true, P.x + Math.cos(a) * d, P.y + Math.sin(a) * d, a + Math.PI, edu ? rnd(.04, .08) : rnd(.1, .3));
       o.wave = true; o.cd = 1.5; o.born = 1; list.push(o);
     }
+    if (edu) this.float(P.x, P.y - this.hr() - .6, 'учебная волна: зажми — щит оттолкнёт антикварки', SHIELD_C, 16);
     W.cur = { list, t: 0, eaten0: this.st.eaten }; W.dir = null;
     Sfx.play('fizzle');
   },
@@ -2173,14 +2183,14 @@ const Particles = {
   // Испытания ★: два случайных на эпоху, за каждое +15 ✦
   /** @param {number} i @returns {Omit<Star, "st">[]} */
   starPool(i) {
-    const st = this.st, fast = (/** @type {number} */ sec) => ({ t: `быстрее ${fmtClock(sec)}`, bad: () => this.epClock > sec, atEnd: true });
+    const st = this.st; // ★ «быстрее» нет: главы учат, а не гонят (урок 42)
     const clean = { t: 'без пустых снимков', bad: () => st.empty > 0, atEnd: true }, thr = { t: 'пара броском', ok: () => st.thr > 0 };
     switch (i) {
       case 0: return [thr, { t: 'отличный разогрев', ok: () => !!this.inf.pick && this.inf.pick.i === 2, bad: () => !!this.inf.pick && this.inf.pick.i < 2 }, { t: 'создать и поймать жёсткий γ', ok: () => this.phSeen.has(PH_TOP), bad: () => this.lit && !this.inf.made[PH_TOP] }, { t: 'снимок с 3 видами', ok: () => st.kinds >= 3 }, { t: '6 столкновений', ok: () => st.pairs >= 6 },
         { t: 'открыть второе поколение', ok: () => ['c', 's', 'mu'].some(sp => Codex.has(sp)) }];
-      case 1: return [thr, fast(45), { t: 'и W, и Z', ok: () => Codex.has('W') && Codex.has('Z') },
+      case 1: return [thr, { t: 'и W, и Z', ok: () => Codex.has('W') && Codex.has('Z') },
         { t: 'открыть t-кварк', ok: () => Codex.has('t'), can: () => !Codex.has('t') }, { t: 'не остаться без ⚡', bad: () => st.dry > 0, atEnd: true }];
-      case 2: return [thr, clean, fast(35), { t: 'снимок с 4 видами', ok: () => st.kinds >= 4 }];
+      case 2: return [thr, clean, { t: 'снимок с 4 видами', ok: () => st.kinds >= 4 }, { t: 'открыть третье поколение', ok: () => ['t', 'b', 'ta'].some(sp => Codex.has(sp)) }];
       default: return [{ t: '7 троек', ok: () => baryonTrios(this.stockQ) >= 7 }, { t: 'перекрасить кварк глюоном', ok: () => st.recol > 0 }, { t: 'антикварки не съели ни одного', bad: () => st.eaten > 0, atEnd: true },
         { t: '20 кварков в детекторе', ok: () => this.stock >= 20 }, { t: '3 волны без потерь', ok: () => st.waves >= 3 }];
     }
@@ -2204,7 +2214,7 @@ const Particles = {
   coolLeft() { return this.ep === 3 && this.T > T_END4 ? EPOCHS[3].tau / (this.epDone ? 4 : 1) * Math.log(this.T / T_END4) : 0; },
   checkGoals() {
     if (this.epDone || !this.steps().every(g => g.d)) return;
-    this.epDone = true; this.epGap = 2.5; this.kn += 15; this.doneAt = this.epClock;
+    this.epDone = true; this.epGap = this.ep < 3 && !Known.has('chap:' + (7 + this.ep)) ? GAP_NEW : GAP; this.kn += 15; this.doneAt = this.epClock;
     this.release(); this.holding = false;
     if (this.ep < EPOCHS.length - 1) { this.tickStars(true); this.showResult(); }
     else this.float(P.x, P.y - this.hr() - .5, '✓ +15 ✦', [255, 215, 110], 17);
@@ -2946,11 +2956,11 @@ const Particles = {
     const done = this.doneAt !== null;
     /** @type {string} */
     let left, col = [255, 255, 255];
-    if (this.ep < 3) { left = `${done ? '✓ ' : ''}${fmtClock(this.epClock)}`; col = done ? [140, 235, 170] : PAR[this.ep] && this.epClock > PAR[this.ep] ? [190, 190, 205] : col; }
+    if (this.ep < 3) { left = `${done ? '✓ ' : ''}${fmtClock(this.epClock)}`; col = done ? [140, 235, 170] : col; } // норматива нет — время только для сведения
     else { const r = this.coolLeft(); left = `⏳ ${fmtClock(r)}`; col = done ? [140, 235, 170] : r < 20 ? [255, 140, 120] : col; } // эпоха 4 — обратный отсчёт остывания
     if (this.lit || this.ep) hudClock(alpha, left, col, this.bal(), []); // в прологе часов и знаний ещё нет
     const stars = this.ep === 0 && !this.rs.ph ? [] : this.stars; // в начале — только задание, испытания появятся позже
-    if (!this.advanced) hudTask(alpha, this.tk, !this.lit && !this.ep ? 'ПРОЛОГ · ГЛАВА 1' : this.ep ? `ЭПОХА ${this.ep + 1}` : `ЭПОХА 1 · ГЛАВА ${this.chapOf()}`, this.steps(), stars,
+    if (!this.advanced) hudTask(alpha, this.tk, !this.lit && !this.ep ? 'ПРОЛОГ · ГЛАВА 1' : `ЭПОХА ${this.ep + 1} · ГЛАВА ${this.chapOf()}`, this.steps(), stars,
       this.ep === 3 ? 'Остывание. Больше кварков сейчас, больше барионов на следующем уровне' : 'Готово!');
     if (this.ep === 3 && !this.advanced && !done) { // цейтнот виден внизу: сколько троек и сколько осталось
       const r = this.coolLeft(), c = r < 20 ? [255, 140, 120] : [205, 200, 230];

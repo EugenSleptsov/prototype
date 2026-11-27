@@ -115,23 +115,36 @@ test('частицы: горячие области появляются сам�
   assert.equal(g.ev('G.stage.hz.length'), 0);
 });
 
-test('частицы: после закона «Глюоны» — цветные вихри, глюоны рождаются в основном в них (и не вязнут); без закона их нет', () => {
-  const g = lit(1); // доля у вихря шумит от сида (1, 2, 5 — вдвое гуще площади, 4 и 6 — в полтора раза)
-  g.ev('G.stage.tut = null; G.stage.autoT = 99; G.stage.cz = []; G.stage.czCd = 0');
+// доля глюонов у вихря за 12 с (одна область), сид — свой забег
+const czShare = seed => {
+  const g = lit(seed);
+  g.ev('G.stage.autoT = 99; G.stage.cz = []; G.stage.czCd = 0');
   g.step(60 * 5);
-  assert.equal(g.ev('G.stage.rs.g'), 0); assert.equal(g.ev('G.stage.cz.length'), 0, 'до закона цветных вихрей нет');
+  const before = g.ev('G.stage.rs.g === 0 && G.stage.cz.length === 0');
   buy(g, 'g');
-  assert.ok(g.ev('G.stage.rs.g') > 0, 'закон «Глюоны» куплен');
   g.step(60 * 15);
-  assert.ok(g.ev('G.stage.cz.length') >= 1, 'на карте есть цветной вихрь');
-  assert.ok(g.ev('G.stage.cz.every(z => G.stage.hz.every(h => Math.hypot(h.x - z.x, h.y - z.y) >= HZ_R * 3 - 1e-9))'), 'вихрь не налезает на горячую');
-  const r = g.ev(`(() => { const S = G.stage; const z = S.cz.find(q => S.hzK(q) > .5) || S.cz[0]; z.t = Math.max(z.t, HZ_IN); z.L = 999; S.cz = [z]; S.czCd = 999; // одна область — мерить долю у неё
+  const r = g.ev(`(() => { const S = G.stage, law = S.rs.g > 0, any = S.cz.length >= 1, apart = S.cz.every(z => S.hz.every(h => Math.hypot(h.x - z.x, h.y - z.y) >= HZ_R * 3 - 1e-9));
+    const z = S.cz.find(q => S.hzK(q) > .5) || S.cz[0]; z.t = Math.max(z.t, HZ_IN); z.L = 999; S.cz = [z]; S.czCd = 999; // одна область — мерить долю у неё
     let n = 0, nZ = 0;
     for (let i = 0; i < 60 * 20; i++) { update(1 / 60); if (i < 60 * 8 || i % 30) continue;
       const gl = S.p.filter(o => !o.dead && o.sp === 'g' && !(o.fade >= 0)); n += gl.length; nZ += S.cz.length ? gl.filter(o => S.cz.some(q => Math.hypot(o.x - q.x, o.y - q.y) < q.r)).length : 0; }
     const zA = Math.PI * HZ_R ** 2, wA = Math.PI * S.wr() ** 2;
-    return { share: nZ / n, area: zA / wA, n }; })()`);
-  assert.ok(r.n > 0 && r.share > r.area * 2, `в вихре ${Math.round(r.share * 100)} % глюонов при ${Math.round(r.area * 100)} % площади`);
+    return { share: nZ / n, area: zA / wA, n, law, any, apart }; })()`);
+  return { ...r, before, g };
+};
+test('частицы: после закона «Глюоны» — цветные вихри, глюоны рождаются в основном в них (и не вязнут); без закона их нет', () => {
+  // доля у вихря шумит от забега (сиды 1–6: в 1,4–2,4 раза гуще площади) — мерим среднее трёх
+  const rs = [1, 2, 4].map(czShare);
+  for (const r of rs) {
+    assert.ok(r.before, 'до закона цветных вихрей нет');
+    assert.ok(r.law, 'закон «Глюоны» куплен');
+    assert.ok(r.any, 'на карте есть цветной вихрь');
+    assert.ok(r.apart, 'вихрь не налезает на горячую');
+    assert.ok(r.n > 0);
+  }
+  const share = rs.reduce((s, r) => s + r.share, 0) / rs.length, area = rs[0].area;
+  assert.ok(share > area * 1.8, `в вихре ${Math.round(share * 100)} % глюонов при ${Math.round(area * 100)} % площади (${rs.map(r => Math.round(r.share * 100)).join(', ')})`);
+  const g = rs[0].g;
   g.ev(`Uni.off(G.stage, 'g') || G.stage.uniOff.add('g')`); g.step(2);
   assert.equal(g.ev('G.stage.cz.length'), 0, 'закон выключен — вихрей нет');
 });
