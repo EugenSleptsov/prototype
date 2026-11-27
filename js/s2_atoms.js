@@ -26,13 +26,22 @@
    Исследование «Рекомбинация»: электроны у ионов тормозят сами (излучают), туманность нейтрализуется без тебя.
    Необязательный закон «Разлёт туманности» (ключ 'red', после первого перечёркнутого луча): туманность расширяется
    и редеет — часть УФ уходит из неё мимо атомов, безвредно (и приносит ✦ в строку Вселенной).
-   Мир без края: ионы — ядра твоей сверхновой там, куда их вынесло; Вселенная приносит ионы, электроны и свет из-за края кадра. */
+   Мир без края: ионы — ядра твоей сверхновой там, куда их вынесло; Вселенная приносит ионы, электроны и свет из-за края кадра.
+   Прошлый уровень весом (второе ревью №6): C, N, O, которых твоя звезда не выковала, — не подарок на старте, а пыль
+   соседних сверхновых: первая — через DUST_T, потом реже своих (DUST_K); строка на старте — что из твоей звезды.
+   Финал — охота, а не ожидание (№12): выше REC_TOP приток из-за края нейтрален, как твой кадр (дрейф не откатывает),
+   выше HUNT_AT голые ионы в счёте доли отмечены, за краем — стрелки. */
 // обзор; ионы Вселенной: плотность и предел в кадре; электронов в кадре — не больше
 const A_RED = 25, RED_P = .55; // «Разлёт туманности»: цена и доля УФ, которая уходит сама
 const HOLD_R = 3, HOLD_PICK = .45, HOLD_CAP = 1.5; // взятый атом: круг, где его тянут заторможенные электроны (показ); как близко к атому нажать (чуть шире ядра: след рядом с атомом — след, а не захват); поблажка захвату (только заторможенным)
 const A_VMAX = 7, ION_DRAG = .6; // рогатка атома: скорость при полной резинке; торможение иона в туманности (1/с) — бросок встаёт через ~v/0,6
 const A_SPARSE = .7; // в кадре меньше этой доли обычного числа ионов — пустота: недостающие считаются голыми
 const REC_TOP = .65; // «Рекомбинация» нейтрализует сама лишь до этой доли — остальное до 90 % доводишь ты
+const A_REFM = 4; // доля нейтральных — по ионам кадра-эталона и ещё на столько за его краем (там ионы есть, но не видны)
+const HUNT_AT = .75, HUNT_N = 4; // нейтральных больше — голые ионы в счёте доли отмечены (за краем кадра — стрелки, не больше HUNT_N)
+// C, N, O не из твоей звезды — пыль соседних сверхновых: первая через DUST_T с, потом — доля DUST_K от своих;
+// пропала из виду, а элемент ещё не одет — следующая через DUST_GAP с (уровень проходим и без твоей звезды)
+const DUST_T = 25, DUST_K = .3, DUST_GAP = 15;
 const A_VIEW = 14.5, A_DENS = .025, A_CAP = 40, A_ECAP = 30, A_COST = 30, A_GOAL = .9, TR_LIFE = 1.1, TR_W = .55; // TR_W — полуширина следа (мир)
 const AT_EL = { 1: ['H', [235, 235, 240]], 2: ['He', [200, 250, 255]], 3: ['Li', [200, 120, 255]], 6: ['C', [150, 150, 165]], 7: ['N', [110, 145, 255]], 8: ['O', [250, 95, 80]] };
 const atSym = Z => (AT_EL[Z] || [elemOf(Z)[0]])[0];
@@ -57,6 +66,7 @@ const Atoms = {
   gest() { return { obj: 'атом: оттянуть, отпустить — встанет в конце пунктира; держишь — стоит', empty: 'вести: след тормозит e⁻, осаживает атом, рассеивает УФ' }; },
   // рогатка атома (sling.js): хозяин даёт тела, радиус, резинку; мимо атома — не карта, а след (noPan)
   noPan: true,
+  alien: /** @type {number[]} */ ([]), // C, N, O не из твоей звезды (enter)
   bodies() { return this.ions; },
   /** @param {{x: number, y: number, vx: number, vy: number, Z: number, ne: number}} b */ grabR(b) { return HOLD_PICK + .06 * b.Z; },
   full() { return slingFullPx() / cam.z; },
@@ -84,7 +94,7 @@ const Atoms = {
     this.sl = new Sling(this);
     this.st = { brakes: 0, ionized: 0, best: 0, relaxed: 0, cascade: 0, cut: 0, shield: 0, held: 0 }; this.caps = { hand: 0, auto: 0 }; this.msgs = new Set();
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
-    this.fromStars = !!(prev && prev.o);
+    this.fromStars = !!(prev && prev.o); this.alien = []; this.dustAt = {};
     // ионы — ядра со «Звёзд», каждое там, куда его вынесла сверхновая, и с той же скоростью (структура ядра больше не видна — голый ион)
     if (prev && prev.o) for (const o of prev.o) {
       if (o.dead || o.Z < 1) continue;
@@ -98,13 +108,20 @@ const Atoms = {
     if (!prev) for (const Z of [6, 6, 7, 8, 8, 2, 2, 2, ...Array(14).fill(1)]) {
       const at = beyondPos(zoomFor(this), 0, true); if (at) this.ions.push(this.ion(Z, at[0], at[1], -Math.random()));
     }
-    // ионы Вселенной — за краем кадра; каждого нужного атома — хотя бы по одному
+    // C, N, O, что выковала твоя звезда (mine); прочие тяжёлые — чужие: придут пылью соседних сверхновых, позже и реже
+    // (с титула звезды не было — набор по умолчанию, чужих нет)
+    this.own = this.fromStars ? [6, 7, 8].filter(Z => this.ions.some(i => i.mine && i.Z === Z)) : [6, 7, 8];
+    this.alien = [6, 7, 8].filter(Z => !this.own.includes(Z));
+    // ионы Вселенной — за краем кадра; каждого нужного атома — хотя бы по одному (чужой тяжёлый — нет: он придёт пылью)
     const z1 = zoomFor(this), want = popWant(A_DENS, A_CAP, z1);
     for (let k = 0; this.ions.length < want && k < want * 3; k++) { const at = beyondPos(z1, 1, false); if (at) this.ions.push(this.ion(this.cosmicZ(), at[0], at[1], 1)); }
-    for (const Z of AT_NEED) if (!this.ions.some(i => i.Z === Z)) { const at = beyondPos(z1, 1, false) || [P.x + rnd(-8, 8), P.y + rnd(-8, 8)]; this.ions.push(this.ion(Z, at[0], at[1], 1)); }
+    for (const Z of AT_NEED) if (!this.alien.includes(Z) && !this.ions.some(i => i.Z === Z)) { const at = beyondPos(z1, 1, false) || [P.x + rnd(-8, 8), P.y + rnd(-8, 8)]; this.ions.push(this.ion(Z, at[0], at[1], 1)); }
     this.Zsum = this.ions.reduce((s, i) => s + i.Z, 0);
-    // C, N, O не из твоей звезды — честно сказать, откуда они (переждал «Звёзды» — тяжёлое пришло от чужих сверхновых)
-    this.gift = prev ? [6, 7, 8].filter(Z => !this.ions.some(i => i.mine && i.Z === Z)).map(atSym).join(', ') : '';
+    // строка на старте — что из твоей звезды (с титула звезды не было — молчим)
+    const own = this.own.map(atSym).join(', '), alien = this.alien.map(atSym).join(', ');
+    this.origin = !this.fromStars ? '' : !alien ? `Из твоей звезды: ${own}. Тяжёлые атомы из своей звезды ценятся вдвое`
+      : own ? `Из твоей звезды: ${own} (✦ вдвое). ${alien} она не выковала — их принесёт пыль соседних сверхновых: позже и реже`
+        : 'Твоя звезда не выковала C, N, O — их принесёт пыль соседних сверхновых: позже и реже';
     for (let i = 0; i < 26; i++) this.spawnE(true);
     // кузница частиц: распады μ и τ, научённые Вселенной, выковали электроны — они здесь холодными, у ионов
     const pS = G.fromI ? null : STAGES.find(s => s.key === 'particles');
@@ -121,13 +138,39 @@ const Atoms = {
   ion(Z, x, y, age) { return { Z, ne: 0, ex: 0, exT: 0, exAt: -9, by: null, kDone: false, x, y, vx: randn() * .3, vy: randn() * .3, age, rot: Math.random() * TAU, mine: false, src: null }; },
   /** подсказка словами — один раз за уровень @param {string} k @param {string} txt */
   once(k, txt) { if (!this.msgs.has(k)) { this.msgs.add(k); tipMsg(this.key + ':' + k, txt); } }, // урок — раз за всю игру
-  // ион Вселенной: в основном водород и гелий; тяжёлые — только те, что уже выковали звёзды (или каких вокруг ещё нет)
+  // ион Вселенной: в основном водород и гелий, тяжёлым — по равной доле на C, N и O; чужой (не из твоей звезды) —
+  // только после DUST_T и в DUST_K случаев, иначе на его месте водород: не выковал — тяжёлого в туманности меньше
   cosmicZ() {
     const r = Math.random();
     if (r < .68) return 1;
     if (r < .9) return 2;
-    const heavy = [6, 7, 8].filter(Z => !this.fromStars || Codex.has('n:' + Z + ',' + Z) || !this.ions.some(i => i.Z === Z));
-    return heavy.length ? pick(heavy) : 1;
+    const Z = [6, 7, 8][Math.min(2, Math.floor((r - .9) / .1 * 3))];
+    if (this.alien.includes(Z) && (this.clock < DUST_T || Math.random() >= DUST_K)) return 1;
+    return Z;
+  },
+  // ион из-за края: туманность вокруг нейтральна так же, как твой кадр. До REC_TOP — с «Рекомбинацией» он с долей
+  // нейтральных одет целиком (иначе голый); выше REC_TOP — электронов ≈ доля × Z при любом законе: дрейф из-за края
+  // не откатывает набранное (раньше 35 % приплывших были голыми, и один O⁸⁺ ронял 85 % → 78 %)
+  /** @param {any} io */
+  inflow(io) {
+    const n = this.neutral();
+    if (n > REC_TOP) io.ne = Math.min(io.Z, Math.floor(n * io.Z + Math.random()));
+    else if (this.recOn() && Math.random() < n) io.ne = io.Z;
+    io.kDone = io.Z > 2 && io.ne >= 2; // K-оболочку закрыл не ты — награды за неё нет
+    return io;
+  },
+  // пыль соседних сверхновых: чужой C, N, O, которого ты ещё не одел и которого нет рядом, — из-за края, раз в DUST_GAP
+  dustTick() {
+    if (!this.alien.length || this.clock < DUST_T) return;
+    const m = haloM(), got = [];
+    for (const Z of this.alien) {
+      if (this.seenN.has(Z) || this.clock - (this.dustAt[Z] ?? -1e9) < DUST_GAP) continue;
+      if (this.ions.some(i => !i.dead && i.Z === Z && inView(i.x, i.y, m))) continue;
+      const r = rimPos(1), io = this.inflow(this.ion(Z, r.x, r.y, 0)), sp = rnd(.9, 1.4);
+      io.ne = Math.min(io.ne, Z - 1); io.kDone = io.ne >= 2; io.dust = true; // хоть один электрон — поймать тебе: иначе атом не засчитать
+      io.vx += r.nx * sp; io.vy += r.ny * sp; this.ions.push(io); this.dustAt[Z] = this.clock; got.push(atSym(Z));
+    }
+    if (got.length && !this.msgs.has('dust')) { this.msgs.add('dust'); msg(`Пыль соседних сверхновых: ${got.join(', ')} — чужие ядра, их мало`); }
   },
   vth() { return 4.5 + 6 * this.Ta; },
   // электрон: any — где угодно в кадре (начало), иначе — из-за края кадра, внутрь
@@ -145,24 +188,26 @@ const Atoms = {
     if (this.doneAt !== null) return;
     const have = this.ions.filter(i => inView(i.x, i.y, 1)).length;
     if (have < popWant(A_DENS, A_CAP) && Math.random() < dt * 3) {
-      const r = rimPos(1), io = this.ion(this.cosmicZ(), r.x, r.y, 0), sp = rnd(.6, 1.4);
+      const r = rimPos(1), io = this.inflow(this.ion(this.cosmicZ(), r.x, r.y, 0)), sp = rnd(.6, 1.4);
       io.vx += r.nx * sp; io.vy += r.ny * sp;
-      if (this.recOn() && Math.random() < Math.min(REC_TOP, this.neutral())) io.ne = io.Z;
       this.ions.push(io);
     }
     haloFill(this.ions, A_DENS, A_CAP, dt, (x, y) => { // и за краем — сдвинул карту, там то же
-      const io = this.ion(this.cosmicZ(), x, y, 0);
-      if (this.recOn() && Math.random() < Math.min(REC_TOP, this.neutral())) io.ne = io.Z;
-      this.ions.push(io);
+      this.ions.push(this.inflow(this.ion(this.cosmicZ(), x, y, 0)));
     }, 2);
   },
   // доля нейтральных — по ионам в кадре и рядом: электроны живут только здесь, и улетевшие далеко ядра сверхновой не держат уровень
   recOn() { return !!this.rs.rec && !Uni.off(this, 'rec'); },
   // знаменатель — не меньше A_SPARSE обычного числа ионов кадра: увёл камеру в пустоту, где пара нейтральных, —
   // это не «туманность прозрачна», недостающие ионы считаются голыми (игрок: «отодвинул где ничего нет — 100 %»)
-  neutral() { let n = 0, z = 0; for (const i of this.ions) if (!i.dead && inRef(i.x, i.y, 4)) { n += Math.min(i.ne, i.Z); z += i.Z; } return n / Math.max(z, this.zFloor(), 1); },
+  neutral() { let n = 0, z = 0; for (const i of this.ions) if (!i.dead && inRef(i.x, i.y, A_REFM)) { n += Math.min(i.ne, i.Z); z += i.Z; } return n / Math.max(z, this.zFloor(), 1); },
   zFloor() { return A_SPARSE * popWant(A_DENS, A_CAP, refZ()); },
-  sparse() { let z = 0; for (const i of this.ions) if (!i.dead && inRef(i.x, i.y, 4)) z += i.Z; return z < this.zFloor(); },
+  sparse() { let z = 0; for (const i of this.ions) if (!i.dead && inRef(i.x, i.y, A_REFM)) z += i.Z; return z < this.zFloor(); },
+  // последние проценты — охота: голые (и недоодетые) ионы, что идут в долю, когда нейтральных больше HUNT_AT
+  huntList() {
+    if (this.doneAt !== null || this.neutral() <= HUNT_AT) return [];
+    return this.ions.filter(i => !i.dead && i.ne < i.Z && inRef(i.x, i.y, A_REFM));
+  },
 
   // ---------- след ----------
   tickTrail(live) {
@@ -202,8 +247,10 @@ const Atoms = {
     const live = act && G.started;
     this.t += dt; this.Ta = Math.max(.1, 1 - this.t / 120);
     if (live) { this.banner += dt; if (this.doneAt === null) this.clock += dt; P.vx = P.vy = 0; }
-    if (live && this.eForge && this.clock > 1.5) this.once('forge', `Кузница частиц: +${this.eForge} холодных e⁻ из распадов μ и τ по законам «Лептоны II, III»`);
-    if (live && this.gift && this.clock > 4) this.once('gift', `${this.gift}: из чужих сверхновых. Тяжёлые ядра из своей звезды ценятся вдвое`);
+    // что из твоей звезды — каждый забег (не урок, а итог прошлого уровня); кузница — после этой строки
+    if (live && this.origin && this.clock > 1.5 && !this.msgs.has('origin')) { this.msgs.add('origin'); msg(this.origin, 5); }
+    if (live && this.eForge && this.clock > (this.origin ? 6.5 : 1.5)) this.once('forge', `Кузница частиц: +${this.eForge} холодных e⁻ из распадов μ и τ по законам «Лептоны II, III»`);
+    if (live && this.doneAt === null) { this.dustTick(); if (this.huntList().length) this.once('hunt', 'Почти: ещё светятся отмеченные голые ионы, за краем кадра — стрелки к ним'); }
     for (const f of this.floats) f.t += dt;
     this.floats = this.floats.filter(f => f.t < 1.6);
     this.tickTrail(live);
@@ -319,7 +366,7 @@ const Atoms = {
     if (e.by === 'hand') { this.caps.hand++; io.by = 'hand'; } else { this.caps.auto++; if (io.by !== 'hand') io.by = 'auto'; }
     fxRing(io.x, io.y, .3, atCol(io.Z), 1.6, .5);
     Sfx.play('catch', Math.min(3, io.ne - 1));
-    this.once('ex', 'Электрон пойман, но дрожит на внешней орбите, и свет легко его сбивает. Осадить: след через атом или зажать атом');
+    this.once('ex', 'Электрон пойман, но дрожит на внешней орбите, и свет легко его сбивает. Осадить его — провести следом через атом');
   },
   // электроны спрыгнули на основную орбиту: вспышка своей линии и фотон этой линии (how: 'hand' — след, 'casc' — фотон соседа, 'self' — сам)
   // by — фотон той же линии, что осадил атом (вынужденное излучение): он летит дальше, а новый — его копия рядом, тем же курсом
@@ -401,13 +448,15 @@ const Atoms = {
 
   // ---------- задание ----------
   steps() {
-    const n = this.neutral(), touch = isTouch();
+    const n = this.neutral(), touch = isTouch(), wait = this.alien.filter(Z => !this.seenN.has(Z)).map(atSym).join(', ');
+    const dust = wait ? ` · ${wait} — не из твоей звезды: ${this.clock < DUST_T ? `пыль соседних сверхновых через ${Math.ceil(DUST_T - this.clock)} с` : 'их приносит пыль соседних сверхновых, она редкая'}` : '';
+    const hunt = this.huntList().length;
     return [
       { t: 'Затормозить электрон', h: `${touch ? 'провести пальцем' : 'зажать мышь и провести'} поперёк его пути`, s: 'электрон замедлился', d: this.st.brakes > 0 },
       { t: 'Осадить пойманный электрон', h: 'он дрожит на внешней орбите: провести следом через атом', s: 'спектральная линия', d: this.st.relaxed > 0 },
-      { t: 'Одеть ядра электронами', h: 'заторможенные электроны садятся на ион; ион — рогаткой под них · гелий и закрытую K-оболочку жёсткий свет не берёт', items: AT_NEED.map(Z => [atSym(Z), this.seenN.has(Z)]), s: 'H, He, C, N, O', d: AT_NEED.every(Z => this.seenN.has(Z)) },
+      { t: 'Одеть ядра электронами', h: 'заторможенные электроны садятся на ион; ион — рогаткой под них · гелий и закрытую K-оболочку жёсткий свет не берёт' + dust, items: AT_NEED.map(Z => [atSym(Z), this.seenN.has(Z)]), s: 'H, He, C, N, O', d: AT_NEED.every(Z => this.seenN.has(Z)) },
       { t: 'Сформировать закон «Рекомбинация»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${A_COST} ✦`, s: 'рекомбинация', d: this.rs.rec > 0, res: 'rec' },
-      { t: 'Погасить свечение туманности', h: this.sparse() ? 'в кадре пусто — это не туманность: вернись туда, где ионы' : `голые ионы и свободные электроны светятся и греют газ — молекулам в нём не выжить: нейтрализовать 90 %${this.rs.rec ? `. Закон «Рекомбинация» даёт до ${REC_TOP * 100} %, остальное следом` : ''}`, p: [Math.min(90, Math.round(n * 100)), 90], s: 'газ нейтральный', d: n >= A_GOAL },
+      { t: 'Погасить свечение туманности', h: this.sparse() ? 'в кадре пусто — это не туманность: вернись туда, где ионы' : hunt ? `осталось одеть голые ионы (${hunt}): они отмечены, за краем кадра — стрелки к ним` : `голые ионы и свободные электроны светятся и греют газ — молекулам в нём не выжить: нейтрализовать 90 %${this.rs.rec ? `. Закон «Рекомбинация» даёт до ${REC_TOP * 100} %, остальное следом` : ''}`, p: [Math.min(90, Math.round(n * 100)), 90], s: 'газ нейтральный', d: n >= A_GOAL },
     ];
   },
   starPool() {
@@ -501,9 +550,22 @@ const Atoms = {
           const e = this.el.find(e => !e.dead && e.slow > 0 && onScreen(...W2S(e.x, e.y), -40)); if (e) { const [ex, ey] = W2S(e.x, e.y); ghostSling(sx, sy, ex, ey, al); } else hintIcons('hold', sx, sy + .9 * cam.z + 22); }
       }
     }
+    if (!G.prev) this.drawHunt(al);
     this.sl.draw(al); // рогатка атома: резинка, пунктир до остановки, вердикт
     for (const fl of this.floats) { const [fx, fy] = W2S(fl.x, fl.y); labelIn(fl.txt, fx, fy - 16 - fl.t * 26, fl.sz, fl.c, clamp(1.6 - fl.t, 0, 1), 700); }
     ctx.globalAlpha = 1;
+  },
+  // охота за последними процентами: голые ионы, что идут в долю, — тонкое розовое кольцо (цвет свечения),
+  // а те, что за краем экрана (счёт идёт и на A_REFM за кадром), — стрелки у края с символом иона
+  drawHunt(al) {
+    const L = this.huntList(); if (!L.length) return;
+    const z = cam.z, pu = .35 + .2 * Math.sin(G.T * 4);
+    for (const io of L) {
+      const [sx, sy] = W2S(io.x, io.y); if (!onScreen(sx, sy, 30)) continue;
+      ring(sx, sy, (.3 + .06 * io.Z) * z + 1.2 * z + 6, [255, 140, 170], pu * al, 1.5, [5, 5]);
+    }
+    edgeArrows(L.map(io => [io.x, io.y, ionSym(io.Z, io.ne)]), HUNT_N);
+    ctx.globalAlpha = al;
   },
   // свечение ионизованного газа (Hα, розовое): гаснет, как только электроны садятся на ядра
   fog() { return .5 * (1 - smooth(.15, A_GOAL, this.neutral())) * smooth(0, 2, this.t); },

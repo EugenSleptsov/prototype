@@ -152,6 +152,9 @@ test('молекулы: кратные связи — сильнее удар, �
 
 test('молекулы: Вселенная, научившись соединению с кратной связью, бьёт под неё (CO₂: O=C=O)', () => {
   const g = toMols(); g.ev('G.stage.tide = () => {}'); // не quiet: G.stage — это сам Mols, quiet затёр бы его autoChem
+  // своё зерно случайности: исход не зависит от того, сколько чисел съели прошлые уровни (сборка CO₂ Вселенной —
+  // вероятностная: связанный C–O нередко уплывает дальше 70 от второго O, и тогда она его не добивает)
+  g.ev('Math.random = (s => () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; })(4)');
   g.ev(`(() => { const S = G.stage; for (const m of S.m) m.dead = true; S.m = []; S.res.add('CO₂');
     for (const [e, dx] of [['C', 0], ['O', -40], ['O', 40]]) { const m = S.newMol(e, P.x + dx, P.y); m.age = 2; m.w = 0; } })()`);
   for (let i = 0; i < 60 * 30 && !g.ev(`G.stage.found.includes('CO₂')`); i++) g.ev('G.stage.tide = () => {}; update(1 / 60)');
