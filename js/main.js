@@ -44,10 +44,11 @@ function endGame(text) {
   document.getElementById('endtext').textContent = text;
   // счёт забега: в таблицу браузера и (если включена) в общую
   const cheated = G.fromI > 0 || STAGES.some(s => s.cheated), secs = (Date.now() - (G.runT0 || Date.now())) / 1000, el = document.getElementById('endlb');
-  const local = lbTable('total', { n: LB.name(), s: Math.round(G.score), t: Math.floor(secs), d: Date.now() }, cheated);
-  const mine = local.replace('class="rk">', 'class="rk">в этом браузере · ');
-  el.innerHTML = `<div class="rk big">${fmtScore(G.score)} очков за забег</div><div id="endon">${Online.on() ? '' : mine}</div>`;
-  endBoard(document.getElementById('endon'), G.score, secs, cheated, mine);
+  // матрица рекордов: строка — забег, столбцы — уровни и Σ (в браузере; общая — если включена)
+  const run = { n: LB.name(), lv: STAGES.map((_, i) => G.lv[i] ?? null), s: Math.round(G.score), t: Math.floor(secs), d: Date.now() };
+  if (!cheated) Runs.add(run);
+  el.innerHTML = `<div class="rk big">${fmtScore(G.score)} очков за забег</div><div id="endon"></div>`;
+  endBoard(document.getElementById('endon'), run, cheated);
   setTimeout(() => { document.getElementById('end').style.display = 'flex'; }, 1500);
 }
 
@@ -264,7 +265,7 @@ if (savedName || tutSeen0()) { intro.classList.add('quick'); introSt('ready'); }
 else { introSt('line'); drawPath(); lineT = setTimeout(() => introSt('ready'), 3200); } // впервые: линия жизни, потом она уезжает вниз
 function startRun() {
   const v = pname.value.trim(); if (v && v !== savedName) nameDone(); // вписал и не нажал «Дальше» — тоже имя
-  document.getElementById('intro').style.display = 'none'; G.started = true; G.runT0 = Date.now(); G.run = (G.run || 0) + 1;
+  document.getElementById('intro').style.display = 'none'; G.started = true; G.runT0 = Date.now(); G.run = (G.run || 0) + 1; G.lv = [];
   jumpTo(G.fromI);
 }
 document.getElementById('go').onclick = startRun;
@@ -278,7 +279,7 @@ function endTut(done) {
   if (!G.tutor) return;
   G.tutor = false; document.body.classList.remove('tut'); Cine.clear(); Spot.end();
   try { localStorage.setItem('proto.tut', '1'); } catch (e) { /* без хранилища */ }
-  G.stage.enter(); G.score = 0; G.run = (G.run || 0) + 1; G.runT0 = Date.now(); G.fx = []; mouse.down = false;
+  G.stage.enter(); G.score = 0; G.run = (G.run || 0) + 1; G.lv = []; G.runT0 = Date.now(); G.fx = []; mouse.down = false;
   msg(done ? 'Обучение пройдено. Начинается настоящий забег' : 'Обучение пропущено. Забег начинается', 2.5);
 }
 

@@ -12,6 +12,7 @@ create table if not exists public.scores (
   name       text        not null check (char_length(name) between 1 and 24 and name !~ '[<>]'),
   score      integer     not null,
   secs       integer,                                                 -- длительность забега, с (для run)
+  lv         integer[],                                               -- очки по уровням забега (для run; см. leaderboard_lv.sql)
   v          integer     not null default 1,                          -- версия правил игры: сменятся правила — новая таблица по v
   created_at timestamptz not null default now(),
   -- грубая защита от явной подделки: разогрев 820…1500 ГэВ; забег — не короче минуты и не больше миллиона очков

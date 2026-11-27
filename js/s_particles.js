@@ -94,7 +94,7 @@ const NOW_UD = 3, NOW_E = 2, NOW_PAIRS = 2;
 // Доход от научённого, ✦/мин (сводка «Законы Вселенной»): свет — по уровню, «Генерация X» — 2 + ценность X
 /** @type {Record<string, number>} */
 const UNI_RATE = { g: 3, coll: 4, cp: 4 }, UNI_PH = [0, 2, 5];
-const LB_KEY = 'proto.lb.v1', LB_TOP = 5;
+const LB_KEY = 'proto.lb.v1';
 // Таблица рекордов — в браузере игрока (localStorage)
 const LB = {
   load() { try { return JSON.parse(localStorage.getItem(LB_KEY) || 'null') || {}; } catch (e) { return {}; } },
@@ -121,18 +121,6 @@ const LB = {
   },
 };
 const fmtClock = (/** @type {number | null | undefined} */ t) => t == null ? '—' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-// Таблица рекордов для карточки итогов: место, топ и твоя строка
-/** @param {string} key @param {LBEntry} entry @param {boolean} cheated */
-function lbTable(key, entry, cheated) {
-  if (cheated) return '<div class="rk">отладка: без рекорда</div>';
-  /** @type {Record<string, string>} */
-  const ENT = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
-  const esc = (/** @type {unknown} */ x) => String(x).replace(/[&<>"]/g, c => ENT[c]);
-  const row = (/** @type {LBEntry} */ x, /** @type {number} */ k, /** @type {boolean} */ me) => `<tr class="${me ? 'me' : ''}"><td>${k + 1}</td><td>${esc(x.n)}</td><td>${x.s}</td><td>${fmtClock(x.t)}</td></tr>`;
-  const { list, place } = LB.add(key, entry);
-  const top = list.slice(0, LB_TOP).map((x, k) => row(x, k, k === place)).join('') + (place >= LB_TOP ? row(entry, place, true) : '');
-  return `<div class="rk">${place === 0 ? '🏆 Рекорд!' : `#${place + 1} из ${list.length}`}</div><table class="lb">${top}</table>`;
-}
 const LEP_C = [[150, 205, 255], [120, 165, 255], [150, 120, 255]];
 /** @type {Record<string, RGB>} */
 const BOS_C = { W: [255, 150, 70], Z: [255, 105, 115], H: [255, 215, 90], ph: [255, 240, 190] };

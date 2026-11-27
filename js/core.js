@@ -10,6 +10,7 @@ const G = { W: 1, H: 1, DPR: 1, T: 0, stageI: 0,
   taskY: 0, taskAt: /** @type {number | undefined} */ (undefined),
   /** заводит main.js: масштаб щипком/колесом, начало забега, идёт обучение, ✦ уже обращённые в очки (у какого этапа), лестница */
   zoom: 1, runT0: 0, run: 0, ctlT: 0, tutor: false,
+  /** очки каждого уровня этого забега (индекс — уровень; матрица рекордов в конце) */ lv: /** @type {(number | null)[]} */ ([]),
   ladP: /** @type {number | null} */ (null), ladT: /** @type {number | undefined} */ (undefined),
   /** единицы уходящего этапа: x_prev = x·s + ox (на переходе со сменой масштаба, см. rescale) */
   prevU: { s: 1, ox: 0, oy: 0 },
@@ -622,6 +623,7 @@ const Tally = {
     const won = !st.failed, auto = won && d.auto && d.auto[1] > 0 ? clamp(d.auto[0] / d.auto[1], 0, 1) : null;
     if (won) addScore(LVL_BONUS);
     const lvl = Math.round(G.score - (st.scoreAt || 0));
+    if (!G.tutor) G.lv[G.stageI] = lvl; // строка забега в матрице рекордов
     /** @type {number | null} */
     let place = null;
     if (!st.cheated) place = LB.add('run.' + st.key, { n: LB.name(), s: lvl, t: Math.floor(st.clock ?? st.t ?? 0), d: Date.now() }).place;
