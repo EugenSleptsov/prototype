@@ -96,6 +96,23 @@ test('пролог: не трогаешь — шарик лежит на дне,
   assert.equal(g.ev('G.stage.inf.pick.i'), 0, 'холодный разогрев');
 });
 
+test('глава «Свет»: после вспышки света раскачки — на одну шкалу ⚡ с запасом, каждый созданный класс есть, он летит прочь от чаши; пока шкала не полна — новый свет вспыхивает за кадром', () => {
+  const g = loadGame();
+  g.ev(PREP.start); g.ev(PREP.pump(.9));
+  assert.equal(g.ev('INF.life'), 25);
+  const r = json(g, `(() => { const S = G.stage, L = S.p.filter(o => !o.dead && o.sp === 'ph' && !(o.fade >= 0));
+    return { e: L.reduce((a, o) => a + PH_CLS[S.phClass(o)].e, 0), cls: [...new Set(L.map(o => S.phClass(o)))].sort(), made: S.madeCls().sort(),
+      out: L.every(o => (o.x - P.x) * o.dx + (o.y - P.y) * o.dy >= 0), fading: S.p.filter(o => !o.dead && o.sp === 'ph' && o.fade >= 0).length }; })()`);
+  const SE = g.ev('STASH_E');
+  assert.ok(r.e >= SE && r.e < SE + 3, `свет на шкалу с запасом: ${r.e} ⚡`);
+  assert.deepEqual(r.cls, r.made, 'каждый созданный класс — хотя бы один фотон');
+  assert.ok(r.out, 'летит прочь от чаши');
+  assert.ok(r.fading > 0, 'лишний свет раскачки остывает в фон, а не исчезает');
+  const far = g.ev(`(() => { const S = G.stage, n0 = S.p.length; for (let i = 0; i < 20; i++) S.spawnQuantum(false); const R = Math.min(viewRadius(), refRadius()) * .9;
+    return S.p.slice(n0).every(o => Math.hypot(o.x - P.x, o.y - P.y) >= R - .01); })()`);
+  assert.equal(far, true, 'пока шкала не полна — пополнение за кадром');
+});
+
 test('поле включается, только когда свой свет измерен', () => {
   const g = loadGame();
   g.ev(PREP.start); g.ev(PREP.pump());

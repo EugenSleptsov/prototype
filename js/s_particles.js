@@ -43,6 +43,8 @@ const THROW_V = 5, THROW_R = .85; // скорость детектора для 
 // Энергия детектора: появляется, когда открыт фотон; пополняется пойманными фотонами,
 // тратится на снимки и на разгон квантов полем
 const E_CAP = 10, E_START = 0, E_SHOT = 1, E_FIELD = 2, PH_C = [255, 238, 150];
+// свет раскачки, который остаётся после вспышки, — в ⚡: одна шкала с небольшим запасом (глава «Свет» — поиск, а не россыпь)
+const STASH_E = 12;
 // Норматива времени нет (урок 42): эпохи 1–3 — учебные главы, спешка там вредна; эпоха 4 — экзамен, её часы — остывание.
 // Передышка между эпохами: впервые глава следующей эпохи — дольше (итоги, Вселенная повторяет твой закон), потом — коротко
 const GAP_NEW = 6, GAP = 2.5;
@@ -69,7 +71,8 @@ const PROF = [{ n: 'слабый', k: [.82, .92], c: [130, 195, 255], h: 0 }, { 
 // ещё — размах растёт; размах за край — перетянул: шарик вывалился, его энергия пропала. Размах у края (≥ edge) — жарче
 // разогрев и жёсткий свет. u — доля полуширины чаши (край — |u| = 1), A = √(u² + (u̇/ω)²) — размах;
 // R — полуширина чаши в радиусах детектора. Та же чаша — сцена «Рогатка» школы жестов (без света).
-const INF = { w: TAU / 1.8, gam: .4, vk: 1.3, kap: .2, edge: .85, outT: 1.2, life: 18, wait: 8, R: 2.6, deep: .75, low: .4 };
+// life — сколько живёт поле после первого толчка (25 с: успеть несколько раз довести до края), κ — под эту длину
+const INF = { w: TAU / 1.8, gam: .4, vk: 1.3, kap: .144, edge: .85, outT: 1.2, life: 25, wait: 8, R: 2.6, deep: .75, low: .4 };
 /** шаг колебания с трением (полунеявный Эйлер) @param {number} u @param {number} v @param {number} h @returns {[number, number]} */
 const bowlStep = (u, v, h) => { v += (-INF.w * INF.w * u - INF.gam * v) * h; return [u + v * h, v]; };
 /** @returns {Bowl} */
@@ -533,6 +536,13 @@ const Particles = {
     if (T0 > 0) for (const o of this.p) if (!o.dead && !o.cap && this.isQ(o)) o.p *= this.T / T0;
     this.en = Math.max(this.en, E_START);
     fxRing(P.x, P.y, .5, PH_C, this.wr(), 2.5); fxFlash(P.x, P.y, this.hr() * 2, [255, 240, 200], .6);
+    // Свет раскачки после вспышки: остаётся на одну шкалу ⚡ с небольшим запасом (STASH_E, каждый созданный класс — хотя бы
+    // один фотон), остальное остывает в фон; оставшийся вспышка разносит от чаши — за ним едешь: глава «Свет» учит вести круг
+    const keep = new Set(), phs = this.p.filter(o => !o.dead && o.sp === 'ph').sort(() => Math.random() - .5), eOf = (/** @type {Q} */ o) => PH_CLS[this.phClass(o)].e;
+    for (const c of this.madeCls()) { const o = phs.find(q => this.phClass(q) === c); if (o) keep.add(o); }
+    let e = 0; for (const o of keep) e += eOf(o);
+    for (const o of phs) if (!keep.has(o) && e < STASH_E) { keep.add(o); e += eOf(o); }
+    for (const o of phs) { if (!keep.has(o)) { o.fade = 1; continue; } const dx = o.x - P.x, dy = o.y - P.y, d = Math.hypot(dx, dy); if (d > 1e-3) { o.dx = dx / d; o.dy = dy / d; } }
     // разогрев — чистый скилл: очки за каждый процент шкалы и отдельный рекорд температуры
     if (this.inf.go && !this.cheated) {
       const T0 = Math.round(this.T0), pts = Math.round(this.inf.H * 100) * 10, was = this.heatBest;
@@ -778,7 +788,7 @@ const Particles = {
   spawnQuantum(any, hp = null, hard = !!hp, want = null, fromZone = false) {
     // вакуум только что закипел: возмущения вспыхивают прямо в кадре, пары фотонов
     const K = this.qKinds(); if (!K.length) return; // оба закона выключены — Вселенная квантов не рождает
-    if (!hp && this.ep === 0 && !this.gOn && this.autoT < 10) { const [bx, by] = this.randPos(false); this.burst(bx, by, true); return; }
+    if (!hp && this.ep === 0 && !this.gOn && this.autoT < 10) { const [bx, by] = this.randPos(!this.full); this.burst(bx, by, true); return; } // пока шкала ⚡ не полна (глава «Свет») — вспыхивает за кадром: свет ищут
     // пополнение держит фотоны и глюоны поровну: детектор ест фотоны на энергию, их не должно стать нечем ловить
     let ng = 0, nph = 0; for (const o of this.p) if (!o.dead) { if (o.sp === 'g') ng++; else if (o.sp === 'ph') nph++; }
     const gOk = K.includes('g') && (this.ep !== 3 || ng < G_MAX4);
