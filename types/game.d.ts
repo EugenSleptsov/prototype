@@ -131,7 +131,7 @@ interface Q {
   /** ступень удара при отпускании (действует 3 с с lvAt) */
   lv: number | null; lvAt: number;
   /** гаснет (−1 — нет); «твоё» на виду, секунды; отброшен щитом; втягивается щитом */
-  fade: number; mine: number; rep: number; pull: number;
+  fade: number; mine: number; rep: number; /** отброшен ударом щита — уходит насовсем */ ej?: boolean; pull: number;
   /** рождена самой Вселенной (исследованное «Генерация X»), а не тобой */
   uni?: boolean;
   /** антикварк волны эпохи 4 */
@@ -185,7 +185,7 @@ interface HotZone { x: number; y: number; r: number; t: number; L: number; em?: 
 interface Ripple { x: number; y: number; t: number }
 /** Эпоха 4: волна антивещества (cur — летящая сейчас) */
 /** edu — впервые первая волна учебная (две медленные античастицы) */
-interface Wave { n: number; cd: number; dir: number | null; cur: { list: Q[]; t: number; eaten0: number } | null; edu?: boolean }
+interface Wave { n: number; cd: number; dir: number | null; cur: { list: Q[]; /** вся волна, с погибшими */ all: Q[]; t: number; eaten0: number } | null; edu?: boolean }
 /** Тройка, сбережённая Вселенной */
 interface Safe { a: number; r: number; w: number; t0: number; q: string[] }
 interface Stored { fl: string; col: number }

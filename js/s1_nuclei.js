@@ -33,6 +33,12 @@ const N_FRAC = [.15, .4]; // доля нейтронов во Вселенной
 // «Нуклеосинтез» сам доводит гелий лишь до SYN_TOP — дальше ⁴He куёт Вселенная только до A = 3 (²H, ³H, ³He — заготовки),
 // последний шаг до 25 % — твоими бросками (как REC_TOP в «Атомах»): иначе после закона лучшей игрой было убрать руки
 const SYN_TOP = .17;
+// Запас нейтронов Вселенной — N_BUD · Y_B · nFrac сверх тех, что были на входе: водил карту — открывал свежую Вселенную
+// со свежими нейтронами без конца (бот с картой — Y 80–100 %, стоящий — 10–50 %, REVIEW_NEON_4 «Ядра» №1).
+// Нейтрон, растворившийся вдали, возвращается в запас; распался или ушёл в ядро — из запаса ушёл.
+// Нейтроны приходят по кадру-эталону (N_NT — не чаще), пока их в нём меньше доли nFrac·e^(−t/150) — и когда кадр
+// забит протонами: прилив по числу тел у стоящего игрока не шёл вовсе
+const N_BUD = 1.5, N_NT = 1.5;
 const NU_R = .42, N_WIN = 120, N_PAR = 75, N_VIEW = 9, N_DENS = .075, N_CAP = 60, N_FLY = 1.3, N_REACH = 11, N_SPD = 1.75, N_VMAX = 15 * N_SPD, SYN_COST = 30, Y_GOAL = .25;
 const NUC_NAME = {
   '1,0': ['p', 'протон'], '0,1': ['n', 'нейтрон'], '1,1': ['²H', 'дейтерий'], '1,2': ['³H', 'тритий'], '2,1': ['³He', 'гелий-3'],
@@ -85,6 +91,7 @@ const Nuclei = {
     }
     if (this.o.filter(o => o.N).length < 3) for (let i = 0; i < 3; i++) { const at = beyondPos(z1, .5, true); if (at) this.mk(0, 1, at[0], at[1]).age = prev ? 1 : -Math.random(); }
     this.nB = this.o.length; this.nN = this.o.filter(o => o.N).length;
+    this.nBud = Math.round(N_BUD * Y_B * this.nFrac); this.nCd = N_NT;
     for (const o of this.o) if (o.N) o.life = rnd(70, 100);
     for (const o of this.o) { this.seen.add(nkey(o)); Codex.note('n:' + nkey(o)); }
     this.stars = pickStars(this.starPool());
@@ -103,15 +110,33 @@ const Nuclei = {
   },
   // Вселенная вокруг: не хватает в кадре — приходит из-за края; чужое далеко за краем растворяется
   tide(dt) {
-    dissolveFar(this.o, o => o.held || o.fly > 0 || this.heOf(o) > 0); // гелий в счёте не растворяется: уехал от него — он всё равно твой
+    const keep = (/** @type {any} */ o) => o.held || o.fly > 0 || this.heOf(o) > 0; // гелий в счёте не растворяется: уехал от него — он всё равно твой
+    for (const o of this.o) if (this.isN(o) && !o.mine && farOff(o) && !keep(o)) this.nBud++; // растворился вдали — вернулся в запас Вселенной
+    dissolveFar(this.o, keep);
     this.el = this.el.filter(e => !farOff(e));
     if (this.doneAt !== null) return;
     const have = this.o.filter(o => !o.dead && inView(o.x, o.y, 1)).length;
     if (have < popWant(N_DENS, N_CAP) && Math.random() < dt * 6) {
       const r = rimPos(.6), sp = rnd(1, 2.2);
-      const o = this.cosmic(r.x, r.y, r.nx * sp + randn() * .4, r.ny * sp + randn() * .4); o.age = 0;
+      this.inflow(r.x, r.y, r.nx * sp + randn() * .4, r.ny * sp + randn() * .4);
     }
-    haloFill(this.o, N_DENS, N_CAP, dt, (x, y) => { this.cosmic(x, y, randn() * .4, randn() * .4).age = 0; }); // и за краем — сдвинул карту, там то же
+    // нейтроны — по кадру-эталону, из-за края того, что дальше (эталона или экрана): не на глазах и не от зума
+    const nIn = this.o.filter(o => this.isN(o) && inRef(o.x, o.y)).length;
+    if (this.nBud > 0 && nIn < Math.round(popWant(N_DENS, N_CAP, refZ()) * this.nFrac * Math.exp(-this.t / 150)) && (this.nCd -= dt) <= 0) {
+      this.nCd = N_NT; this.nBud--;
+      const r = rimPos(.6, Math.min(cam.z, refZ())), sp = rnd(1.5, 2.5), o = this.mk(0, 1, r.x, r.y, r.nx * sp + randn() * .4, r.ny * sp + randn() * .4);
+      o.life = rnd(60, 100);
+    }
+    haloFill(this.o, N_DENS, N_CAP, dt, (x, y) => { this.inflow(x, y, randn() * .4, randn() * .4); }); // и за краем — сдвинул карту, там то же
+  },
+  /** @param {any} o свободный нейтрон */
+  isN(o) { return !o.dead && o.Z === 0 && o.N === 1; },
+  /** вещество из-за края во время игры — без нейтронов: они приходят только приливом по кадру-эталону, из запаса
+   * (иначе кольцо за краем кадра держало нейтроны для того, кто водит карту) @param {number} x @param {number} y @param {number} vx @param {number} vy */
+  inflow(x, y, vx, vy) {
+    const o = this.cosmic(x, y, vx, vy); o.age = 0;
+    if (this.isN(o)) { o.Z = 1; o.N = 0; o.lay[0].t = 'p'; o.life = Infinity; }
+    return o;
   },
   // ядро: Z протонов, N нейтронов; нуклоны уложены спиралью
   mk(Z, N, x, y, vx = 0, vy = 0) {
@@ -212,11 +237,13 @@ const Nuclei = {
     }
     const r = j.r, x = (a.x + b.x) / 2, y = (a.y + b.y) / 2, vx = (a.vx + b.vx) / 4, vy = (a.vy + b.vy) / 4;
     a.dead = b.dead = true;
+    // выросшее из фонового гелия — тоже фон: ²H в фоновый ⁴He давал ⁶Li и +15 % к цели одним броском (REVIEW_NEON_4 «Ядра» №2)
+    const cos = a.cos || b.cos;
     const a0 = Math.random() * TAU, n = r.out.length;
     r.out.forEach(([Z, N], i) => {
       const an = a0 + i * TAU / n, sp = n > 1 ? 2.4 : 0, off = n > 1 ? .3 : 0;
       const o = this.mk(Z, N, x + Math.cos(an) * off, y + Math.sin(an) * off, vx + Math.cos(an) * sp, vy + Math.sin(an) * sp);
-      o.age = 1; o.nb = .8; o.mine = true; if (Z === 0) o.life = Math.min(a.life, b.life, rnd(50, 70));
+      o.age = 1; o.nb = .8; o.mine = true; if (cos) o.cos = true; if (Z === 0) o.life = Math.min(a.life, b.life, rnd(50, 70));
       if (Z === 2 && N === 2) { if (src === 'hand') this.he.hand++; else this.he.auto++; }
       this.made(o, i, src);
     });
@@ -462,22 +489,24 @@ const Nuclei = {
   drawNuc(o, al) {
     const [sx, sy] = W2S(o.x, o.y), z = cam.z;
     if (!onScreen(sx, sy, o.rad * z + 40)) return;
-    const k = appear(o.age + (o.src ? APPEAR_T : 0)), a = al * k, zs = z * popIn(k); // новое — проявляется и подрастает
+    const k = appear(o.age + (o.src ? APPEAR_T : 0)), zs = z * popIn(k); // новое — проявляется и подрастает
+    let a = al * k;
     if (a <= 0) return;
     if (o.thrown) { // след броска: золото — твой, голубой — Вселенной
       const c = o.thrown === 'hand' ? GOLD : [150, 205, 255];
       line(sx, sy, sx - o.vx * .12 * z, sy - o.vy * .12 * z, c, .5 * a, Math.max(2, o.rad * z * .8));
     }
+    if (o.cos) a *= .45; // фоновый гелий — бледный, без ореола и с пунктиром: он не твой и не в счёте
     ctx.globalAlpha = a;
     const c = Math.cos(o.rot), s = Math.sin(o.rot), A = o.Z + o.N, hc = nucHalo(o.Z);
     if (A === 1) drawNucleon(sx, sy, NU_R * zs, o.lay[0].t, G.T * .8); // одиночный протон или нейтрон — как был, с кварками
     else { // ядро — шарик из нуклонов: плотная укладка, дальние темнее (объём), под ним — ореол цвета элемента
       const pts = o.lay.map(p => { const lx = p.lx * NUC_PACK, ly = p.ly * NUC_PACK; return { t: p.t, x: lx * c - ly * s, y: lx * s + ly * c, d: Math.hypot(lx, ly) }; }).sort((u, v) => v.d - u.d);
       const dm = Math.max(...pts.map(p => p.d), 1e-6), pr = NU_R * zs * 1.12, R = dm * zs + pr * .92;
-      glow(sx, sy, R * 2.1, hc, .4);
+      if (!o.cos) glow(sx, sy, R * 2.1, hc, .4);
       ball(sx, sy, R, mixc(hc, [0, 0, 0], .3)); // тело шарика — тоже цвета элемента (ball затемняет край)
       for (const p of pts) ball(sx + p.x * zs, sy + p.y * zs, pr, mixc(NUC_C[p.t], [0, 0, 0], .38 * p.d / dm));
-      ring(sx, sy, R + 1, hc, .85, 2);
+      ring(sx, sy, R + 1, hc, .85, 2, o.cos ? [3, 4] : undefined);
     }
     ctx.globalAlpha = 1;
     if (A > 1) label(nsym(nkey(o)), sx, sy - (o.rad + .3) * z, 13, mixc(hc, [255, 255, 255], .35), .95 * a, 700);

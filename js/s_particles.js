@@ -1780,11 +1780,11 @@ const Particles = {
       if (o.pull > 0 && (o.pull -= dt) <= 0) o.v = undefined;
       if (o.fade >= 0) { o.fade -= dt * 1.5; o.born = Math.min(o.born, Math.max(0, o.fade)); if (o.fade <= 0) o.dead = true; }
       else if ((o.sp === 'ph' ? phLife && this.hzAt(o.x, o.y) < .2 : o.sp === 'g' && gLife && this.czAt(o.x, o.y) < .2) && !o.cap && !(o.flung > 0) && !(o.mine > 0) && (o.qt = (o.qt || 0) + dt * (inRef(o.x, o.y) ? Q_VIEW : 1)) > (o.ql || (o.ql = rnd(Q_LIFE * .7, Q_LIFE * 1.3))) && !this.inHand(o)) o.fade = 1;
-      if (ep4 && SM[o.sp].kind === 'quark' && !(o.rep > 0) && !(o.pull > 0)) this.drift4(o, dt);
+      if (ep4 && SM[o.sp].kind === 'quark' && !(o.rep > 0) && !o.ej && !(o.pull > 0)) this.drift4(o, dt);
       if (!o.cap) {
         // магнитное поле камеры закручивает заряженные следы (античастицы — в другую сторону)
         const q = SM[o.sp].q;
-        if (q && !this.isQ(o) && !(o.rep > 0) && !(o.pull > 0)) {
+        if (q && !this.isQ(o) && !(o.rep > 0) && !o.ej && !(o.pull > 0)) {
           const w = .5 * q * (o.anti ? -1 : 1) * dt, c = Math.cos(w), s = Math.sin(w), x = o.dx;
           o.dx = x * c - o.dy * s; o.dy = x * s + o.dy * c;
         }
@@ -1798,7 +1798,7 @@ const Particles = {
       if (this.hig > .5 && o.life < Infinity) { o.age += dt; if (o.age > o.life) { this.decay(o); continue; } }
       if (!act) continue;
       const ox = o.x - P.x, oy = o.y - P.y, d = Math.hypot(ox, oy);
-      if (o.rep > 0 && d > refRadius() + .5) { o.dead = true; this.ejected++; continue; }
+      if ((o.rep > 0 || o.ej) && d > refRadius() + .5) { o.dead = true; this.ejected++; continue; }
       if (d > WR && !o.cap) {
         o.x = P.x - ox * .95; o.y = P.y - oy * .95; o.born = 0; o.vis = 0; if (o.trail) o.trail = [];
         const w = rnd(-.6, .6), c = Math.cos(w), s = Math.sin(w), x = o.dx; o.dx = x * c - o.dy * s; o.dy = x * s + o.dy * c; // не по той же линии
@@ -2153,16 +2153,20 @@ const Particles = {
   },
   coreR() { return Math.min(this.hr(), CORE_R); },
   // Волна антивещества: предупреждение (стрелка и дуга с той стороны), потом 4–8 антикварков летят на детектор.
-  // Ни один не добрался до ядра — волна отбита (+5 ✦).
+  // Отбита (+5 ✦) — если никто не съел кварк и щит отбросил хотя бы половину волны: увернуться без щита или
+  // подставить пустое ядро — не победа (бот, уходивший вбок, «отбивал» 3/3 волны, REVIEW_NEON_4 «Частицы» №7).
+  // Не долетевшие за WAVE_MAX_T гаснут — не копятся в мире.
   /** @param {number} dt */
   tickWave(dt) {
     const W = this.wave; if (!W) return;
     if (W.cur) {
       const C = W.cur; C.list = C.list.filter(o => !o.dead); C.t += dt;
       if (C.list.length && C.t < WAVE_MAX_T) return; // не долетевшие за 10 с (кружат) — волна всё равно кончилась
-      const lost = this.st.eaten - C.eaten0;
-      if (!lost) { this.kn += 5; this.st.waves++; Sfx.play('goal'); this.float(P.x, P.y - this.hr() - .5, `${W.edu && W.n === 1 ? 'учебная волна' : 'волна ' + W.n} отбита ✓ +5 ✦`, [140, 235, 170], 16); }
-      else this.float(P.x, P.y - this.hr() - .5, `волна ${W.n} прорвалась: −${lost} ◉`, [255, 130, 130], 15);
+      for (const o of C.list) if (!o.ej && !(o.fade >= 0)) o.fade = 1; // и они гаснут
+      const lost = this.st.eaten - C.eaten0, hit = C.all.filter(o => o.ej).length, nm = W.edu && W.n === 1 ? 'учебная волна' : 'волна ' + W.n;
+      if (lost) this.float(P.x, P.y - this.hr() - .5, `волна ${W.n} прорвалась: −${lost} ◉`, [255, 130, 130], 15);
+      else if (hit * 2 >= C.all.length) { this.kn += 5; this.st.waves++; Sfx.play('goal'); this.float(P.x, P.y - this.hr() - .5, `${nm} отбита ✓ +5 ✦`, [140, 235, 170], 16); }
+      else this.float(P.x, P.y - this.hr() - .5, `${nm} ушла мимо щита — отбей её ударом: +5 ✦`, [200, 210, 225], 14);
       W.cur = null; W.cd = WAVE_CD;
       return;
     }
@@ -2178,18 +2182,19 @@ const Particles = {
       o.wave = true; o.wv = edu ? WAVE_V_EDU : WAVE_V; o.cd = 1.5; o.born = 1; list.push(o);
     }
     if (edu) this.float(P.x, P.y - this.hr() - .6, 'учебная волна: зажми — щит оттолкнёт антикварки', SHIELD_C, 16);
-    W.cur = { list, t: 0, eaten0: this.st.eaten }; W.dir = null;
+    W.cur = { list, all: list.slice(), t: 0, eaten0: this.st.eaten }; W.dir = null;
     Sfx.play('fizzle');
   },
   waveWarn() { const W = this.wave; return W && !W.cur && W.dir != null && W.cd < WAVE_WARN && this.ep === 3 && !this.advanced; },
-  // Отпустил щит — ударная волна: антикварки в поле отлетают прочь (за край кадра — уходят совсем)
+  // Отпустил щит — ударная волна: антикварки в поле отлетают прочь и уходят совсем (ej: летят прямо, пока не скроются за
+  // кадром-эталоном; раньше через 1,8 с снова шли на ядро — на 16:9 и телефоне не успевали уйти и возвращались бумерангом)
   shieldPulse() {
     const R = this.pulseR(); let n = 0;
     for (const o of this.p) {
       if (o.dead || !o.anti || SM[o.sp].kind !== 'quark') continue;
       const dx = o.x - P.x, dy = o.y - P.y, d = Math.hypot(dx, dy);
       if (d > R || d < 1e-3) continue;
-      o.dx = dx / d; o.dy = dy / d; o.v = 4.5; o.rep = 1.8; n++;
+      o.dx = dx / d; o.dy = dy / d; o.v = 4.5; o.rep = 1.8; o.ej = true; n++;
     }
     this.shield = Math.max(0, this.shield - .2 + (n >= SH_GOOD ? SH_BACK : 0)); // точный удар — часть заряда возвращается
     fxRing(P.x, P.y, this.hr() * .5, SHIELD_C, R, .45); Sfx.play('throw');
