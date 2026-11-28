@@ -65,7 +65,9 @@ const Stars = {
     this.C = { x: P.x, y: P.y }; this.ignT = null;
     // доля гелия в облаке — твоя Y с «Ядер» (с нуля — как в нашей Вселенной, 25 %); показ — в первый живой кадр
     this.Yin = prev && prev.key === 'nuclei' && typeof prev.Y === 'function' ? clamp(prev.Y(), 0, 1) : null;
-    this.heP = this.Yin ?? ST_HE0; this.yShown = this.Yin === null;
+    // в облаке — не больше ST_HEMAX: при Y ≈ 1 в недрах первой звезды не было ни протона, азот невозможен, +1000 «с первой»
+    // потеряны (REVIEW_NEON_4 «Ядра» №1). Проваленные «Ядра» несут Y так же: гелий, который ты сделал, есть и без победы
+    this.heP = this.Yin === null ? ST_HE0 : Math.min(ST_HEMAX, this.Yin); this.yShown = this.Yin === null;
     // газ — твои ядра с уровня ядер, за 380 000 лет поймавшие электроны: каждое там же, где было (облачко атомов H или He);
     // Li и Be — свои облачка (сиреневые): в недрах звезды они сгорают в гелий (⁷Li + p → 2 ⁴He)
     this.gas = [];
@@ -363,7 +365,8 @@ const Stars = {
     this.t += dt;
     if (live) { this.banner += dt; if (this.doneAt === null) this.clock += dt; P.vx = P.vy = 0; }
     if (live && !this.yShown && !G.prev) { // итог «Ядер» — в облаке: сколько в нём гелия (подольше обычного всплывающего)
-      this.yShown = true; this.float(P.x, P.y + 2.5, `гелий из «Ядер»: ${Math.round(this.heP * 100)} %`, [255, 225, 150], 16); this.floats[this.floats.length - 1].t = -1.4;
+      const y = Math.round(/** @type {number} */ (this.Yin) * 100), cut = y > Math.round(this.heP * 100);
+      this.yShown = true; this.float(P.x, P.y + 2.5, `гелий из «Ядер»: ${y} %${cut ? ` — в облаке ${Math.round(this.heP * 100)} %: водород нужен азоту` : ''}`, [255, 225, 150], 16); this.floats[this.floats.length - 1].t = -1.4;
     }
     for (const f of this.floats) f.t += dt;
     this.floats = this.floats.filter(f => f.t < 1.6);

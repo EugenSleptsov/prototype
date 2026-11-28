@@ -189,7 +189,9 @@ const Mols = {
         const el = atSym(io.Z); if (!CHEM[el] || !CHEM[el].s.length || io.dead || io.ne < io.Z) continue; // в химию идут только нейтральные атомы: голый ион — не реагент; благородный газ (He) — тоже нет
         const m = this.newMol(el, P.x + (io.x - P.x) * M_U, P.y + (io.y - P.y) * M_U);
         m.vx = io.vx * M_U; m.vy = io.vy * M_U; m.age = 1; m.mine = true; m.src = io;
-        if (io.mine) { m.atoms[0].star = true; this.starN++; } // выкован в твоей звезде — золотая метка, в бульоне дороже
+        // выкован в твоей звезде — золотая метка, в бульоне дороже. Только C, N, O: «Атомы» помечают своими все ядра со
+        // «Звёзд», и H с такой искрой делал H₂O за 45 вместо 30 (REVIEW_NEON_4 «Молекулы» №2)
+        if (io.mine && io.Z >= 6) { m.atoms[0].star = true; this.starN++; }
         if (this.brought && el in this.brought) this.brought[el]++;
       }
     }
@@ -819,7 +821,7 @@ const Mols = {
       { t: `бульон за ${fmtClock(M_STAR_T)}`, ok: () => this.doneAt !== null && !this.failed && this.doneAt <= M_STAR_T, bad: () => this.clock > M_STAR_T },
       { t: `${M_STAR_HAND} из ${M_SOUP} в бульон — рогаткой`, ok: () => this.st.soup - this.st.soupU >= M_STAR_HAND },
       { t: `ценность бульона ${M_STAR_V}`, ok: () => this.st.soupV >= M_STAR_V },
-      { t: `${M_STAR_OWN} в бульоне — из твоих звёзд`, ok: () => this.st.soupStar >= M_STAR_OWN, can: () => this.starN >= 2 },
+      { t: `${M_STAR_OWN} в бульоне — из твоих звёзд`, ok: () => this.st.soupStar >= M_STAR_OWN, can: () => this.starN >= M_STAR_OWN },
     ];
   },
   tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 10, '★ +10 ✦', [255, 215, 110], 17); }, this.failed); },
