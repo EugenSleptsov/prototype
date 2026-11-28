@@ -9,6 +9,7 @@ function hadrons() {
   const g = loadGame({ seed: 5 });
   g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.light);
   while (g.ev('G.stage.key') !== 'quarks') g.ev('advance(); G.trans = 99');
+  g.ev('G.stage.skipChapters()'); // механика — сразу экзамен (главы — hadrons_chapters.test.mjs)
   g.step(30);
   return g;
 }
@@ -21,7 +22,7 @@ const saved = n => `({ key: 'particles', rs: {}, handoff: ${JSON.stringify(Array
 
 test('Частицы → Адроны: каждый сбережённый кварк греет плазму — она остынет позже; строка на старте', () => {
   const g = hadrons();
-  g.ev(`G.stage.enter(${saved(20)})`);
+  g.ev(`G.stage.enter(${saved(20)}); G.stage.skipChapters()`);
   assert.equal(g.ev('G.stage.nSaved'), 20);
   assert.equal(g.ev('G.stage.coolT'), g.ev('Q_COOL + Math.round(Math.min(HEAT_MAX, 20 * HEAT_PER))'));
   assert.ok(g.ev('G.stage.coolT') > g.ev('Q_COOL'), 'твоё вещество — дольше горячо');
@@ -34,10 +35,10 @@ test('Частицы → Адроны: каждый сбережённый кв�
   assert.equal(g.ev('G.stage.heatMsg'), null, 'строку показали');
   assert.ok(g.ev('__msg.some(t => /20 твоих кварков/.test(t))'));
   // потолок: сколько ни сбереги — не дольше HEAT_MAX
-  g.ev(`G.stage.enter(${saved(200)})`);
+  g.ev(`G.stage.enter(${saved(200)}); G.stage.skipChapters()`);
   assert.equal(g.ev('G.stage.coolT'), g.ev('Q_COOL + HEAT_MAX'));
   // ничего не сберёг — без запаса тепла, и это сказано
-  g.ev(`G.stage.enter(${saved(0)})`);
+  g.ev(`G.stage.enter(${saved(0)}); G.stage.skipChapters()`);
   assert.equal(g.ev('G.stage.coolT'), g.ev('Q_COOL'));
   assert.match(g.ev('G.stage.heatMsg'), /не сбережено ни одного кварка/);
   g.ev('G.stage.cool = Q_COOL');
@@ -51,7 +52,7 @@ test('Частицы → Адроны: каждый сбережённый кв�
 
 test('Частицы → Адроны: вымерзшие твои кварки — в итоге уровня («твоих»), тепло сбережённых — тоже', () => {
   const g = hadrons();
-  g.ev(`G.stage.enter(${saved(6)})`); g.step(10);
+  g.ev(`G.stage.enter(${saved(6)}); G.stage.skipChapters()`); g.step(10);
   empty(g);
   const R = g.ev('G.stage.hotR()');
   g.ev(B('__m', [[0, 'u']], R + 1.5)); g.ev('__m.mine = true');

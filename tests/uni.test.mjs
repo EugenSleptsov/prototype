@@ -61,7 +61,7 @@ test('законы Вселенной: сводка на экране, в ито
   assert.equal(g.ev('G.stage.key'), 'quarks');
   assert.equal(g.ev('G.stage.uni.length'), 0);
   // адроны: «Конфайнмент» — строка; барионы Вселенной платят в неё
-  g.ev(`(() => { const S = G.stage; S.handN = HAND_Q; S.kn += 100; S.buy(0); })()`);
+  g.ev(`(() => { const S = G.stage; S.skipChapters(); S.kn += 100; S.buy(S.shopItems().findIndex(x => x.k === 'conf')); })()`);
   assert.equal(g.ev(`G.stage.uni.map(r => r.k).join()`), 'conf');
   g.ev(`Uni.pay(G.stage, 'conf', 4)`);
   assert.equal(g.ev(`G.stage.uni[0].kn`), 4);

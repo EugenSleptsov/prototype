@@ -10,6 +10,7 @@ function hadrons(rs) {
   g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.light);
   if (rs) { while (g.ev('G.stage.key') !== 'particles') g.ev('advance(); G.trans = 99'); g.ev(`Object.assign(G.stage.rs, ${JSON.stringify(rs)})`); }
   while (g.ev('G.stage.key') !== 'quarks') g.ev('advance(); G.trans = 99');
+  g.ev('G.stage.skipChapters()'); // механика — сразу экзамен (главы — hadrons_chapters.test.mjs)
   g.step(30);
   return g;
 }
@@ -78,7 +79,7 @@ test('адроны: антикварк в свой цвет — мезон: бе
   g.step(20);
   assert.equal(kinds(g), 'meson');
   assert.equal(g.ev('G.stage.o[0].pk'), 'pi-');
-  assert.equal(g.ev('G.stage.steps()[2].d'), true);
+  assert.equal(g.ev('G.stage.steps()[2].p[0]'), 1, 'шаг «Погасить антикварк»: 1 из MESON_N');
   assert.equal(g.ev('G.stage.white()') > 0, true);
   g.step(60 * 3);
   assert.equal(g.ev('G.stage.o.length'), 0, 'пион вспыхнул');
@@ -131,8 +132,8 @@ test('адроны: «Конфайнмент» — Вселенная сама �
 test('адроны: всё сделано — уровень кончается, нуклоны уходят в ядра на своих местах', () => {
   const g = hadrons(); empty(g);
   for (let i = 0; i < 12; i++) { g.ev(B('__x', i < 10 ? [[0, 'u'], [1, 'u'], [2, 'd']] : [[0, 'u'], [1, 'd'], [2, 'd']], (i % 4) * 1.5 - 2, Math.floor(i / 4) * 1.5 - 2)); g.ev('__x.byHand = __x.mine = true'); }
-  g.ev(`(() => { const S = G.stage; S.handN = 12; S.made.p = 10; S.made.n = 2; S.st.mesons = 1; S.rs.conf = 1; })()`);
-  assert.equal(g.ev('G.stage.steps().map(s => +s.d).join("")'), '11111');
+  g.ev(`(() => { const S = G.stage; S.handN = 12; S.made.p = 10; S.made.n = 2; S.st.mesons = MESON_N; S.st.cueQ = 1; S.rs.conf = 1; })()`);
+  assert.equal(g.ev('G.stage.steps().map(s => +s.d).join("")'), '111111');
   g.step(10);
   assert.notEqual(g.ev('G.stage.doneAt'), null);
   assert.equal(g.ev('G.stage.failed'), false);
@@ -144,9 +145,9 @@ test('адроны: всё сделано — уровень кончается,
 test('адроны: последний шаг — и твой: 12 нуклонов Вселенной мало, нужно 5 своих', () => {
   const g = hadrons(); empty(g);
   for (let i = 0; i < 12; i++) g.ev(B('__x', i < 10 ? [[0, 'u'], [1, 'u'], [2, 'd']] : [[0, 'u'], [1, 'd'], [2, 'd']], (i % 4) * 1.5 - 2, Math.floor(i / 4) * 1.5 - 2));
-  assert.equal(g.ev('G.stage.steps()[4].d'), false);
+  assert.equal(g.ev('G.stage.steps()[5].d'), false);
   g.ev('G.stage.o.slice(0, 5).forEach(o => o.byHand = true)');
-  assert.equal(g.ev('G.stage.steps()[4].d'), true);
+  assert.equal(g.ev('G.stage.steps()[5].d'), true);
 });
 
 test('адроны: плазма остыла — цветное вымерзает, цель не выполнена, но уровень идёт дальше', () => {
@@ -259,10 +260,11 @@ test('бильярд: от края плазмы шар отскакивает; 
   assert.equal(g.ev('G.stage.st.frozen'), 0);
 });
 
-test('приток плазмы: после первого бариона — в лавке, повторяемый; по 2 кварка каждого цвета (было 5), цена выше и растёт', () => {
+test('приток плазмы: с главы «Холод» — в лавке, повторяемый; по 2 кварка каждого цвета (было 5), цена выше и растёт', () => {
   const g = hadrons();
-  assert.ok(!g.ev('G.stage.shopItems().some(x => x.k === "gen")'), 'до первого бариона нет');
-  g.ev('G.stage.handN = 1; G.stage.kn += 100');
+  g.ev('G.stage.chap = CH_COLD - 1');
+  assert.ok(!g.ev('G.stage.shopItems().some(x => x.k === "gen")'), 'пока плазма горячая — нет');
+  g.ev('G.stage.chap = CH_GOAL; G.stage.kn += 100');
   const it = g.ev('G.stage.shopItems()');
   const i = it.findIndex(x => x.k === 'gen');
   assert.ok(i >= 0 && it[i].opt, 'не для задания — по желанию');
