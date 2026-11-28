@@ -92,13 +92,7 @@ const zoomFor = st => Math.max(100, Math.min(G.W, G.H)) / 2 / st.viewR() * (G.zo
 const refZ = () => Math.max(100, Math.min(G.W, G.H)) / 2 / G.stage.viewR();
 /** @param {number} x @param {number} y @param {number} [m] */
 const inRef = (x, y, m = 0) => { const [hw, hh] = halfView(refZ()); return Math.abs(x - cam.x) < hw + m && Math.abs(y - cam.y) < hh + m; };
-/** точка в кадре-эталоне вокруг неподвижного якоря уровня (a), а не вокруг камеры: счёт цели не едет вместе с картой
- * (REVIEW_DESIGN 5.4) @param {{ x: number, y: number }} a @param {number} x @param {number} y @param {number} [m] */
-const inZone = (a, x, y, m = 0) => { const [hw, hh] = halfView(refZ()); return Math.abs(x - a.x) < hw + m && Math.abs(y - a.y) < hh + m; };
 const refRadius = () => Math.hypot(G.W, G.H) / 2 / refZ();
-/** якорь счёта рядом (не дальше двух кадров-эталонов): тогда его вещество не растворяется — ни при зуме, ни при сдвиге;
- * ушёл далеко — там своя Вселенная, а вернёшься — её доля заново @param {{ x: number, y: number }} a */
-const zoneNear = a => Math.hypot(a.x - cam.x, a.y - cam.y) < refRadius() * 2;
 /** точка в кадре (с запасом m мировых единиц) @param {number} x @param {number} y @param {number} [m] */
 const inView = (x, y, m = 0) => { const [hw, hh] = halfView(); return Math.abs(x - cam.x) < hw + m && Math.abs(y - cam.y) < hh + m; };
 /** сколько тел держать в кадре: плотность (на единицу площади) × площадь кадра, но не больше cap @param {number} dens @param {number} cap @param {number} [z] */

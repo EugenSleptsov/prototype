@@ -108,6 +108,9 @@ const Atoms = {
     this.st = { brakes: 0, ionized: 0, best: 0, relaxed: 0, cascade: 0, cut: 0, shield: 0, held: 0 }; this.caps = { hand: 0, auto: 0 }; this.msgs = new Set();
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     this.zc = { x: P.x, y: P.y }; // туманность считается здесь, на месте сверхновой, а не там, куда уехала карта (REVIEW_DESIGN 5.4)
+    // и её размеры — на входе: поворот телефона менял кадр-эталон (половины W/2 и H/2 меняются местами), и зона счёта
+    // поворачивалась по миру — доля прыгала 77,8 → 100 % (REVIEW_NEON_4 «Атомы» №2)
+    this.zh = halfView(Math.max(100, Math.min(G.W, G.H)) / 2 / A_VIEW);
     this.fromStars = !!(prev && prev.o); this.alien = []; this.dustAt = {};
     // ионы — ядра со «Звёзд», каждое там, куда его вынесла сверхновая, и с той же скоростью (структура ядра больше не видна — голый ион)
     if (prev && prev.o) for (const o of prev.o) {
@@ -198,7 +201,7 @@ const Atoms = {
   },
   // Вселенная вокруг: ионов в кадре не хватает — приходят из-за края (после «Рекомбинации» — часто уже нейтральными); чужое вдали растворяется
   tide(dt) {
-    dissolveFar(this.ions, i => zoneNear(this.zc) && this.counted(i)); // туманность, где считается доля, не растворяется — и когда карта уехала
+    dissolveFar(this.ions, i => this.counted(i)); // туманность, где считается доля, не растворяется никогда: увёл карту далеко и вернулся — она та же (раньше доля падала в 0 %)
     this.ions = this.ions.filter(i => !i.dead);
     if (this.doneAt !== null) return;
     const have = this.ions.filter(i => inView(i.x, i.y, 1)).length;
@@ -216,9 +219,11 @@ const Atoms = {
   // знаменатель — не меньше A_SPARSE обычного числа ионов кадра: увёл камеру в пустоту, где пара нейтральных, —
   // это не «туманность прозрачна», недостающие ионы считаются голыми (игрок: «отодвинул где ничего нет — 100 %»)
   // возбуждённый атом ещё светится — нейтральным он станет, когда электрон спрыгнет на основную (ne − ex)
-  counted(i) { return !i.dead && (inZone(this.zc, i.x, i.y, A_REFM) || (i.thr && i.ne < i.Z)); },
+  counted(i) { return !i.dead && (this.inNeb(i.x, i.y) || (i.thr && i.ne < i.Z)); },
+  /** в зоне счёта: прямоугольник кадра-эталона на входе вокруг места сверхновой и ещё A_REFM @param {number} x @param {number} y */
+  inNeb(x, y) { return Math.abs(x - this.zc.x) < this.zh[0] + A_REFM && Math.abs(y - this.zc.y) < this.zh[1] + A_REFM; },
   neutral() { let n = 0, z = 0; for (const i of this.ions) if (this.counted(i)) { n += Math.min(i.ne - (i.ex || 0), i.Z); z += i.Z; } return n / Math.max(z, this.zFloor(), 1); },
-  zFloor() { return A_SPARSE * popWant(A_DENS, A_CAP, refZ()); },
+  zFloor() { return A_SPARSE * Math.min(A_CAP, Math.round(A_DENS * 4 * this.zh[0] * this.zh[1])); },
   sparse() { let z = 0; for (const i of this.ions) if (this.counted(i)) z += i.Z; return z < this.zFloor(); },
   // последние проценты — охота: голые (и недоодетые) ионы, что идут в долю, когда нейтральных больше HUNT_AT
   huntList() {

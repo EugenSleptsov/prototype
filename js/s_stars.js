@@ -153,7 +153,9 @@ const Stars = {
   // ---------- фаза 1: облако ----------
   // зажал — в точке пальца гравитационная яма; масса комка — облачка ближе ST_NEAR; отпустил — решение: зажечь или нет
   tickGas(dt, live) {
-    const c = this.gas.length ? centroid(this.gas) : { x: P.x, y: P.y };
+    // центр — газа в кадре-эталоне (там, где ты собираешь), а не всего мира: после сдвига карты звезда зажигалась в 7 ед.
+    // от камеры, и пепел терялся (REVIEW_NEON_4 «Звёзды» №10)
+    const vis = this.gas.filter(g => inRef(g.x, g.y, .5)), c = vis.length ? centroid(vis) : { x: cam.x, y: cam.y };
     let w = null;
     if (live && mouse.down && !G.paused) { const [wx, wy] = S2W(mouse.x, mouse.y); w = { x: wx, y: wy }; this.learn.grab = true; }
     const was = this.well, cancel = !w && mouse.cancel; // второй палец (щипок) — отмена, а не «отпустил»

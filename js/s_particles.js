@@ -1490,7 +1490,7 @@ const Particles = {
     const sps = this.lawSps(k); if (!sps.length) return L.join(', ');
     const hot = this.lawHot(k);
     if (hot) { // задание эпохи 3: горячая точка — сейчас, без очереди
-      if (!this.hot.some(h => h.sp === hot)) { const a = Math.random() * TAU, d = rnd(this.hr() + 1.2, viewRadius() * .5); this.hot.push({ x: P.x + Math.cos(a) * d, y: P.y + Math.sin(a) * d, t: 0, sp: hot }); }
+      if (!this.hot.some(h => h.sp === hot)) { const a = Math.random() * TAU, d = rnd(this.hr() + 1.2, refRadius() * .5); this.hot.push({ x: P.x + Math.cos(a) * d, y: P.y + Math.sin(a) * d, t: 0, sp: hot }); }
       this.hotCd = 5; L.push(`горячая точка родит ${SM[hot].sym}`);
     }
     if (k === 'q3' && this.enOn()) { this.en = E_CAP; this.full = true; L.push('⚡ полный'); }
@@ -2018,7 +2018,7 @@ const Particles = {
     if (this.p.some(o => !o.dead && o.sp === sp) || this.tracks.some(tr => tr.parent === sp && !tr.rec)) { this.hotCd = Math.max(this.hotCd, 1.5); return; }
     if ((this.hotCd -= dt) > 0) return;
     this.hotCd = 5;
-    const a = Math.random() * TAU, d = rnd(this.hr() + 1.2, viewRadius() * .6);
+    const a = Math.random() * TAU, d = rnd(this.hr() + 1.2, refRadius() * .6); // по кадру-эталону: зум не двигает точку (REVIEW_NEON_4 «Частицы» №12)
     this.hot.push({ x: P.x + Math.cos(a) * d, y: P.y + Math.sin(a) * d, t: 0, sp });
   },
   // ---------- горячие области ----------
@@ -2071,7 +2071,7 @@ const Particles = {
     const c1 = this.czSeen ? null : this.firstZonePos(); // первый — в кадре, если там есть место
     if (c1) { const [x, y] = c1; this.cz.push({ x, y, r: HZ_R, t: 0, L: rnd(HZ_L * .8, HZ_L * 1.2) }); this.czSeen = true; return; }
     for (let i = 0; i < 10; i++) { // дальше — в мире вокруг, за кадром
-      const a = Math.random() * TAU, d = rnd(viewRadius() * .9, this.wr() * .95);
+      const a = Math.random() * TAU, d = rnd(refRadius() * .9, this.wr() * .95);
       const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
       if ([...this.hz, ...this.cz].some(z => Math.hypot(z.x - x, z.y - y) < HZ_R * 3)) continue;
       this.cz.push({ x, y, r: HZ_R, t: 0, L: rnd(HZ_L * .8, HZ_L * 1.2) }); this.czSeen = true; return;
@@ -2097,7 +2097,7 @@ const Particles = {
     const h1 = this.hzSeen ? null : this.firstZonePos();
     if (h1) { const [x, y] = h1; this.hz.push({ x, y, r: HZ_R, t: 0, L: rnd(HZ_L * .8, HZ_L * 1.2) }); this.hzSeen = true; return; }
     for (let i = 0; i < 10; i++) { // дальше — в мире вокруг, за кадром
-      const a = Math.random() * TAU, d = rnd(viewRadius() * .9, this.wr() * .95);
+      const a = Math.random() * TAU, d = rnd(refRadius() * .9, this.wr() * .95);
       const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
       if ([...this.hz, ...this.cz].some(z => Math.hypot(z.x - x, z.y - y) < HZ_R * 3)) continue;
       this.hz.push({ x, y, r: HZ_R, t: 0, L: rnd(HZ_L * .8, HZ_L * 1.2) }); this.hzSeen = true; return;
@@ -2168,7 +2168,9 @@ const Particles = {
     W.n++;
     const edu = W.edu && W.n === 1, N = edu ? 2 : Math.min(8, 3 + W.n), list = [];
     for (let k = 0; k < N; k++) {
-      const a = W.dir + rnd(-.4, .4), d = Math.min(viewRadius() * rnd(1, 1.3), this.wr() - .3); // дальше края мира — перенесло бы на ту сторону
+      // от кадра-эталона, не от экрана: на ×2,2 волна рождалась в 4,8 ед. вместо 10,6 — до щита 0,8 с (REVIEW_NEON_4 №12);
+      // отдалился — рождается за краем экрана (не на глазах), но не ближе, чем у всех
+      const a = W.dir + rnd(-.4, .4), d = Math.min(Math.max(refRadius(), viewRadius()) * rnd(1, 1.3), this.wr() - .3); // дальше края мира — перенесло бы на ту сторону
       const o = this.mk(pick(['u', 'd']), true, P.x + Math.cos(a) * d, P.y + Math.sin(a) * d, a + Math.PI, edu ? rnd(.04, .08) : rnd(.1, .3));
       o.wave = true; o.wv = edu ? WAVE_V_EDU : WAVE_V; o.cd = 1.5; o.born = 1; list.push(o);
     }
@@ -2200,7 +2202,7 @@ const Particles = {
     // часть пар рождается прямо рядом с детектором (кванты ещё рождают кварки) — успей забрать кварк, пока
     // антикварк его не нашёл; остальное приходит издалека
     const near = Math.random() < .45, a = Math.random() * TAU, sp = pick(['u', 'd']);
-    const d = near ? rnd(this.hr() * 1.5, this.hr() + 1.6) : rnd(this.hr() + 2, viewRadius() * .95);
+    const d = near ? rnd(this.hr() * 1.5, this.hr() + 1.6) : rnd(this.hr() + 2, refRadius() * .95);
     const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
     if (near) {
       // пару рождает глюон: кварк получает его цвет, антикварк — антицвет

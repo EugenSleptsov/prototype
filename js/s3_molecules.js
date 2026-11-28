@@ -327,11 +327,13 @@ const Mols = {
     for (const m of this.m) if (!m.mine && !m.held && !(m.hand > 0) && farOff(m, 1.6)) m.dead = true;
     this.m = this.m.filter(m => !m.dead);
     if (this.doneAt !== null) return;
-    const rim = (/** @type {string} */ el) => { const r = rimPos(14), mol = this.newMol(el, r.x, r.y), sp = rnd(4, 8);
+    // z — чей край: тяжёлый — у края кадра-эталона (needEl и «Синтез» считают по нему; от края экрана на ×0,55 он падал
+    // за эталон, needEl его не видел и звал следующего — в кадре копилось 8–10 тяжёлых, REVIEW_NEON_4 «Молекулы» №4)
+    const rim = (/** @type {string} */ el, /** @type {number} */ z = cam.z) => { const r = rimPos(14, z), mol = this.newMol(el, r.x, r.y), sp = rnd(4, 8);
       mol.vx = r.nx * sp + randn() * 3; mol.vy = r.ny * sp + randn() * 3; mol.age = 0; };
     const need = this.needEl();
     if (!need) this.dripT = Math.max(this.dripT, M_DRIP);
-    else if ((this.dripT -= dt) <= 0) { rim(need); this.m[this.m.length - 1].gift = this.t; this.dripT = M_DRIP; }
+    else if ((this.dripT -= dt) <= 0) { rim(need, refZ()); this.m[this.m.length - 1].gift = this.t; this.dripT = M_DRIP; }
     const have = this.m.filter(m => inView(m.x, m.y, 10)).length;
     if (have < popWant(M_DENS, M_CAP) && Math.random() < dt * 3) rim(this.mixEl());
     haloFill(this.m, M_DENS, M_CAP, dt, (x, y) => { const mol = this.newMol(this.mixEl(), x, y); mol.vx = randn() * 3; mol.vy = randn() * 3; mol.age = 0; }, 2);

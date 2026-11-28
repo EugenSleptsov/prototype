@@ -327,7 +327,8 @@ const Nuclei = {
       this.gT += dt * 3.5 * Tn;
       while (this.gT > 1) {
         this.gT--;
-        const R = viewRadius(), a = Math.random() * TAU, h = a + Math.PI + randn() * .35;
+        // от кадра-эталона: от зума зависело число попаданий (4 / 14 / 28 за 30 с при ×0,55 / 1 / 2,2), свой ²H за кадром был неуязвим
+        const R = refRadius(), a = Math.random() * TAU, h = a + Math.PI + randn() * .35;
         this.g.push({ x: P.x + Math.cos(a) * R * 1.05, y: P.y + Math.sin(a) * R * 1.05, vx: Math.cos(h) * 18, vy: Math.sin(h) * 18, E: 3.5 * Tn * Math.random(), t: 0 });
       }
     }

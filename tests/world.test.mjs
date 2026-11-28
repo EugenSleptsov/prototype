@@ -24,7 +24,8 @@ for (const key of ['nuclei', 'stars', 'atoms', 'molecules']) {
   test(`мир без края: ${key} — ушёл далеко, вокруг снова Вселенная, твоё не пропало`, () => {
     const g = toStage(key);
     const [arr, want] = WORLD[key];
-    g.ev(`G.stage.${arr}.forEach((o, i) => o.__id = i); globalThis.__mine = G.stage.${arr}.filter(o => o.mine).map(o => o.__id); globalThis.__other = G.stage.${arr}.filter(o => !o.mine).map(o => o.__id)`);
+    g.ev(`G.stage.${arr}.forEach((o, i) => o.__id = i); globalThis.__mine = G.stage.${arr}.filter(o => o.mine).map(o => o.__id); globalThis.__other = G.stage.${arr}.filter(o => !o.mine && !(G.stage.counted && G.stage.counted(o))).map(o => o.__id)`);
+    // (туманность «Атомов», где считается доля, не растворяется никогда — REVIEW_NEON_4 «Атомы» №2: увёл карту и вернулся — доля та же)
     // далеко-далеко: десять полей зрения вправо
     g.ev('P.x += viewRadius() * 10; cam.x = P.x; cam.y = P.y');
     let bornInView = 0;
