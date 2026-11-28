@@ -136,6 +136,7 @@ interface Q {
   uni?: boolean;
   /** антикварк волны эпохи 4 */
   wave?: boolean;
+  wv?: number;
   /** как родилась — схема для сцены открытия */
   rx?: Rx;
 }
@@ -151,7 +152,7 @@ interface Cell { c: string; glu?: boolean }
 type Hit = (Cell & { k: number; why: string }) | { c: null; glu?: undefined; k: number; why: string };
 
 /** Поле детектора: захваченные, заряд q (0…1), энергия E, ступень lv */
-interface Focus { cap: Q[]; q: number; E: number; lv: number; ang: number; t: number; t2?: number; dry?: boolean; spent?: number; cand?: Q | null; candT?: number }
+interface Focus { cap: Q[]; q: number; E: number; lv: number; ang: number; t: number; t2?: number; dry?: boolean; spent?: number; cand?: Q | null; candT?: number; off?: boolean }
 
 type Prof = typeof PROF[number];
 /** Разогрев: зона PROF, температура k (T = k·1 ТэВ), сколько света (heat) */

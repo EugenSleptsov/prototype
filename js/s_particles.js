@@ -184,7 +184,10 @@ const AUTO_TRIO = 6, SAVE_CD = 2.2, HAND_CP = 2;
 // Эпоха 4 — битва. Ядро детектора (куда складываются кварки и где их съедает антивещество) не растёт с радиусом:
 // большой радиус — шире щит, а не уязвимее ядро. Антивещество идёт волнами (раз в WAVE_CD с, за WAVE_WARN с —
 // предупреждение и стрелка); отпущенный щит бьёт ударной волной. Глюонов мало: не больше G_MAX4 в мире.
-const CORE_R = 1.0, WAVE_CD = 11, WAVE_WARN = 2.4, G_MAX4 = 4;
+const CORE_R = 1.0, WAVE_CD = 8, WAVE_WARN = 2.4, WAVE_MAX_T = 10, G_MAX4 = 4;
+// скорость волны антивещества: от края кадра до ядра ~4 с (учебная — вдвое медленнее); щит: радиус — поле ×1,3 (держать и удар — один круг),
+// разряжается за 4 с удержания, заряжается за 5 с без него; меньше SH_MIN — не поднимается
+const WAVE_V = 2.3, WAVE_V_EDU = 1.1, SH_K = 1.3, SH_MIN = .2;
 // Подсказки без обучения (эпоха 1): после COACH_IDLE с без полезного действия призрачный курсор сам показывает
 // следующий жест на ближайшем подходящем объекте (COACH_T — длина показа). Освоил жест — этот показ больше не нужен.
 const COACH_IDLE = 5, COACH_T = 2.8;
@@ -902,7 +905,7 @@ const Particles = {
       // зажал, но не поймал пару — жест ещё не освоен: сразу показать, как надо (подсказка и курсор-подсказка)
       if (f && !tap && this.ep !== 3 && !this.learn.smash && f.cap.filter(o => !o.dead).length < 2) { this.missT = this.t; this.coach.idle = COACH_IDLE; this.coach.kind = null; }
       this.release(); if (tap) this.snapshot();
-      if (this.ep === 3 && f && f.t > .25 && this.shield > .08 && !this.advanced) this.shieldPulse();
+      if (this.ep === 3 && f && !f.off && f.t > .25 && !this.advanced) this.shieldPulse(); // отпустил поднятый щит — удар (разрядился сам — уже ударил)
     }
     if (this.holding) { this.hold += dt; if (this.hold > .18 && !this.focus && this.fieldOn()) this.focus = { cap: [], q: 0, E: 0, lv: 0, ang: Math.random() * TAU, t: 0 }; }
   },
@@ -1100,22 +1103,29 @@ const Particles = {
     this.annihilate(a, b); this.pairs++; this.st.pairs++; this.learn.ann = true;
     return true;
   },
-  // Эпоха 4: щит. Тянет кварки вещества к детектору, отталкивает антикварки. Заряд щита ограничен.
+  // Эпоха 4: щит. Тянет кварки вещества к детектору, отталкивает антикварки. Заряд щита ограничен:
+  // держишь — тратится, отпустил — копится. Разрядился в руке — сам бьёт ударной волной (а не гаснет молча) и молчит
+  // до следующего нажатия; поднять щит можно, только если заряда хватает (SH_MIN)
+  shR() { return this.fr() * SH_K; },
+  pulseR() { return this.shR() * 1.1; }, // удар достаёт и тех, кто упёрся в край щита
   /** @param {number} dt */
   tickShield(dt) {
-    const f = this.focus, on = !!f && this.ep === 3 && this.shield > 0;
-    this.shield = on ? Math.max(0, this.shield - dt / 4) : Math.min(1, this.shield + dt / 5);
-    if (!f || !on) return;
+    const f = this.ep === 3 ? this.focus : null;
+    if (!f) { this.shield = Math.min(1, this.shield + dt / 5); return; }
+    if (f.t === 0 && this.shield < SH_MIN) f.off = true; // мало заряда — щит не поднялся
+    if (f.off || this.shield <= 0) return;
+    this.shield = Math.max(0, this.shield - dt / 4);
     if ((f.t += dt) > 1) this.learn.shield = true;
-    const R = this.fr();
+    if (this.shield <= 0) { this.shieldPulse(); f.off = true; this.float(P.x, P.y - this.hr() - .7, 'щит разрядился: ударная волна', SHIELD_C, 14); return; }
+    const R = this.shR();
     for (const o of this.p) {
       if (o.dead) continue;
       const dx = P.x - o.x, dy = P.y - o.y, d = Math.hypot(dx, dy);
-      if (d > R * 1.3 || d < 1e-3) continue;
+      if (d > R || d < 1e-3) continue;
       if (o.sp === 'g') { if (this.helpGlu(o)) { o.dx = dx / d; o.dy = dy / d; o.v = 2.2; o.pull = .15; } continue; } // полезный глюон — внутрь, перекрасить
-      if (SM[o.sp].kind !== 'quark' || d > R) continue;
+      if (SM[o.sp].kind !== 'quark') continue;
       if (!o.anti) { o.dx = dx / d; o.dy = dy / d; o.v = 1.3; o.pull = .15; }
-      else { o.dx = -dx / d; o.dy = -dy / d; o.v = 2; o.rep = 1.2; }
+      else { const k = Math.min(R - d, 6 * dt) + this.speed(o) * dt; o.x -= dx / d * k; o.y -= dy / d * k; } // щит — стена: антикварк выдавлен к краю и стоит там (его добьёт удар)
     }
   },
 
@@ -1888,7 +1898,7 @@ const Particles = {
       const d = Math.hypot(t.x - o.x, t.y - o.y); if (d < best) { best = d; tx = t.x; ty = t.y; }
     }
     if (this.stock > 0 && !o.wave) { const d = Math.hypot(P.x - o.x, P.y - o.y); if (d < 6 && d < best + 1.5) { tx = P.x; ty = P.y; } }
-    o.v = o.wave ? 1.15 : tx === null ? .22 : .45;
+    o.v = o.wave ? o.wv || WAVE_V : tx === null ? .22 : .45;
     if (tx === null || ty === null) return;
     const d = Math.hypot(tx - o.x, ty - o.y) || 1, k = Math.min(1, dt * 2.5);
     const nx = o.dx + ((tx - o.x) / d - o.dx) * k, ny = o.dy + ((ty - o.y) / d - o.dy) * k, l = Math.hypot(nx, ny) || 1;
@@ -2134,7 +2144,7 @@ const Particles = {
     const W = this.wave; if (!W) return;
     if (W.cur) {
       const C = W.cur; C.list = C.list.filter(o => !o.dead); C.t += dt;
-      if (C.list.length && C.t < 16) return;
+      if (C.list.length && C.t < WAVE_MAX_T) return; // не долетевшие за 10 с (кружат) — волна всё равно кончилась
       const lost = this.st.eaten - C.eaten0;
       if (!lost) { this.kn += 5; this.st.waves++; Sfx.play('goal'); this.float(P.x, P.y - this.hr() - .5, `${W.edu && W.n === 1 ? 'учебная волна' : 'волна ' + W.n} отбита ✓ +5 ✦`, [140, 235, 170], 16); }
       else this.float(P.x, P.y - this.hr() - .5, `волна ${W.n} прорвалась: −${lost} ◉`, [255, 130, 130], 15);
@@ -2148,7 +2158,7 @@ const Particles = {
     for (let k = 0; k < N; k++) {
       const a = W.dir + rnd(-.4, .4), d = Math.min(viewRadius() * rnd(1, 1.3), this.wr() - .3); // дальше края мира — перенесло бы на ту сторону
       const o = this.mk(pick(['u', 'd']), true, P.x + Math.cos(a) * d, P.y + Math.sin(a) * d, a + Math.PI, edu ? rnd(.04, .08) : rnd(.1, .3));
-      o.wave = true; o.cd = 1.5; o.born = 1; list.push(o);
+      o.wave = true; o.wv = edu ? WAVE_V_EDU : WAVE_V; o.cd = 1.5; o.born = 1; list.push(o);
     }
     if (edu) this.float(P.x, P.y - this.hr() - .6, 'учебная волна: зажми — щит оттолкнёт антикварки', SHIELD_C, 16);
     W.cur = { list, t: 0, eaten0: this.st.eaten }; W.dir = null;
@@ -2157,7 +2167,7 @@ const Particles = {
   waveWarn() { const W = this.wave; return W && !W.cur && W.dir != null && W.cd < WAVE_WARN && this.ep === 3 && !this.advanced; },
   // Отпустил щит — ударная волна: антикварки в поле отлетают прочь (за край кадра — уходят совсем)
   shieldPulse() {
-    const R = this.fr() * 1.4; let n = 0;
+    const R = this.pulseR(); let n = 0;
     for (const o of this.p) {
       if (o.dead || !o.anti || SM[o.sp].kind !== 'quark') continue;
       const dx = o.x - P.x, dy = o.y - P.y, d = Math.hypot(dx, dy);
@@ -2816,6 +2826,8 @@ const Particles = {
     if (this.ep === 3 && !this.stockOut && !this.advanced) {
       // ядро — сюда складываются кварки; антикварк, долетевший до ядра, съедает один
       ring(sx, sy, this.coreR() * z, [140, 235, 170], .45, 2);
+      // щит опущен — его круг и заряд видны бледно: игрок знает, докуда он достанет и готов ли
+      if (!this.focus) { ring(sx, sy, this.shR() * z, SHIELD_C, .12, 1.2, [4, 8]); arc(sx, sy, r + 12, -Math.PI / 2, -Math.PI / 2 + TAU * this.shield, SHIELD_C, this.shield < SH_MIN ? .2 : .4, 3); }
       // угрозы: антикварки рядом — красные пунктиры к ядру, тем ярче, чем ближе
       if (this.stock > 0) for (const o of this.p) {
         if (o.dead || !o.anti || SM[o.sp].kind !== 'quark' || o.rep > 0) continue;
@@ -2950,10 +2962,18 @@ const Particles = {
     const f = this.focus; if (!f) return;
     const z = cam.z, R = this.fr() * z;
     if (this.ep === 3) {
-      const on = this.shield > 0;
-      ring(sx, sy, R, SHIELD_C, on ? .45 : .15, 1.5, [6, 6]);
-      if (on) { glow(sx, sy, R, SHIELD_C, .06); ring(sx, sy, r * .5 + 3 * Math.sin(G.T * 10), SHIELD_C, .9, 2); }
+      // щит: круг — докуда он держит и докуда ударит; антикварки внутри — в зелёных кольцах: их отбросит удар
+      const on = this.shield > 0 && !f.off, Rs = this.shR() * z;
+      ring(sx, sy, Rs, SHIELD_C, on ? .6 : .15, on ? 2 : 1.5, [6, 6]);
       arc(sx, sy, r + 12, -Math.PI / 2, -Math.PI / 2 + TAU * this.shield, SHIELD_C, .85, 4);
+      if (!on) { label(f.off && f.t === 0 ? 'щит заряжается — отпусти' : 'щит пуст — отпусти', sx, sy - r - 30, 13, SHIELD_C, .75, 700); return; }
+      glow(sx, sy, Rs, SHIELD_C, .07); ring(sx, sy, r * .5 + 3 * Math.sin(G.T * 10), SHIELD_C, .9, 2);
+      let n = 0;
+      for (const o of this.p) {
+        if (o.dead || !o.anti || SM[o.sp].kind !== 'quark' || Math.hypot(o.x - P.x, o.y - P.y) > this.pulseR()) continue;
+        const [ox, oy] = W2S(o.x, o.y); ring(ox, oy, 11 + 2 * Math.sin(G.T * 12), SHIELD_C, .85, 2); n++;
+      }
+      if (n && f.t > .25) label(`отпусти — удар ×${n}`, sx, sy - r - 30, 14, SHIELD_C, .95, 800);
       return;
     }
     ring(sx, sy, R, FIELD_C, .35, 1.5, [6, 6]);

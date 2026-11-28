@@ -69,12 +69,37 @@ test('глава 9: впервые первая волна учебная — д
   assert.equal(g.ev('G.stage.wave.cur.list.length'), 2, 'учебная — две античастицы');
   said.push(...g.ev('__said'));
   assert.ok(said.some(t => /учебная волна/.test(t)), String(said));
-  const slow = g.ev('Math.max(...G.stage.wave.cur.list.map(o => o.p))');
-  assert.ok(slow <= .08);
+  g.step(2);
+  const slow = g.ev('Math.max(...G.stage.wave.cur.list.map(o => G.stage.speed(o)))');
+  assert.ok(slow <= g.ev('WAVE_V') / 2, `учебная — вдвое медленнее обычной: ${slow}`);
   // повторный забег: глава 9 знакома — первая волна обычная
   const g2 = toEpoch(3, { 'proto.known': JSON.stringify(['gest:school', 'chap:9']) });
   assert.equal(g2.ev('G.stage.wave.edu'), false);
   assert.equal(g2.ev('G.stage.wave.cd'), 8);
   for (let k = 0; k < 60 * 10 && !g2.ev('G.stage.wave.cur'); k++) g2.step(1);
   assert.equal(g2.ev('G.stage.wave.cur.list.length'), 4, 'первая обычная волна — четыре');
+});
+
+test('глава 9: щит понятен — один круг держит и бьёт; разрядился в руке — бьёт сам; без заряда не поднимается; волна быстрая', () => {
+  const g = toEpoch(3);
+  // волна: обычная — ~2,3 ед/с (от края кадра до ядра ~4 с), учебная — вдвое медленнее
+  assert.ok(g.ev('WAVE_V') >= 2 && g.ev('WAVE_V_EDU') <= g.ev('WAVE_V') / 2);
+  const hold = (secs, js = '') => g.ev(`(() => { const S = G.stage; S.p.forEach(o => { if (SM[o.sp].kind === 'quark') o.dead = true; }); ${js};
+    globalThis.__aq = S.mk('u', true, P.x + S.shR() * 1.5, P.y, Math.PI, .1); __aq.born = 1; __aq.cd = 9; __aq.wave = true;
+    mouse.clicked = true; mouse.down = true; for (let i = 0; i < 60 * ${secs}; i++) update(1 / 60);
+    return { sh: S.shield, off: !!(S.focus && S.focus.off), d: Math.hypot(__aq.x - P.x, __aq.y - P.y), dead: __aq.dead, R: S.shR(), pR: S.pulseR(), core: S.coreR() }; })()`);
+  // щит — стена: антикварк волны толчётся у края, до ядра не доходит; удар достаёт его там
+  let r = hold(2, 'G.stage.shield = 1');
+  assert.ok(!r.dead && r.d > r.R * .8 && r.d < r.pR && r.sh > .4, JSON.stringify(r));
+  g.ev('mouse.down = false; update(1 / 60)');
+  assert.ok(g.ev('__aq.rep') > 1.5, 'отпустил — ударная волна отбросила его');
+  // продержал до нуля — щит сам ударил и затих (а не погас молча)
+  g.ev('mouse.down = false; for (let i = 0; i < 60; i++) update(1 / 60)');
+  r = hold(4.5, 'G.stage.shield = 1');
+  assert.equal(r.sh, 0); assert.equal(r.off, true);
+  g.ev('mouse.down = false; update(1 / 60)');
+  // без заряда — не поднимается: антикварк проходит к ядру
+  r = hold(2.5, 'G.stage.shield = .1');
+  assert.equal(r.off, true); assert.ok(r.sh >= .1 - 1e-9, 'не тратится'); assert.ok(r.dead || r.d < r.core, JSON.stringify(r));
+  g.ev('mouse.down = false; update(1 / 60)');
 });
