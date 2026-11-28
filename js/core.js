@@ -327,7 +327,10 @@ const Spot = {
   draw() {
     if (!this.on || !this.o || Cine.on) return;
     const [x, y] = W2S(this.o.x, this.o.y), a = smooth(0, .25, this.t) * (1 - smooth(this.dur - .3, this.dur, this.t)), R = Math.max(34, this.r * cam.z);
-    const L = this.sub.split('\n'), ex = 19 * (L.length - 1); // строк объяснения больше одной — блок текста выше
+    // объяснение — с переносом по ширине экрана (на телефоне длинная строка уходила за край, REVIEW_NEON_4 «Атомы» №9);
+    // строк больше одной — блок текста выше
+    const wrap = (/** @type {number} */ w) => this.sub.split('\n').flatMap(s => s ? wrapText(s, 15, 700, w) : ['']);
+    let L = wrap(Math.min(G.W - 24, 620)), ex = 19 * (L.length - 1);
     // темнота вокруг, светлое пятно на цели
     ctx.save(); ctx.globalAlpha = .55 * a; ctx.fillStyle = '#04060d';
     ctx.beginPath(); ctx.rect(0, 0, G.W, G.H); ctx.arc(x, y, R + 10, 0, TAU, true); ctx.fill('evenodd'); ctx.restore();
@@ -336,7 +339,7 @@ const Spot = {
     ring(x, y, R + 30 * p, SPOT_C, .5 * a * (1 - p), 2);
     // строка — над целью (у верха экрана — под ней), стрелка от строки к цели «кивает»
     // не под панелью задания: сверху места нет — строка под целью
-    const lo = Math.max(60, G.T - (G.taskAt ?? -9) < .3 ? G.taskY + 30 : 0), hi = G.H - 80 - ex;
+    const lo = Math.max(60, G.T - (G.taskAt ?? -9) < .3 ? G.taskY + 30 : 0), bot = Math.min(G.H - 65, aboveShop()), hi = bot - 15 - ex; // последняя строка — над лавкой (на телефоне уходила под неё)
     const up = y > G.H * .35 && !(y - R - 96 - ex < lo && y + R + 96 <= hi), bob = 6 * Math.sin(this.t * 7);
     let ty = clamp(up ? y - R - 96 - ex : y + R + 96, lo, hi), tx = clamp(x, 160, G.W - 160);
     let ax0 = tx, ay0 = up ? ty + 30 + ex : ty - 30, ax1 = x, ay1 = up ? y - R - 10 - bob : y + R + 10 + bob;
@@ -344,7 +347,8 @@ const Spot = {
     // и сбоку нет — строка у дальнего края экрана, без стрелки (пятно видно и так)
     if (up ? ay0 > ay1 - 20 : ay0 < ay1 + 20) {
       const right = x < G.W / 2, room = right ? G.W - (x + R) : x - R;
-      ty = clamp(y - ex / 2, lo, hi);
+      if (room >= 370) { L = wrap(290); ex = 19 * (L.length - 1); } // сбоку — колонка по ширине места
+      ty = clamp(y - ex / 2, lo, bot - 15 - ex);
       if (room >= 370) { tx = right ? x + R + 70 + 150 : x - R - 70 - 150; ax0 = right ? tx - 160 : tx + 160; ay0 = ty + ex / 2; ax1 = right ? x + R + 12 + bob : x - R - 12 - bob; ay1 = y; }
       else { ty = y > G.H / 2 ? lo : hi; ax0 = ax1; ay0 = ay1; }
     }

@@ -57,6 +57,9 @@ const atCol = Z => (AT_EL[Z] || [0, [220, 220, 230]])[1];
 // символ с зарядом: O, O⁺, O³⁺
 const ionSym = (Z, ne) => { const Q = Z - ne; return atSym(Z) + (Q > 0 ? (Q > 1 ? sup(Q) : '') + '⁺' : ''); };
 const AT_NEED = [1, 2, 6, 7, 8]; // какие атомы собрать: H, He, C, N, O
+// доля в процентах — вниз: 89,66 % — это 89, не «90 из 90» при незасчитанном шаге (REVIEW_NEON_4 «Атомы» №7)
+/** @param {number} n */
+const aPct = n => Math.floor(n * 100 + 1e-9);
 // EX_T — сколько живёт возбуждённая орбита; УФ летит медленнее видимого — успеть перечеркнуть
 const EX_T = 3.2, UV_V = 13, PH_V = 22, RES_V = 14, UV_T0 = 6;
 // спектральная линия элемента (вспышка, когда электрон спрыгивает на основную орбиту): Hα, He D₃, Li, C, N, зелёная линия O
@@ -99,7 +102,7 @@ const Atoms = {
   enter(prev) {
     this.t = 0; this.clock = 0; this.Ta = 1; this.ions = []; this.el = []; this.ph = []; this.tr = []; this.floats = [];
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.rs = { rec: 0, red: 0 }; this.banner = -1.5; this.tk = {}; this.doneAt = null; this.endCd = -1;
-    this.failed = false; this.coolAt = null; this.nEnd = null; // coolAt — когда пошли часы остывания; nEnd — доля, с которой остыла сама
+    this.failed = false; this.coolAt = null; this.nEnd = null; this.aEnd = null; // coolAt — когда пошли часы остывания; nEnd, aEnd — доля и атомы на конце
     this.advanced = false; this.cheated = false; this.seenN = new Set(); this.phT = 0; this.was = false; this.stroke = 0; this.grab = null; this.trOn = false; this.ink = INK_MAX; this.dry = false;
     this.sl = new Sling(this);
     this.st = { brakes: 0, ionized: 0, best: 0, relaxed: 0, cascade: 0, cut: 0, shield: 0, held: 0 }; this.caps = { hand: 0, auto: 0 }; this.msgs = new Set();
@@ -277,15 +280,18 @@ const Atoms = {
     if (live && this.doneAt === null) this.sl.update(); else if (this.sl.held) this.sl.held = null;
     this.grab = this.sl.held && !this.sl.held.dead ? this.sl.held : null; // взятый рогаткой — стоит
     const vth = this.vth();
+    // run — туманность ещё живёт: после «остыла сама» захвата, осаживания и света нет (раньше ион ловил электрон
+    // после конца и уходил в «Молекулы», а relax() платил ✦ и «НОВЫЙ АТОМ +10» уже после провала)
+    const run = act && !this.failed;
     for (const io of this.ions) {
       io.age += dt; io.rot += dt * 2;
       if (io !== this.grab) { const j = .25 * Math.sqrt(dt); io.vx += randn() * j; io.vy += randn() * j; const k = Math.exp(-dt * ION_DRAG); io.vx *= k; io.vy *= k; } // взятый — стоит
       io.x += io.vx * dt; io.y += io.vy * dt;
       if (io.src && G.prev) { const [px, py] = toPrev(io.x, io.y); io.src.x = px; io.src.y = py; io.src.vx = io.src.vy = 0; } // ядро гаснет там, где проявляется ион
-      if (act && io.ex > 0 && (io.exT -= dt) <= 0) this.relax(io, 'self'); // спрыгнул на основную сам
+      if (run && io.ex > 0 && (io.exT -= dt) <= 0) this.relax(io, 'self'); // спрыгнул на основную сам
     }
     // след через дрожащий атом — электрон спрыгивает на основную орбиту (след, проведённый ещё до захвата, не считается)
-    if (live && this.tr.length > 1) for (const io of this.ions) {
+    if (live && run && this.tr.length > 1) for (const io of this.ions) {
       if (!(io.ex > 0)) continue;
       for (let i = 1; i < this.tr.length; i++) {
         const p = this.tr[i - 1], q = this.tr[i]; if (q.gap) continue;
@@ -304,7 +310,7 @@ const Atoms = {
         const d = Math.sqrt(d2) || 1e-6, f = (e.slow > 0 ? 9 : 5) * Q / (d2 + .6); // медленного кулон дотягивает издалека
         ax += dx / d * f; ay += dy / d * f;
         // захват: заторможенный, близко и медленно
-        if (act && e.slow > 0 && d < .95 + .08 * Q && Math.hypot(e.vx - io.vx, e.vy - io.vy) < 2.4 + .3 * Q + (io === this.grab ? HOLD_CAP : 0)) { this.capture(io, e); break; } // зажатый на ходу ловит чуть легче — но только заторможенных
+        if (run && e.slow > 0 && d < .95 + .08 * Q && Math.hypot(e.vx - io.vx, e.vy - io.vy) < 2.4 + .3 * Q + (io === this.grab ? HOLD_CAP : 0)) { this.capture(io, e); break; } // зажатый на ходу ловит чуть легче — но только заторможенных
         // «Рекомбинация»: у иона электрон излучает и тормозит сам
         if (act && recAuto && d < 4 && e.brk <= 0 && Math.random() < dt * .5) this.brake(e, e.by === 'hand' ? 'hand' : 'auto');
       }
@@ -339,7 +345,7 @@ const Atoms = {
     for (const p of this.ph) {
       const ox = p.x, oy = p.y;
       p.x += p.vx * dt; p.y += p.vy * dt; p.t += dt;
-      if (!act || p.dead) continue;
+      if (!run || p.dead) continue;
       if (p.hard && p.red && p.t >= p.red && !Uni.off(this, 'red')) this.escape(p);
       if (p.esc) continue; // ушёл из туманности — атомов и электронов на пути больше нет
       // перечеркнул УФ следом — рассеян в безвредный видимый свет
@@ -374,22 +380,41 @@ const Atoms = {
     if (this.doneAt === null) this.tickStars(false);
     if (this.doneAt === null && this.coolAt === null && (this.neutral() > HUNT_AT || this.clock > A_LATE) && !this.steps().every(s => s.d)) { // часы остывания — новое понятие: стоп-кадр
       this.coolAt = this.clock;
-      msg(`Туманность остывает: через ${fmtClock(A_COOL)} она остынет сама — успей до 90 %`, 5);
-      Spot.show({ x: P.x, y: P.y }, 'Туманность остывает', `через ${fmtClock(A_COOL)} остынет сама: уровень кончится без бонуса, а голые ионы так и останутся ионами — в молекулы не войдут`, 5, 4);
+      const todo = this.left();
+      msg(`Туманность остывает: через ${fmtClock(A_COOL)} она остынет сама`, 5);
+      Spot.show({ x: P.x, y: P.y }, 'Туманность остывает', `через ${fmtClock(A_COOL)} остынет сама — успей: ${todo}. Иначе уровень кончится без бонуса, а голые ионы так и останутся ионами — в молекулы не войдут`, 5, 4);
     }
     if (this.doneAt === null && this.steps().every(s => s.d)) {
-      this.doneAt = this.clock; this.endCd = 2; this.tr = [];
+      this.doneAt = this.clock; this.endCd = 2; this.tr = []; this.nEnd = this.neutral(); this.aEnd = this.atomsN();
       this.tickStars(true);
       fxRing(P.x, P.y, 1, GOLD, viewRadius() * 1.3, 1.8); fxFlash(P.x, P.y, viewRadius(), [255, 240, 210], .35);
       msg('Туманность нейтральна: свечение погасло, газ остыл и потемнел — в нём соберутся молекулы');
     } else if (this.doneAt === null && this.coolAt !== null && this.clock - this.coolAt >= A_COOL) { // не успел — остыла сама
-      this.failed = true; this.nEnd = this.neutral(); this.doneAt = this.clock; this.endCd = 2.4; this.tr = []; this.sl.held = null;
+      const todo = this.left();
+      this.failed = true; this.nEnd = this.neutral(); this.aEnd = this.atomsN(); this.doneAt = this.clock; this.endCd = 2.4; this.tr = []; this.sl.held = null;
+      // не осевшие электроны (на возбуждённой орбите) срываются: доля их и так не считала — и в «Молекулы» такой не идёт
+      for (const io of this.ions) if (io.ex > 0) {
+        for (let k = 0; k < io.ex; k++) { const a = Math.random() * TAU; this.el.push({ x: io.x, y: io.y, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, k: 1, slow: 0, brk: 9, by: null, age: 1 }); }
+        io.ne -= io.ex; io.ex = 0; io.exH = 0; io.exT = 0;
+      }
       this.tickStars(true);
-      this.float(P.x, P.y - 1, `остыла сама: ${Math.round(this.nEnd * 100)} % из 90`, [255, 170, 140], 16);
-      msg('Туманность остыла сама: что ты одел — атомы для молекул, голые ионы так и остались ионами');
+      this.float(P.x, P.y - 1, `остыла сама · не успел: ${todo}`, [255, 170, 140], 16);
+      msg(`Туманность остыла сама — не успел: ${todo}. Что ты одел — атомы для молекул, голые ионы так и остались ионами`);
     }
     if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; advance(); } // молекулам — эти же атомы, на своих местах
   },
+  // что ещё не сделано — для часов остывания: раньше «успей до 90 %», а провал и при 99 % (не одет C или O, №1)
+  left() {
+    const L = [], miss = AT_NEED.filter(Z => !this.seenN.has(Z)).map(atSym), n = this.neutral();
+    if (!this.st.brakes) L.push('затормозить электрон');
+    if (!this.st.relaxed) L.push('осадить электрон');
+    if (miss.length) L.push(`одеть ${miss.join(', ')}`);
+    if (!this.rs.rec) L.push('закон «Рекомбинация»');
+    if (n < A_GOAL) L.push(`${aPct(n)} % → 90 %`);
+    return L.join(' · ');
+  },
+  // нейтральные атомы среди тех, что в счёте доли (осевшие: возбуждённый ещё не атом — как в neutral())
+  atomsN() { const c = this.ions.filter(i => this.counted(i)); return [c.filter(i => i.ne - (i.ex || 0) >= i.Z).length, c.length]; },
   // пойман — но сперва на возбуждённой орбите: награда за атом — когда спрыгнет на основную
   capture(io, e) {
     e.dead = true; io.ne++; io.ex = (io.ex || 0) + 1; io.exT = EX_T; io.exAt = G.T;
@@ -488,7 +513,7 @@ const Atoms = {
       { t: 'Осадить пойманный электрон', h: 'он дрожит на внешней орбите: провести следом через атом', s: 'спектральная линия', d: this.st.relaxed > 0 },
       { t: 'Одеть ядра электронами', h: 'заторможенные электроны садятся на ион; ион — рогаткой под них · гелий и закрытую K-оболочку жёсткий свет не берёт' + dust, items: AT_NEED.map(Z => [atSym(Z), this.seenN.has(Z)]), s: 'H, He, C, N, O', d: AT_NEED.every(Z => this.seenN.has(Z)) },
       { t: 'Сформировать закон «Рекомбинация»', h: `${touch ? 'в лавке' : 'клавиша 1'} за ${A_COST} ✦`, s: 'рекомбинация', d: this.rs.rec > 0, res: 'rec' },
-      { t: 'Погасить свечение туманности', h: this.sparse() ? 'в кадре пусто — это не туманность: вернись туда, где ионы' : hunt ? `осталось одеть голые ионы (${hunt}): они отмечены, за краем кадра — стрелки к ним` : `голые ионы и свободные электроны светятся и греют газ — молекулам в нём не выжить: нейтрализовать 90 %${this.rs.rec ? `. Закон «Рекомбинация» даёт до ${REC_TOP * 100} %, остальное следом` : ''}`, p: [Math.min(90, Math.round((this.nEnd ?? n) * 100)), 90], s: 'газ нейтральный', d: !this.failed && n >= A_GOAL },
+      { t: 'Погасить свечение туманности', h: this.sparse() ? 'в кадре пусто — это не туманность: вернись туда, где ионы' : hunt ? `осталось одеть голые ионы (${hunt}): они отмечены, за краем кадра — стрелки к ним` : `голые ионы и свободные электроны светятся и греют газ — молекулам в нём не выжить: нейтрализовать 90 %${this.rs.rec ? `. Закон «Рекомбинация» даёт до ${REC_TOP * 100} %, остальное следом` : ''}`, p: [Math.min(90, aPct(this.nEnd ?? n)), 90], s: 'газ нейтральный', d: !this.failed && (this.nEnd ?? n) >= A_GOAL },
     ];
   },
   starPool() {
@@ -503,8 +528,8 @@ const Atoms = {
   },
   tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 1, '★ +10 ✦', [255, 215, 110], 17); }, this.failed); },
   tally() {
-    const n = this.caps.hand + this.caps.auto, at = this.ions.filter(i => i.ne >= i.Z).length;
-    return { name: 'Атомы', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['доля нейтральных', `${Math.round((this.nEnd ?? this.neutral()) * 100)} % из 90`], ['нейтральных атомов', `${at} из ${this.ions.length}`], ['электроны следом', this.caps.hand], ['электроны от Вселенной', this.caps.auto], ['осажено следом · каскадом', `${this.st.relaxed} · ${this.st.cascade}`], ['УФ перечёркнуто', this.st.cut]], auto: [this.caps.auto, n], stars: this.stars };
+    const n = this.caps.hand + this.caps.auto, [at, all] = this.aEnd ?? this.atomsN(); // те же атомы, что в доле, и на тот же миг
+    return { name: 'Атомы', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['доля нейтральных', `${aPct(this.nEnd ?? this.neutral())} % из 90`], ['нейтральных атомов', `${at} из ${all}`], ['электроны следом', this.caps.hand], ['электроны от Вселенной', this.caps.auto], ['осажено следом · каскадом', `${this.st.relaxed} · ${this.st.cascade}`], ['УФ перечёркнуто', this.st.cut]], auto: [this.caps.auto, n], stars: this.stars };
   },
   cheat() { this.cheated = true; for (const io of this.ions) { io.ne = io.Z; io.ex = 0; this.seenN.add(io.Z); } for (const Z of AT_NEED) this.seenN.add(Z); this.st.brakes++; this.st.relaxed++; this.rs.rec = 1; },
 
@@ -610,9 +635,13 @@ const Atoms = {
     const left = this.doneAt === null ? fmtClock(this.clock) : (this.failed ? '' : '✓ ') + fmtClock(this.doneAt);
     hudClock(al, left, this.doneAt === null ? [255, 255, 255] : this.failed ? [255, 170, 140] : [140, 235, 170], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 5', this.steps(), this.stars, 'Туманность нейтральна');
-    if (!G.prev && this.doneAt === null && this.coolAt !== null) { // часы остывания — как «остынет через» в «Ядрах»
+    if (!G.prev && this.doneAt === null && this.coolAt !== null && !Spot.on) { // часы остывания (под стоп-кадром — его текст на их месте) — как «остынет через» в «Ядрах»
       const rest = Math.max(0, A_COOL - (this.clock - this.coolAt)), c = rest < 20 ? [255, 140, 120] : [205, 200, 230];
-      label(`нейтральных ${Math.round(this.neutral() * 100)} % из 90 · остынет сама через ${fmtClock(rest)}`, G.W / 2, aboveShop(), 13, c, .85 * al, 700);
+      // что не сделано — всё (не только %); не влезло в ширину — две строки, каждая по ширине экрана
+      const a = `остынет сама через ${fmtClock(rest)}`, b = `осталось: ${this.left()}`, y = aboveShop(), w = G.W - 24;
+      ctx.font = '700 13px system-ui,sans-serif';
+      if (ctx.measureText(a + ' · ' + b).width <= w) label(a + ' · ' + b, G.W / 2, y, 13, c, .85 * al, 700);
+      else { label(fitText(b, 13, 700, w), G.W / 2, y - 17, 13, c, .85 * al, 700); label(a, G.W / 2, y, 13, c, .85 * al, 700); }
     }
     hudBanner(this.banner, 'УРОВЕНЬ 5 · туманность сверхновой', 'Атомы', 'туманность расширяется и остывает: одеть её ионы электронами', al, 'ядро + электроны → атомы → из атомов сложатся молекулы');
     ctx.globalAlpha = 1;
