@@ -37,7 +37,7 @@ const TOL = .42, M_VMAX = 70, BREAK_V = 52, M_MINE = 8, M_STERIC = .8, M_STERIC_
 const TOL_HIT = .5, TOL_AIM = .7;
 // энергия активации — скорость удара по линии центров: H–H 18, связь с водородом 22, тяжёлое с тяжёлым (C–C, C–O, C–N…) 27 —
 // 26 %, 31 % и 39 % полной рогатки M_VMAX; Вселенная («Синтез») бросает со скоростью M_AUTO_V — выше любого барьера, ниже BREAK_V
-const EA_HH = 18, EA_XH = 22, EA_XX = 27, M_AUTO_V = 38, M_HKEEP = 6;
+const EA_HH = 18, EA_XH = 22, EA_XX = 27, M_AUTO_V = 38, M_HKEEP = 6, M_SNAP = 14;
 // M_GIFT — сколько секунд Вселенная не берёт тяжёлый атом, который сама принесла (он — игроку); M_REACH — докуда она бросает
 // кусок в кусок, M_REACH2 — докуда тянется достроить начатое (пара даёт соединение целиком)
 const M_GIFT = 12, M_REACH = 70, M_REACH2 = 160;
@@ -243,9 +243,9 @@ const Mols = {
     return true;
   },
   // взятое поворачивается свободной связью по ходу броска
-  orient(b, dx, dy) {
+  orient(b, dx, dy, only = -1) {
     const th = Math.atan2(dy, dx); let best = null, bd = Infinity;
-    b.atoms.forEach((a, i) => a.b.forEach((x, k) => { if (x < 0) { const d = Math.abs(angDiff(th, this.slotAng(b, i, k))); if (d < bd) { bd = d; best = [i, k]; } } }));
+    b.atoms.forEach((a, i) => a.b.forEach((x, k) => { if (x < 0 && (only < 0 || i === only)) { const d = Math.abs(angDiff(th, this.slotAng(b, i, k))); if (d < bd) { bd = d; best = [i, k]; } } }));
     if (!best) return;
     b.a += angDiff(th, this.slotAng(b, best[0], best[1]));
     b.wp = b.atoms.map((_, i) => this.wpos(b, i));
@@ -363,20 +363,30 @@ const Mols = {
     for (const [i, j] of mol.bonds) { const e = b.find(x => (x[0] === i && x[1] === j) || (x[0] === j && x[1] === i)); if (e) e[2]++; else b.push([i, j, 1]); }
     return { el: mol.atoms.map((/** @type {any} */ a) => a.el), b };
   },
-  // A и B — части цели f, и любая связь между их свободными атомами (кратность — как бьёт «Синтез»: под цель, но не больше
-  // свободных связей) даёт снова часть цели: тупика не будет, куда бы ни пришёлся удар. at — [ia, ib]: только эта пара атомов (удар уже случился)
-  joinsTo(f, A, B, at = null) {
-    const pa = this.piece(A), pb = this.piece(B); if (!partOf(f, pa) || !partOf(f, pb)) return false;
-    const mb = (COMP.find(x => x.f === f) || {}).mb || 1, off = pa.el.length;
-    const fa = (at ? [at[0]] : A.atoms.map((/** @type {any} */ _, /** @type {number} */ i) => i)).filter((/** @type {number} */ i) => this.freeAt(A, i) > 0);
-    const fb = (at ? [at[1]] : B.atoms.map((/** @type {any} */ _, /** @type {number} */ i) => i)).filter((/** @type {number} */ i) => this.freeAt(B, i) > 0);
-    if (!fa.length || !fb.length) return false;
-    return fa.every((/** @type {number} */ i) => fb.every((/** @type {number} */ j) => {
-      const n = this.lawN(mb, A, i, B, j);
-      return partOf(f, { el: [...pa.el, ...pb.el], b: [...pa.b, ...pb.b.map(x => [x[0] + off, x[1] + off, x[2]]), [i, j + off, n]] });
-    }));
+  // Связь A[i]–B[j] под цель f: кратность, с которой выходит снова часть цели (C=O под CO₂, C–N под формамид), — не больше
+  // свободных связей, H — одинарная; 0 — такой связи в цели нет. Раньше кратность бралась по каталогу (mb), а закон — первый
+  // по порядку: включённый «Синтез CH₃OH» перехватывал бросок под CO₂ и ставил C–O (REVIEW_NEON_4 «Молекулы» №1)
+  bondFor(f, A, i, B, j) {
+    const pa = this.piece(A), pb = this.piece(B); return partOf(f, pa) && partOf(f, pb) ? this.bondIn(f, pa, pb, A, i, B, j) : 0;
   },
-  // кратность связи, которую бросок Вселенной ставит по закону: сколько нужно соединению (mb), сколько есть свободных, H — одинарная
+  /** то же по готовым кускам (оба — части цели) @param {string} f @param {any} pa @param {any} pb @param {any} A @param {number} i @param {any} B @param {number} j */
+  bondIn(f, pa, pb, A, i, B, j) {
+    if (this.freeAt(A, i) < 1 || this.freeAt(B, j) < 1) return 0;
+    const off = pa.el.length, el = [...pa.el, ...pb.el], b0 = [...pa.b, ...pb.b.map((/** @type {number[]} */ x) => [x[0] + off, x[1] + off, x[2]])];
+    for (let n = this.lawN(3, A, i, B, j); n >= 1; n--) if (partOf(f, { el, b: [...b0, [i, j + off, n]] })) return n;
+    return 0;
+  },
+  // пара атомов [i, j], связь которых даёт часть цели f (их и сводит бросок «Синтеза»), или null. Раньше требовалось, чтобы
+  // годилась любая пара свободных атомов, — и обрывки C–O (эфир), H₂C–O (этанол) не годились ни с чем: вечный тупик (там же)
+  pairFor(f, A, B) {
+    const pa = this.piece(A), pb = this.piece(B); if (!partOf(f, pa) || !partOf(f, pb)) return null;
+    let best = null, bn = 0;
+    for (let i = 0; i < A.atoms.length; i++) for (let j = 0; j < B.atoms.length; j++) { const n = this.bondIn(f, pa, pb, A, i, B, j); if (n > bn) { bn = n; best = [i, j]; } }
+    return best;
+  },
+  /** @param {string} f @param {any} A @param {any} B @param {number[]} at удар — этой парой атомов */
+  joinsTo(f, A, B, at) { return this.bondFor(f, A, at[0], B, at[1]) > 0; },
+  // наибольшая кратность связи, которую может поставить бросок Вселенной: mb, сколько есть свободных, H — одинарная
   /** @param {number} mb @param {any} A @param {number} i @param {any} B @param {number} j */
   lawN(mb, A, i, B, j) { return Math.min(this.freeAt(A, i), this.freeAt(B, j), 3, A.atoms[i].el === 'H' || B.atoms[j].el === 'H' ? 1 : mb); },
   counts(mol) { const c = {}; for (const a of mol.atoms) c[a.el] = (c[a.el] || 0) + 1; return c; },
@@ -401,7 +411,7 @@ const Mols = {
   afterMerge(host, src, x, y) {
     host.hand = 0; host.auto = 0;
     if (src === 'hand') {
-      host.mine = true; this.st.bonds++;
+      host.mine = true; host.mineT = this.t; this.st.bonds++;
       // очков за связь нет (раньше +40 за каждую — с бесконечным притоком H это печатало очки): очки — за вехи (шаги, ★, уровень)
       if (this.st.bonds === 1) tipMsg('mols:bond', 'Ковалентная связь: общая пара электронов');
     }
@@ -516,6 +526,9 @@ const Mols = {
     }
     this.recompute(host);
     host.vx = vx; host.vy = vy; host.w = Lw / host.I;
+    // защита «8 с после игрока» — и склеенному: хозяином становится тяжёлый кусок, и твой бросок H в старый C давал CH без
+    // защиты — «Синтез CH₄» уводил его через 1,5 с (REVIEW_NEON_4 «Молекулы» №5)
+    const mt = Math.max(host.mineT ?? -99, gu.mineT ?? -99); if (mt > -99) host.mineT = mt;
     gu.dead = true;
     fxFlash(tx, ty, 8, [255, 255, 220], .5); fxRing(tx, ty, 4, [200, 240, 255], 22, .6);
     // экзотермика: выделившаяся энергия толкает соседей
@@ -563,6 +576,14 @@ const Mols = {
     this.splitBond(mol, bi); return true;
   },
   contact(A, ia, B, ib) {
+    // бросок Вселенной — в свой атом (aimAt): задел по пути соседний, а нужный — рядом, — касание засчитывается нужному. Свободная
+    // связь в глубине молекулы бывает закрыта своими же атомами: у эфира последнюю связь углерода заслоняют водороды соседней
+    // группы, и бросок H отскакивал всегда (REVIEW_NEON_4 «Молекулы» №1)
+    for (const [X, ix, Y, iy] of /** @type {[any, number, any, number][]} */ ([[A, ia, B, ib], [B, ib, A, ia]])) {
+      const m = X.auto > 0 && X.aimAt; if (!m || m.o !== Y || (m.i === ix && m.j === iy)) continue;
+      const px = X.wp[m.i], py = Y.wp[m.j];
+      if (Math.hypot(px[0] - py[0], px[1] - py[1]) < CHEM[X.atoms[m.i].el].r + CHEM[Y.atoms[m.j].el].r + M_SNAP) return X === A ? this.contact(A, m.i, B, m.j) : this.contact(A, m.j, B, m.i);
+    }
     const pa = A.wp[ia], pb = B.wp[ib], ra = CHEM[A.atoms[ia].el].r, rb = CHEM[B.atoms[ib].el].r;
     let nx = pb[0] - pa[0], ny = pb[1] - pa[1]; const d = Math.hypot(nx, ny) || 1e-6; nx /= d; ny /= d;
     const cx = pa[0] + nx * ra, cy = pa[1] + ny * ra;
@@ -581,8 +602,11 @@ const Mols = {
         const mx = Math.min(this.freeAt(A, ia), this.freeAt(B, ib), 3);
         // бросок Вселенной связывает, только если выходит часть того, что она варит (задела по пути третий кусок — отскок)
         // кратность — та, что нужна закону (сильный удар не делает из C=C тупиковую C≡C)
-        const law = src === 'auto' ? COMP.find(x => this.res.has(x.f) && !Uni.off(this, x.f) && this.joinsTo(x.f, A, B, [ia, ib])) : null;
-        if (src && imp >= ea && (src !== 'auto' || law)) { const n = law ? this.lawN(law.mb || 1, A, ia, B, ib) : Math.min(mx, bondN(imp, ea, mx)); if (this.merge(A, ia, sa, B, ib, sb, src, n)) { if (src === 'hand') { Sfx.play('bond', n); if (n === 3) this.st.triple++; } return true; } }
+        // сначала — закон, ради которого бросали (law у броска), потом любой включённый, с которым выходит часть цели
+        const on = (/** @type {string} */ f) => this.res.has(f) && !Uni.off(this, f) && this.joinsTo(f, A, B, [ia, ib]);
+        const want = (A.auto > 0 && A.law) || (B.auto > 0 && B.law);
+        const law = src === 'auto' ? (want && on(want) ? COMP.find(x => x.f === want) : COMP.find(x => on(x.f))) : null;
+        if (src && imp >= ea && (src !== 'auto' || law)) { const n = law ? this.bondFor(law.f, A, ia, B, ib) : Math.min(mx, bondN(imp, ea, mx)); if (this.merge(A, ia, sa, B, ib, sb, src, n)) { if (src === 'hand') { Sfx.play('bond', n); if (n === 3) this.st.triple++; } return true; } }
         else if (src === 'hand' && this.lowEMsgT <= 0) { this.lowEMsgT = 5; tipMsg('mols:lowE', 'Барьер: связь рождается только от удара сильнее энергии активации'); }
       }
       if (imp > BREAK_V && (A.bonds.length || B.bonds.length)) {
@@ -673,26 +697,30 @@ const Mols = {
         if (!fits(sum, g.c)) continue;
         // оба куска — части цели, и связь между ними — снова часть цели: ни тупиковых обрывков (HNC, OH под формальдегид,
         // CH₃–CH под этилен), ни H₂ под «воду»
-        if (!this.joinsTo(g.f, f[i], f[j])) continue;
+        const at = this.pairFor(g.f, f[i], f[j]); if (!at) continue;
         // достроить начатое (пара даёт цель целиком) Вселенная тянется и дальше: экзотермика связи отталкивает соседей,
         // и последний кусок (второй O к C=O) часто отлетал за M_REACH — CO₂ так и оставался недостроенным
         const d = Math.hypot(f[i].x - f[j].x, f[i].y - f[j].y), whole = ckey(sum) === ckey(g.c); if (d > (whole ? M_REACH2 : M_REACH)) continue;
         const sc = f[i].atoms.length + f[j].atoms.length + (whole ? 4 : 0) - d / 20 + Math.random();
-        if (sc > bs) { bs = sc; best = [f[i], f[j], d]; }
+        if (sc > bs) { bs = sc; best = [f[i], f[j], d, g.f, at]; }
       }
     }
     if (!best) return;
-    let [A, B, d] = best; if (A.m > B.m) [A, B] = [B, A];
+    let [A, B, d, law, at] = best; if (A.m > B.m) { [A, B] = [B, A]; at = [at[1], at[0]]; }
     const dx = B.x - A.x, dy = B.y - A.y, dmp = this.damp(); d = d || 1;
     if (d > M_REACH) { // далеко — сначала подвести лёгкий кусок поближе (без связи: бросок тихий), бросок — в следующий раз
       const v = Math.min(28, (d - M_REACH * .5) * dmp / (1 - Math.exp(-dmp * 2.4)));
       A.vx = B.vx + dx / d * v; A.vy = B.vy + dy / d * v; A.thrown = 0; return;
     }
-    this.orient(A, dx, dy); this.orient(B, -dx, -dy); A.w = B.w = 0;
+    // навстречу — те атомы, что нужны цели, и бросок — в атом, а не в центр куска: H, брошенный в центр почти готового эфира,
+    // бился о его водороды и отскакивал — последний шаг не давался никогда (REVIEW_NEON_4 «Молекулы» №1)
+    let ux = dx, uy = dy;
+    for (let k = 0; k < 2; k++) { this.orient(A, ux, uy, at[0]); this.orient(B, -ux, -uy, at[1]); ux = B.wp[at[1]][0] - A.wp[at[0]][0]; uy = B.wp[at[1]][1] - A.wp[at[0]][1]; }
+    d = Math.hypot(ux, uy) || 1; A.w = B.w = 0; A.law = B.law = law; A.aimAt = { o: B, i: at[0], j: at[1] }; B.aimAt = null;
     // соединение с кратной связью — Вселенная знает, что варит (как доворачивает «магнитом»): кратность ставит contact по закону (lawN).
     // Брошенное в полёте тормозит (damp: скорость падает на damp за единицу пути), поэтому бросок — с запасом на путь до касания:
     // долетает со скоростью M_AUTO_V (раньше бросок с 50–70 ед. приходил медленнее барьера тяжёлое–тяжёлое и отскакивал)
-    const v = M_AUTO_V + dmp * Math.max(0, d - A.R - B.R); A.vx = B.vx + dx / d * v; A.vy = B.vy + dy / d * v; A.thrown = 0; A.auto = 3; B.auto = 3;
+    const v = M_AUTO_V + dmp * Math.max(0, d - CHEM[A.atoms[at[0]].el].r - CHEM[B.atoms[at[1]].el].r); A.vx = B.vx + ux / d * v; A.vy = B.vy + uy / d * v; A.thrown = 0; A.auto = 3; B.auto = 3;
   },
 
   update(dt, act) {
