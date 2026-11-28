@@ -186,7 +186,7 @@ function touchBar() {
   const busy = G.started && !G.paused && stCanDrop(); // что-то в руке: ✕ — внизу у пальца, звук и ×4 прячутся (не задеть)
   on('t-drop', busy); on('t-mute', !busy);
   on('t-cx', G.started && (!s.showCodex || s.showCodex() !== null)); on('t-x', false);
-  on('t-help', G.started && !G.ended && !G.paused);
+  on('t-help', G.started && !G.ended && !G.paused); on('t-menu', G.started && !G.ended && !G.paused && !busy);
   // взятое само поворачивается по ходу броска; но у фрагмента из нескольких атомов к цели может встать не тот — ⟲ ⟳ (как Q / E)
   const rot = s.key === 'molecules' && G.started && !G.paused && !!(s.sl && s.sl.held && s.sl.held.atoms && s.sl.held.atoms.length >= 2);
   on('t-rl', rot); on('t-rr', rot);
@@ -222,6 +222,7 @@ addEventListener('keydown', e => {
   if (Spot.on && e.code !== 'KeyM') { e.preventDefault(); Spot.skip(); return; }
   // кодекс: C — открыть / закрыть, Esc — закрыть; пока открыт, игра стоит и клавиши не доходят до этапа
   if (Codex.isOpen) { if (e.code === 'KeyC' || e.code === 'Escape') Codex.close(); return; }
+  if (Menu.on) { if (e.code === 'Escape') Menu.close(); else if (e.code === 'KeyH') { Menu.close(); helpAgain(); } else if (e.code === 'KeyC') { Menu.close(); Codex.open(); } return; }
   if (e.code === 'KeyC' && G.started && document.activeElement !== pname) { Codex.open(); return; }
   if (!G.started) return;
   if (e.code === 'Escape' && G.stage.school) { if (G.stage.endSchool) G.stage.endSchool(false); return; }
@@ -229,7 +230,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Space' && !G.paused) { e.preventDefault(); G.stage.dash && G.stage.dash(); }
   if (!G.paused && (e.code === 'Enter' || e.code === 'NumpadEnter')) G.stage.enterKey && G.stage.enterKey();
   if (e.code === 'KeyX' && !G.paused) { if (G.stage.detach) G.stage.detach(); else stDrop(); }
-  if (e.code === 'Escape' && !G.paused) stDrop();
+  if (e.code === 'Escape' && !G.paused && !stDrop()) Menu.open(); // в руке ничего — Esc открывает меню
   if (e.code === 'KeyH' && !G.paused) helpAgain();
   if (/^Digit[1-9]$/.test(e.code)) { const i = +e.code.slice(5) - 1; if (G.paused) G.stage.pick && G.stage.pick(i); else G.stage.buy && G.stage.buy(i); }
   if (G.paused && (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter')) { e.preventDefault(); G.stage.closeCard && G.stage.closeCard(); return; }
@@ -247,6 +248,38 @@ function helpAgain() {
   msg('Подсказки уровня — снова на экране', 2);
 }
 /** @type {HTMLElement} */ (document.getElementById('help')).onclick = () => { helpAgain(); /** @type {HTMLElement} */ (document.getElementById('help')).blur(); };
+// Главное меню (☰, Esc; на сенсоре — ☰ в столбце кнопок): пауза, подсказки, кодекс, звук и выход на первую страницу.
+// «На главную» — со вторым нажатием: забег прервётся (рекорды и знания уже сохранены, сам забег — нет)
+const Menu = {
+  on: false, wasPaused: false, sure: false,
+  open() {
+    if (this.on || !G.started || G.ended) return;
+    this.on = true; this.wasPaused = G.paused; G.paused = true; mouse.down = false; mouse.clicked = false; this.sure = false;
+    /** @type {HTMLElement} */ (document.getElementById('gmt')).textContent = G.stage.name || 'Меню';
+    this.draw(); /** @type {HTMLElement} */ (document.getElementById('gm')).style.display = 'flex';
+  },
+  close() {
+    if (!this.on) return;
+    this.on = false; G.paused = this.wasPaused; mouse.down = false; mouse.clicked = false;
+    /** @type {HTMLElement} */ (document.getElementById('gm')).style.display = 'none';
+  },
+  draw() {
+    /** @type {HTMLElement} */ (document.getElementById('gm-mute')).firstChild.textContent = Sfx.muted ? 'Звук: выключен' : 'Звук: включён';
+    const h = /** @type {HTMLElement} */ (document.getElementById('gm-home'));
+    h.textContent = this.sure ? 'Точно выйти? Забег прервётся' : 'На главную'; h.classList.toggle('sure', this.sure);
+    /** @type {HTMLElement} */ (document.getElementById('gmn')).textContent = this.sure ? 'Ещё раз — выйти на первую страницу. Esc — остаться.' : 'Пока меню открыто, Вселенная стоит.';
+  },
+  home() { if (!this.sure) { this.sure = true; this.draw(); return; } location.reload(); },
+};
+/** @type {HTMLElement} */ (document.getElementById('menu')).onclick = () => { Menu.open(); /** @type {HTMLElement} */ (document.getElementById('menu')).blur(); };
+/** @type {HTMLElement} */ (document.getElementById('gm')).onclick = e => {
+  const t = /** @type {HTMLElement} */ (e.target), id = t.closest('button') ? /** @type {HTMLElement} */ (t.closest('button')).id : '';
+  if (t.id === 'gm' || id === 'gm-go') Menu.close();
+  else if (id === 'gm-help') { Menu.close(); helpAgain(); }
+  else if (id === 'gm-cx') { Menu.close(); Codex.open(); }
+  else if (id === 'gm-mute') { Sfx.toggle(); Menu.draw(); }
+  else if (id === 'gm-home') Menu.home();
+};
 // PWA: игра ставится как приложение и работает без сети (только с http/https, не из файла)
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { /* без офлайна */ }));
 addEventListener('keyup', e => keys.delete(e.code));
@@ -396,6 +429,7 @@ function hud() {
   // строка управления внизу — только при первом визите на уровень и первые CTL_T секунд (потом игрок знает сам)
   const ctlOn = !Known.has('ctl:' + S.key) && (S.clock ?? S.t ?? 0) < CTL_T || G.T < (G.ctlT || 0); // ctlT — «?» вернул строку
   const hb = document.getElementById('help'); if (hb) hb.style.display = G.started && !G.ended && !G.paused ? '' : 'none';
+  const mb = document.getElementById('menu'); if (mb) mb.style.display = G.started && !G.ended && !G.paused ? '' : 'none';
   if (G.started && !ctlOn && (S.clock ?? S.t ?? 0) >= CTL_T) Known.add('ctl:' + S.key);
   put('controls', ctlOn ? ctlHtml : '', true);
   document.getElementById('laws').style.display = h.laws.length ? '' : 'none';

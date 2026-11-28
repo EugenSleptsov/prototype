@@ -73,13 +73,17 @@ export function loadGame({ seed = 1, touch = false, storage = {} } = {}) {
     removeItem: k => store.delete(k), clear: () => store.clear(),
   };
   let t = 0;
+  /** @type {Record<string, Function[]>} */ const wl = {};
   const sandbox = {
     console, document, localStorage, sessionStorage: localStorage,
     navigator: { userAgent: 'node-test', maxTouchPoints: touch ? 5 : 0, language: 'ru' },
     location: { protocol: 'http:', host: 'localhost', hostname: 'localhost', origin: 'http://localhost', href: 'http://localhost/', search: '', hash: '', reload: noop },
     history: { replaceState: noop, pushState: noop },
     matchMedia: q => ({ matches: touch && /coarse/.test(q), addEventListener: noop, addListener: noop }),
-    addEventListener: noop, removeEventListener: noop,
+    // слушатели окна запоминаются: dispatchEvent(new KeyboardEvent('keydown', { code })) — клавиша, как в браузере
+    addEventListener: (/** @type {string} */ ty, /** @type {Function} */ f) => { (wl[ty] ||= []).push(f); }, removeEventListener: noop,
+    dispatchEvent: (/** @type {any} */ e) => { for (const f of wl[e.type] || []) f(e); return true; },
+    KeyboardEvent: function KeyboardEvent(/** @type {string} */ type, /** @type {any} */ o) { return { type, key: '', ...o, preventDefault: noop, stopPropagation: noop }; },
     requestAnimationFrame: () => 0, cancelAnimationFrame: noop, // кадры гоняет тест сам
     setTimeout: () => 0, clearTimeout: noop, setInterval: () => 0, clearInterval: noop,
     performance: { now: () => t },

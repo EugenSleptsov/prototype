@@ -51,6 +51,21 @@
   #help{position:fixed;left:max(16px,env(safe-area-inset-left));bottom:46px;width:28px;height:28px;border-radius:50%;border:1px solid #ffffff33;background:#0b0f1ccc;color:#dde3f0;font:700 14px system-ui,sans-serif;z-index:6;cursor:pointer;padding:0}
   #help:hover{border-color:#ffd27a88;color:#ffd27a}
   body.touch #help{display:none!important} /* на сенсоре «?» — в столбце кнопок справа: слева внизу она ложилась на лавку */
+  /* главное меню: ☰ над «?» (Esc), на сенсоре — в столбце кнопок */
+  #menu{position:fixed;left:max(16px,env(safe-area-inset-left));bottom:82px;width:28px;height:28px;border-radius:50%;border:1px solid #ffffff33;background:#0b0f1ccc;color:#dde3f0;font:700 14px system-ui,sans-serif;z-index:6;cursor:pointer;padding:0}
+  #menu:hover{border-color:#ffd27a88;color:#ffd27a}
+  body.touch #menu{display:none!important}
+  #gm{position:fixed;inset:0;z-index:31;display:none;align-items:center;justify-content:center;background:#02040acc;padding:12px}
+  .gmw{width:min(340px,100%);background:#0b0f1cf5;border:1px solid #ffffff2a;border-radius:16px;padding:18px;color:#dde3f0;box-shadow:0 20px 60px #000a;display:flex;flex-direction:column;gap:8px}
+  .gmw .cxk{margin-bottom:2px}
+  .gmw b{font-size:19px;margin-bottom:8px}
+  .gmw button{display:flex;justify-content:space-between;align-items:center;background:#ffffff08;border:1px solid #ffffff20;color:#dde3f0;border-radius:12px;padding:11px 14px;font:inherit;font-size:15px;cursor:pointer;text-align:left}
+  .gmw button:hover{border-color:#ffd27a88;color:#ffd27a}
+  .gmw button kbd{font:600 11px system-ui,sans-serif;opacity:.55;border:1px solid #ffffff30;border-radius:5px;padding:1px 5px}
+  body.touch .gmw button kbd{display:none}
+  .gmw #gm-go{border-color:#ffd27a55;background:#ffd27a14;color:#ffd27a}
+  .gmw #gm-home.sure{border-color:#ff8a7a;background:#ff8a7a22;color:#ffb3a8}
+  .gmw .gmn{font-size:12px;opacity:.6;margin-top:2px}
   #msg{position:fixed;left:50%;top:20%;transform:translateX(-50%);font-size:18px;opacity:0;transition:opacity .5s;text-align:center;pointer-events:none;max-width:80vw}
   .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#05030acc;z-index:5}
   .overlay>div{max-width:560px;padding:24px;line-height:1.55}
@@ -468,6 +483,16 @@
 <div id="laws" class="shadow"><b>Законы этапа</b><div id="bars"></div></div>
 <div id="controls" class="shadow"></div>
 <button id="help" title="Подсказки уровня снова (H)" aria-label="подсказки уровня снова" style="display:none">?</button>
+<button id="menu" title="Меню (Esc)" aria-label="меню" style="display:none">☰</button>
+<div id="gm"><div class="gmw" role="dialog" aria-label="Меню">
+  <div class="cxk">Пауза</div><b id="gmt">Меню</b>
+  <button id="gm-go">Продолжить<kbd>Esc</kbd></button>
+  <button id="gm-help">Подсказки уровня снова<kbd>H</kbd></button>
+  <button id="gm-cx">Кодекс<kbd>C</kbd></button>
+  <button id="gm-mute">Звук<kbd>M</kbd></button>
+  <button id="gm-home">На главную</button>
+  <div class="gmn" id="gmn">Пока меню открыто, Вселенная стоит.</div>
+</div></div>
 <div id="msg" class="shadow"></div>
 <div id="codex" class="shadow" title="Кодекс (C)"></div>
 <div id="uni" style="display:none"></div>
@@ -487,6 +512,7 @@
   <button id="t-drop" data-key="KeyX" aria-label="разжать без удара">✕</button>
   <button id="t-cx" data-key="KeyC" aria-label="кодекс">⚛</button>
   <button id="t-help" data-key="KeyH" aria-label="подсказки уровня снова">?</button>
+  <button id="t-menu" data-key="Escape" aria-label="меню">☰</button>
   <button id="t-mute" data-key="KeyM" aria-label="звук">🔊</button>
   <button id="t-ff" data-key="Enter" aria-label="ускорить время">×4</button>
   <button id="t-dash" data-key="Space" aria-label="рывок">⇢</button>
@@ -530,20 +556,20 @@
   <button onclick="location.reload()">Начать заново</button>
 </div></div>
 
-<script src="js/util.js?v=185"></script>
-<script src="js/gestures.js?v=185"></script>
-<script src="js/audio.js?v=185"></script>
-<script src="js/core.js?v=185"></script>
-<script src="js/universe.js?v=185"></script>
-<script src="js/codex.js?v=185"></script>
-<script src="js/sling.js?v=185"></script>
-<script src="js/s0_quarks.js?v=185"></script>
-<script src="js/s_particles.js?v=185"></script>
-<script src="js/s1_nuclei.js?v=185"></script>
-<script src="js/s_stars.js?v=185"></script>
-<script src="js/s2_atoms.js?v=185"></script>
-<script src="js/s3_molecules.js?v=185"></script>
-<script src="js/online.js?v=185"></script>
-<script src="js/main.js?v=185"></script>
+<script src="js/util.js?v=186"></script>
+<script src="js/gestures.js?v=186"></script>
+<script src="js/audio.js?v=186"></script>
+<script src="js/core.js?v=186"></script>
+<script src="js/universe.js?v=186"></script>
+<script src="js/codex.js?v=186"></script>
+<script src="js/sling.js?v=186"></script>
+<script src="js/s0_quarks.js?v=186"></script>
+<script src="js/s_particles.js?v=186"></script>
+<script src="js/s1_nuclei.js?v=186"></script>
+<script src="js/s_stars.js?v=186"></script>
+<script src="js/s2_atoms.js?v=186"></script>
+<script src="js/s3_molecules.js?v=186"></script>
+<script src="js/online.js?v=186"></script>
+<script src="js/main.js?v=186"></script>
 </body>
 </html>
