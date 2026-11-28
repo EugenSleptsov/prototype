@@ -50,7 +50,7 @@ test('стоп-кадр: глюон третьей струи впервые в 
 
 test('стоп-кадр: уже знакомое по прошлым забегам — без остановки', () => {
   const g = lit({ protoCodex: JSON.stringify(['ph', 'e', 'g']) });
-  g.ev(`G.stage.pairs = 1`);
+  g.ev(`G.stage.pairs = 1; Known.add('spot:Горячая область')`); // область объяснили в прошлом забеге
   g.ev(`__hit('ph', 'ph', LV_N)`);
   assert.equal(g.ev('Spot.on'), false);
 });

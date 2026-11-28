@@ -113,6 +113,35 @@ test('глава «Свет»: после вспышки света раскач
   assert.equal(far, true, 'пока шкала не полна — пополнение за кадром');
 });
 
+test('круг заряда пары квантов: ступень 1 — пустой круг (0°), дальше по трети, 4 — полный; у тяжёлой пары круг линейный', () => {
+  const g = loadGame();
+  g.ev(PREP.start); g.ev(PREP.pump());
+  const r = json(g, `(() => { const S = G.stage, a = S.mk('ph', false, P.x, P.y, 0, 1), b = S.mk('ph', false, P.x, P.y, 0, 1), m = S.mk('e', false, P.x, P.y, 0, 1);
+    const fq = { cap: [a, b] }, fh = { cap: [m, m] };
+    return { q: [1, 2, 3, 4].map(k => +S.ringA(k / LV_N, fq).toFixed(3)), h: +S.ringA(.25, fh).toFixed(3) }; })()`);
+  assert.deepEqual(r.q, [0, .333, .667, 1]);
+  assert.equal(r.h, .25);
+});
+
+test('новое понятие — пауза и объяснение: первая горячая область в кадре ставит стоп-кадр с её описанием (раз за игру), не поверх ленты; в главах 1–2 областей нет', () => {
+  const g = loadGame();
+  g.ev(PREP.start); g.ev(PREP.pump()); g.ev('Cine.clear(); Cine.tick(99)');
+  g.ev('G.stage.tickChapter = () => {}'); g.step(60 * 5);
+  assert.equal(g.ev('G.stage.chap'), 1); assert.equal(g.ev('G.stage.hz.length'), 0, 'в главах 1–2 областей нет');
+  g.ev('G.stage.chap = 3; G.stage.hzSeen = false; G.stage.hzCd = 0; Cine.show("x", 5, 0, true)');
+  g.step(60 * 4);
+  assert.equal(g.ev('Spot.on'), false, 'поверх ленты стоп-кадра нет');
+  g.ev('Cine.clear()'); g.step(2);
+  assert.equal(g.ev('Spot.on && Spot.txt'), 'Горячая область');
+  assert.match(g.ev('Spot.sub'), /свет рождается гуще/);
+  assert.ok(g.ev('Spot.r') > 1, 'пятно — размером с область');
+  g.ev('Spot.end(); G.stage.hz = []; G.stage.hzSeen = false; G.stage.hzCd = 0'); g.step(60 * 4);
+  assert.equal(g.ev('Spot.on'), false, 'во второй раз — без паузы');
+  g.ev('G.stage.hz = []; G.stage.hzCd = 999; G.stage.rs.g = 1; G.stage.cz = []; G.stage.czSeen = false; G.stage.czCd = 0'); g.step(60 * 4); // закон «Глюоны» — первый цветной вихрь (в кадре есть место)
+  assert.equal(g.ev('Spot.on && Spot.txt'), 'Цветной вихрь');
+  assert.match(g.ev('Spot.sub'), /рождаются глюоны/);
+});
+
 test('поле включается, только когда свой свет измерен', () => {
   const g = loadGame();
   g.ev(PREP.start); g.ev(PREP.pump());

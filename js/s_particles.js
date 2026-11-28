@@ -708,9 +708,9 @@ const Particles = {
     if (S.cap) { // поле держит пару: пунктир захвата, нити, засечки силы на кольце
       ring(px, py, this.fr() * z, FIELD_C, .35 * alpha, 1.5, [6, 6]);
       for (const b of S.cap) { const [x, y] = W2S(b.x, b.y); line(px, py, x, y, FIELD_C, .7 * alpha, 2); }
-      for (let j = 0; j < LV_N; j++) {
-        const a0 = -Math.PI / 2 + j * TAU / LV_N + .09, on = j < S.lv;
-        arc(px, py, r0 * 1.3, a0, a0 + TAU / LV_N - .18, on ? (S.lv >= LV_N ? GOLD : FIELD_C) : [255, 255, 255], on ? .95 * alpha : .2 * alpha, 4);
+      for (let j = 0; j < LV_N - 1; j++) { // как в игре: ступень 1 — пустой круг, дальше по трети, 4 — полный
+        const a0 = -Math.PI / 2 + j * TAU / (LV_N - 1) + .09, on = j < S.lv - 1;
+        arc(px, py, r0 * 1.3, a0, a0 + TAU / (LV_N - 1) - .18, on ? (S.lv >= LV_N ? GOLD : FIELD_C) : [255, 255, 255], on ? .95 * alpha : .2 * alpha, 4);
       }
       label(`${S.lv} ⚡`, px, py - r0 * 1.3 - 14, 13, S.lv >= LV_N ? GOLD : [200, 230, 255], alpha, 800);
     } else if (k === 'join' || k === 'drop') ring(px, py, this.fr() * z, FIELD_C, .16 * alpha, 1, [4, 6]); // докуда достаёт поле
@@ -914,6 +914,10 @@ const Particles = {
   chargeE(q, f) { return this.eTop(f) * (.02 + .98 * q); },
   /** @param {number} E @param {Focus | null} [f] */
   qOf(E, f) { return (E / this.eTop(f) - .02) / .98; },
+  // доля круга-шкалы для заряда q: у пары квантов круг начинается со ступени 1 (её дают сразу) — 1 → 0°, 4 → полный круг,
+  // по трети на ступень; у тяжёлой пары ступеней нет — круг линейный
+  /** @param {number} q @param {Focus} f */
+  ringA(q, f) { return f.cap[0] && this.isQ(f.cap[0]) ? clamp((q * LV_N - 1) / (LV_N - 1), 0, 1) : clamp(q, 0, 1); },
   // верх шкалы заряда: у квантов — Emax; у тяжёлой пары с резонансом — так, чтобы середина полосы Z была на BAND_AT
   /** @param {Focus | null} [f] */
   eTop(f) {
@@ -2031,10 +2035,8 @@ const Particles = {
     if (!this.czOn()) { this.cz = []; return; }
     for (const z of this.cz) z.t += dt;
     this.cz = this.cz.filter(z => z.t < z.L && Math.hypot(z.x - P.x, z.y - P.y) < this.wr() * 1.6);
-    if (this.cz.some(z => this.hzK(z) > .5 && onScreen(...W2S(z.x, z.y), 0))) Hint.once('cz', 'цветной вихрь: глюонное поле плотнее — здесь рождаются глюоны', () => {
-      const z = this.cz.find(q => onScreen(...W2S(q.x, q.y), 0)); if (!z) return null;
-      const [x, y] = W2S(z.x, z.y); return [x, y + z.r * cam.z * .6, 1];
-    });
+    const c0 = this.cz.find(z => this.hzK(z) > .5 && onScreen(...W2S(z.x, z.y), 0)); // первый вихрь в кадре — новое понятие: пауза и объяснение
+    if (c0) this.explain(c0, 'Цветной вихрь', 'здесь гуще глюонное поле:\nиз него рождаются глюоны.\nСвет — из горячих, глюоны — из вихрей.\nОстынет — новый вспыхнет в другом месте');
     const emit = !this.advanced && this.qKinds().includes('g') && !this.qFull();
     for (const z of this.cz) {
       if (!emit || Math.hypot(z.x - P.x, z.y - P.y) > this.wr()) continue;
@@ -2043,8 +2045,10 @@ const Particles = {
     }
     if (this.cz.length >= CZ_N || (this.czCd -= dt * (this.cz.length ? 1 : 3)) > 0) return;
     this.czCd = rnd(4, 8);
-    for (let i = 0; i < 10; i++) {
-      const a = Math.random() * TAU, d = this.czSeen ? rnd(viewRadius() * .9, this.wr() * .95) : viewRadius() * .7;
+    const c1 = this.czSeen ? null : this.firstZonePos(); // первый — в кадре, если там есть место
+    if (c1) { const [x, y] = c1; this.cz.push({ x, y, r: HZ_R, t: 0, L: rnd(HZ_L * .8, HZ_L * 1.2) }); this.czSeen = true; return; }
+    for (let i = 0; i < 10; i++) { // дальше — в мире вокруг, за кадром
+      const a = Math.random() * TAU, d = rnd(viewRadius() * .9, this.wr() * .95);
       const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
       if ([...this.hz, ...this.cz].some(z => Math.hypot(z.x - x, z.y - y) < HZ_R * 3)) continue;
       this.cz.push({ x, y, r: HZ_R, t: 0, L: rnd(HZ_L * .8, HZ_L * 1.2) }); this.czSeen = true; return;
@@ -2056,10 +2060,7 @@ const Particles = {
     for (const z of this.hz) z.t += dt;
     this.hz = this.hz.filter(z => z.t < z.L && Math.hypot(z.x - P.x, z.y - P.y) < this.wr() * 1.6); // уехал далеко — та остыла
     const z0 = this.hz.find(z => this.hzK(z) > .5 && onScreen(...W2S(z.x, z.y), 0));
-    if (z0) Hint.once('hz', 'горячо: свет гуще и жёстче, удар набирается быстрее', () => {
-      const z = this.hz.find(q => onScreen(...W2S(q.x, q.y), 0)); if (!z) return null;
-      const [x, y] = W2S(z.x, z.y); return [x, y + z.r * cam.z * .6, 1];
-    });
+    if (z0) this.explain(z0, 'Горячая область', 'здесь Вселенная горячее:\nсвет рождается гуще и жёстче,\nудар набирается быстрее.\nОстынет — новая вспыхнет в другом месте');
     // область кипит: испускает кванты (в эпоху 1 — только когда свет Вселенной включён: иначе это и был бы закон даром)
     const emit = !this.advanced && (this.ep > 0 || (this.rs.ph > 0 && !Uni.off(this, 'ph'))) && !this.qFull();
     for (const z of this.hz) {
@@ -2067,16 +2068,34 @@ const Particles = {
       z.em = (z.em || 0) + dt * HZ_RATE * this.hzK(z) * (this.ep > 0 ? 1 : HZ_EP0); // в эпоху 1 — слабее (областей и так вдвое больше со «Светом» II) «Свет»
       for (; z.em >= 1; z.em--) { const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * z.r * .8; this.spawnQuantum(true, [z.x + Math.cos(a) * d, z.y + Math.sin(a) * d], true, 'ph'); }
     }
+    if (!this.ep && this.chap < 3) return; // в главах 1–2 областей нет: одно новое понятие за раз (первая — с главы «Первый удар»)
     if (this.hz.length >= this.hzN() || (this.hzCd -= dt * (this.hz.length ? 1 : 3)) > 0) return; // ни одной — новая вспыхивает скорее: свет рождается в них
     this.hzCd = rnd(4, 8);
-    for (let i = 0; i < 10; i++) {
-      // первая — у края кадра, чтобы её заметили; дальше — в мире вокруг, за кадром
-      const a = Math.random() * TAU, d = this.hzSeen ? rnd(viewRadius() * .9, this.wr() * .95) : viewRadius() * .7;
+    const h1 = this.hzSeen ? null : this.firstZonePos();
+    if (h1) { const [x, y] = h1; this.hz.push({ x, y, r: HZ_R, t: 0, L: rnd(HZ_L * .8, HZ_L * 1.2) }); this.hzSeen = true; return; }
+    for (let i = 0; i < 10; i++) { // дальше — в мире вокруг, за кадром
+      const a = Math.random() * TAU, d = rnd(viewRadius() * .9, this.wr() * .95);
       const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
       if ([...this.hz, ...this.cz].some(z => Math.hypot(z.x - x, z.y - y) < HZ_R * 3)) continue;
       this.hz.push({ x, y, r: HZ_R, t: 0, L: rnd(HZ_L * .8, HZ_L * 1.2) }); this.hzSeen = true; return;
     }
   },
+  // первая область (вихрь) — в кадре, у края и подальше от уже горящих: её показывают и объясняют.
+  // Места в кадре нет (налезла бы на горящую) — null: вспыхнет как обычно, объяснят, когда попадёт в кадр
+  /** @returns {[number, number] | null} */
+  firstZonePos() {
+    const [hw, hh] = halfView(), m = this.wr() * .7, rx = Math.min(hw * .6, m), ry = Math.min(hh * .6, m), Z = [...this.hz, ...this.cz]; // кадр шире мира — не дальше мира
+    let best = /** @type {[number, number]} */ ([P.x + rx, P.y]), bd = -1;
+    for (let i = 0; i < 12; i++) {
+      const a = Math.random() * TAU, x = P.x + Math.cos(a) * rx, y = P.y + Math.sin(a) * ry, d = Math.min(99, ...Z.map(z => Math.hypot(z.x - x, z.y - y)));
+      if (d > bd) { bd = d; best = [x, y]; }
+    }
+    return bd >= HZ_R * 3 ? best : null;
+  },
+  // Новое понятие впервые на поле — пауза: стоп-кадр с пятном на нём и объяснением (раз за всю игру — Known в Spot).
+  // Не поверх ленты или другого стоп-кадра и не в итогах — подождёт следующего кадра
+  /** @param {HotZone} z @param {string} t @param {string} sub */
+  explain(z, t, sub) { if (!Cine.on && !Spot.on && !this.advanced && !this.epDone) Spot.show(z, t, sub, 8, z.r); },
   coreR() { return Math.min(this.hr(), CORE_R); },
   // Волна антивещества: предупреждение (стрелка и дуга с той стороны), потом 4–8 антикварков летят на детектор.
   // Ни один не добрался до ядра — волна отбита (+5 ✦).
@@ -2932,20 +2951,21 @@ const Particles = {
     if (bd) {
       const q1 = this.qOf(bd[0], f), q2 = this.qOf(bd[1], f);
       if (q2 > 0 && q1 < 1) {
-        arc(sx, sy, Rg, a0 + TAU * Math.max(0, q1), a0 + TAU * Math.min(1, q2), GOLD, .55, 9);
-        const am = a0 + TAU * clamp((q1 + q2) / 2, 0, 1), sym = kinds === 'gg' ? 'H' : 'Z';
+        arc(sx, sy, Rg, a0 + TAU * this.ringA(q1, f), a0 + TAU * this.ringA(q2, f), GOLD, .55, 9);
+        const am = a0 + TAU * this.ringA((q1 + q2) / 2, f), sym = kinds === 'gg' ? 'H' : 'Z';
         label(Codex.has(sym) ? sym : '?', sx + Math.cos(am) * (Rg + 17), sy + Math.sin(am) * (Rg + 17), 11, GOLD, .95, 800);
       }
     }
     if (this.isQ(f.cap[0])) {
-      // ступени удара: деление на каждой четверти круга, у деления — что родит эта ступень (клетка матрицы)
+      // ступени удара: ступень 1 — в начале круга (взял пару — она уже есть), дальше по трети круга, 4 — полный круг;
+      // у деления — что родит эта ступень (клетка матрицы). 1 и 4 — оба наверху: надписи разведены в стороны
       for (let k = 1; k <= LV_N; k++) {
-        const an = a0 + TAU * k / LV_N, c = Math.cos(an), s = Math.sin(an), got = (f.lv || 0) >= k;
+        const an = a0 + TAU * (k - 1) / (LV_N - 1), la = an + (k === 1 ? .34 : k === LV_N ? -.34 : 0), c = Math.cos(an), s = Math.sin(an), got = (f.lv || 0) >= k;
         const xs = this.cellsAt(kinds, k), x = xs.find(v => !this.cellWhy(v, this.lvE(k), false)) || xs[0], why = x ? this.cellWhy(x, this.lvE(k), false) : '', open = !!x && !why;
         // ещё не создано то, без чего эту клетку не открыть (поколение закрыто) — ступень пустая: ни символа, ни подсказки
         if (!x || this.cellHidden(why)) { line(sx + c * (Rg - 5), sy + s * (Rg - 5), sx + c * (Rg + 5), sy + s * (Rg + 5), [255, 255, 255], .25, 2); continue; }
         line(sx + c * (Rg - 8), sy + s * (Rg - 8), sx + c * (Rg + 8), sy + s * (Rg + 8), !open ? NO_C : got ? GOLD : [255, 255, 255], got || !open ? 1 : .7, 2);
-        const R = Rg + (Math.abs(c) > .5 ? 42 : 22), lx = sx + c * R, ly = sy + s * R; // сбоку надпись шире — дальше от круга
+        const lc = Math.cos(la), R = Rg + (Math.abs(lc) > .5 ? 42 : 24), lx = sx + lc * R, ly = sy + Math.sin(la) * R; // сбоку надпись шире — дальше от круга
         const col = !open ? NO_C : got ? GOLD : [255, 255, 255];
         // ⚡ ступени — без ГэВ (просьба игрока: энергия удара в цифрах мешала); остывание видно по красным ступеням
         label(`${k}⚡`, lx, ly - 8, 10, !open ? NO_C : got ? GOLD : [200, 210, 230], .85, 600);
@@ -2954,7 +2974,7 @@ const Particles = {
       }
     }
     // энергия столкновения — клин: чем больше набрал, тем толще линия; нити к квантам тоже толстеют
-    wedge(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, f.q), 2, 2 + 12 * f.q, inH ? GOLD : FIELD_C, .95);
+    wedge(sx, sy, Rg, a0, a0 + TAU * Math.max(.005, this.ringA(f.q, f)), 2, 2 + 12 * f.q, inH ? GOLD : FIELD_C, .95);
     if (this.isQ(f.cap[0])) {
       const k = f.lv || 0, x = k ? this.pickCell(kinds, k, this.lvE(k), false) : null, no = k && x && x.c && x.k < k;
       const top = k ? this.cellsAt(kinds, k)[0] : null, tw = top ? this.cellWhy(top, this.lvE(k), false) : '', show = no && top && !this.cellHidden(tw);

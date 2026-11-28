@@ -189,8 +189,8 @@ test('счётчик «Во Вселенной»: число e±, μ±, τ± и 
 
 test('кванты: в кадре не остывают — за улетающим можно погнаться; мир полон — области молчат', () => {
   const g = toStage('particles');
-  const r = g.ev(`(() => { const S = G.stage; S.tut = null; for (const o of S.p) o.dead = true; S.p = []; S.populate = () => {};
-    S.hz = [{ x: P.x + 50, y: P.y, r: HZ_R, t: 10, L: 999 }];
+  const r = g.ev(`(() => { const S = G.stage; S.tut = null; S.hzCd = 1e9; for (const o of S.p) o.dead = true; S.p = []; S.populate = () => {}; // одна область — эта, новых не вспыхивает
+    S.hz = [{ x: P.x + 15, y: P.y, r: HZ_R, t: 10, L: 999 }]; // в мире, но далеко от квантов
     const mk = (dx) => { const o = S.mk('ph', false, P.x + dx, P.y, 0, 0); o.born = 1; o.v = 0; o.ql = Q_LIFE; return o; };
     const off = () => halfView()[1] + 1.5; // чуть за краем кадра, но в мире
     const near = mk(3.5), far = mk(0); far.y = P.y + off();
