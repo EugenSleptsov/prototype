@@ -353,7 +353,7 @@ const Particles = {
     this.focus = null; this.holding = false; this.hold = 0; this.shield = 1;
     this.learn = {}; this.coach = { idle: 0, t: 0, kind: null }; this.spotted = new Set(); this.missT = -99; this.en = 0; this.enFx = 0; this.shotCd = 0; this.shotFx = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
-    this.ep = 0; this.epDone = false; this.epGap = 0; this.bannerFor = -1; this.banner = 99; this.epT = 0;
+    this.ep = 0; this.epDone = false; this.epGap = 0; this.gapFl = null; this.bannerFor = -1; this.banner = 99; this.epT = 0;
     this.pairs = 0; this.tries = {}; this.decSeen = new Set(); this._pk = null; this.starsShown = false; this.lepDone = false; this.hot = []; this.hotCd = 3; this.hz = []; this.hzCd = 2; this.hzSeen = false; this.annAt = null; this.trioN = 0; this.cz = []; this.czCd = 2; this.czSeen = false; this.stock = 0; this.stockQ = []; this.udRes = []; this.eRes = 0; this.forgedQ = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1; this.failed = false;
     Codex.run = new Set(); Codex.dirty = true;
     // цели этого забега: что открыть в эпохе 1 и чьи распады снять в эпохе 3
@@ -1738,7 +1738,10 @@ const Particles = {
       // часы эпохи идут до выполнения целей (пролог не в счёт; в эпохе Хиггса — с той минуты, как поле застыло)
       if (this.doneAt === null && (this.lit || this.ep) && !(this.ep === 1 && this.hig < 1)) this.epClock += dt0;
       const E = EPOCHS[this.ep], nx = EPOCHS[this.ep + 1];
-      const floor = this.epDone ? (nx ? Math.min(nx.startT, this.T) * .999 : 0) : E.floor;
+      // пол передышки — один раз, на входе в неё: пересчёт min(startT, T)·0,999 каждый шаг ронял T на 0,1 % за кадр —
+      // эпоха 4 длилась 66 / 52 / 23 с на 60 / 120 / 240 Гц вместо 80,6, эпоха 3 начиналась с 62,7 / 43,8 / 21,3 ГэВ (REVIEW_NEON_4 тема Д)
+      if (this.epDone && this.gapFl === null) this.gapFl = nx ? Math.min(nx.startT, this.T) * .999 : 0;
+      const floor = this.epDone ? /** @type {number} */ (this.gapFl) : E.floor;
       const rate = this.epDone ? (nx ? 12 : 4) : 1; // последняя эпоха выполнена — догорает быстро
       if (this.lit || this.ep) this.T = Math.max(floor, this.T * Math.exp(-dt * rate / E.tau)); // в прологе не остывает
       if (this.epDone && nx && (this.epGap -= dt) <= 0 && this.T <= nx.startT) this.startEpoch(this.ep + 1);
@@ -1940,7 +1943,7 @@ const Particles = {
   /** @param {number} i */
   startEpoch(i) {
     this.release();
-    this.ep = i; this.epDone = false; this.epT = 0; this.ff = 1; this.hot = []; this.hotCd = 4; if (i === 3) { this.hz = []; this.cz = []; }
+    this.ep = i; this.epDone = false; this.gapFl = null; this.epT = 0; this.ff = 1; this.hot = []; this.hotCd = 4; if (i === 3) { this.hz = []; this.cz = []; }
     this.epClock = 0; this.epKn0 = this.kn; this.doneAt = null;
     this.newEpochState(i);
     if (i === 1) this.higgsOn();

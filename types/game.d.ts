@@ -256,7 +256,7 @@ interface ParticlesState {
   seenN: Record<string, number>;
   ejected: number;
   /** эпоха 0…3 */
-  ep: number; epDone: boolean; epGap: number; bannerFor: number; banner: number; epT: number;
+  ep: number; epDone: boolean; epGap: number; /** пол T передышки, взят на входе в неё */ gapFl: number | null; bannerFor: number; banner: number; epT: number;
   pairs: number; decSeen: Set<string>; tries: Record<string, number>;
   hot: Hot[]; hotCd: number; hz: HotZone[]; hzCd: number; hzSeen: boolean; annAt: { x: number, y: number, r: number, t: number } | null; trioN: number; cz: HotZone[]; czCd: number; czSeen: boolean; uniOff: Set<string>;
   /** эпоха 4: запас кварков в детекторе */
