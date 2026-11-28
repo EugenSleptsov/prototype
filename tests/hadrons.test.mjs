@@ -121,7 +121,7 @@ test('адроны: Δ⁺⁺ (● ● ●) распадается в p⁺ и π�
 test('адроны: «Конфайнмент» — Вселенная сама бросает к соседям, нуклоны платят в строку закона', () => {
   const g = hadrons(); empty(g);
   for (let i = 0; i < 4; i++) { g.ev(B('__a', [[0, 'u']], i * 1.4 - 3, -1)); g.ev(B('__b', [[1, 'u']], i * 1.4 - 3, 0)); g.ev(B('__c', [[2, 'd']], i * 1.4 - 3, 1)); }
-  g.ev(`(() => { const S = G.stage; S.handN = HAND_Q; S.kn += 100; S.buy(0); })()`);
+  g.ev(`(() => { const S = G.stage; S.handN = HAND_Q; S.kn += 100; S.buy(0); S.chap = CH_LAW; })()`); // глава «Закон»: запаса экзамена (reserve) ещё нет — механика закона
   assert.equal(g.ev('G.stage.rs.conf'), 1);
   g.step(60 * 25);
   assert.ok(g.ev('G.stage.autoN') >= 2, `нуклонов Вселенной ${g.ev('G.stage.autoN')}`);
@@ -131,7 +131,7 @@ test('адроны: «Конфайнмент» — Вселенная сама �
 
 test('адроны: всё сделано — уровень кончается, нуклоны уходят в ядра на своих местах', () => {
   const g = hadrons(); empty(g);
-  for (let i = 0; i < 12; i++) { g.ev(B('__x', i < 10 ? [[0, 'u'], [1, 'u'], [2, 'd']] : [[0, 'u'], [1, 'd'], [2, 'd']], (i % 4) * 1.5 - 2, Math.floor(i / 4) * 1.5 - 2)); g.ev('__x.byHand = __x.mine = true'); }
+  for (let i = 0; i < 12; i++) { g.ev(B('__x', i < 10 ? [[0, 'u'], [1, 'u'], [2, 'd']] : [[0, 'u'], [1, 'd'], [2, 'd']], (i % 4) * 1.5 - 2, Math.floor(i / 4) * 1.5 - 2)); g.ev('__x.byHand = __x.mine = true; __x.hc = CH_GOAL'); }
   g.ev(`(() => { const S = G.stage; S.handN = 12; S.made.p = 10; S.made.n = 2; S.st.mesons = MESON_N; S.st.cueQ = 1; S.rs.conf = 1; })()`);
   assert.equal(g.ev('G.stage.steps().map(s => +s.d).join("")'), '111111');
   g.step(10);
@@ -146,7 +146,7 @@ test('адроны: последний шаг — и твой: 12 нуклоно
   const g = hadrons(); empty(g);
   for (let i = 0; i < 12; i++) g.ev(B('__x', i < 10 ? [[0, 'u'], [1, 'u'], [2, 'd']] : [[0, 'u'], [1, 'd'], [2, 'd']], (i % 4) * 1.5 - 2, Math.floor(i / 4) * 1.5 - 2));
   assert.equal(g.ev('G.stage.steps()[5].d'), false);
-  g.ev('G.stage.o.slice(0, 5).forEach(o => o.byHand = true)');
+  g.ev('G.stage.o.slice(0, 5).forEach(o => { o.byHand = true; o.hc = CH_GOAL; })');
   assert.equal(g.ev('G.stage.steps()[5].d'), true);
 });
 

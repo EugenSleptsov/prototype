@@ -53,7 +53,7 @@ const HCHAP = {
   12: { n: 'Антицвет', line: 'Из вакуума пришли антикварки — полые. Антицвет гасит свой цвет: кварк с антикварком — мезон, тоже белый' },
   13: { n: 'Холод', line: 'Плазма остывает: край сжимается, за ним цветное вымерзает. Рукой его там не взять — сбей готовым нуклоном, как шаром' },
   14: { n: 'Закон', line: 'Белое ты собрал руками — отдай знания ✦ закону «Конфайнмент», и Вселенная станет собирать сама' },
-  15: { n: 'Вещество для ядер', line: `Экзамен: ${GOAL_N} нуклонов, среди них нейтроны и ${OWN_N} твоих, — пока плазма не остыла. Из них будут ядра` },
+  15: { n: 'Вещество для ядер', line: `Экзамен: ${GOAL_N} нуклонов, среди них нейтроны и ${OWN_N} сложенных твоими руками уже сейчас, — пока плазма не остыла. Из них будут ядра` },
 };
 // «Адронный зоопарк» — ключи кодекса 'h:…'
 const HADRON = {
@@ -419,6 +419,7 @@ const Quarks = {
     const hand = src === 'hand' || o.byHand, conf = this.rs.conf && !Uni.off(this, 'conf');
     this.made[o.kind]++;
     const pts = o.fromD ? DELTA_PTS : 10;
+    if (hand) o.hc = this.chap; // в какой главе сложен рукой: «свои» экзамена — с главы 15 (ownN)
     if (hand) { this.handN++; Tips.did('quarks:pair'); this.kn += pts; this.learn.bar = true; if (this.handN === 1) this.spot(o, 'Белое!', 'три цвета вместе — бесцветное: сжалось в одно ядрышко. Белое переживёт остывание'); }
     else if (conf) { this.autoN++; Uni.pay(this, 'conf', 3); }
     this.zoo(o.kind, o.x, o.y - .5);
@@ -502,10 +503,24 @@ const Quarks = {
   },
 
   // ---------- Вселенная бросает сама («Конфайнмент») ----------
+  // запас на экзамене: «свои» считаются с главы 15, и закон, собирая соседей, съедал материал — медленному игроку не
+  // из чего было сложить свои 5 (бот: нуклон раз в 15 с — провал при 150 ✦). Закон не бросает, пока по какому-то цвету
+  // в тёплом диске кварков не больше, чем тебе ещё сложить своих (как SYN_TOP «Ядер» и REC_TOP «Атомов»: часть — тебе)
+  reserve() {
+    if (this.chap < CH_GOAL) return false;
+    let need = OWN_N - this.ownN(); const cc = [0, 0, 0];
+    for (const o of this.o) {
+      if (o.dead) continue;
+      if ((o.kind === 'delta' || o.kind === 'hyp') && o.byHand) need--; // твой Δ или гиперон станет твоим нуклоном
+      else if ((o.kind === 'q' || o.kind === 'pair') && !this.inCold(o)) for (const q of o.m) if (!q.anti && !HEAVY[q.fl]) cc[q.col]++;
+    }
+    return need > 0 && Math.min(...cc) <= need;
+  },
   // выбирает ближнюю пару, из которой выйдет пара или нуклон (не Δ, без тяжёлых и антикварков), и бросает к ней
   autoThrow(dt) {
     if (!this.rs.conf || Uni.off(this, 'conf') || this.doneAt !== null || G.prev || (this.autoCd -= dt) > 0) return;
     this.autoCd = AUTO_CD;
+    if (this.reserve()) { this.once('reserve', 'Закон оставил кварки тебе: на твои нуклоны экзамена. Больше материала — «Приток плазмы»'); return; }
     const R = this.hotR(), f = this.o.filter(o => !o.dead && !o.held && !(o.fly > 0) && o.age > 1 && o.nb <= 0 && (o.kind === 'q' || o.kind === 'pair') &&
       !o.m.some(q => HEAVY[q.fl]) && Math.hypot(o.x - this.C.x, o.y - this.C.y) < R - .3);
     const { n } = this.liveNP(), wantN = n < GOAL_NN + 1;
@@ -680,7 +695,9 @@ const Quarks = {
     return '';
   },
   liveNP() { let p = 0, n = 0; for (const o of this.o) if (!o.dead) { if (o.kind === 'p') p++; else if (o.kind === 'n') n++; } return { p, n }; },
-  ownN() { return this.o.filter(o => !o.dead && isNuc(o) && o.byHand).length; },
+  // свои нуклоны экзамена — сложенные рукой уже в главе 15 (как mk11 в «Аромате»): нуклоны глав 10–11 белые и не
+  // вымерзают, и раньше они закрывали «5 своих» заранее — после «Конфайнмента» цель брал закон без рук (REVIEW_NEON_4 №2)
+  ownN() { return this.o.filter(o => !o.dead && isNuc(o) && o.byHand && o.hc >= CH_GOAL).length; },
   // доля белого: кварки в белом сейчас и в погасших пионах — от всего, что было в плазме
   white() { let w = this.goneWhite; for (const o of this.o) if (!o.dead && isWhite(o)) w += o.m.length; return this.Q0 ? clamp(w / this.Q0, 0, 1) : 0; },
   progress() { const { p, n } = this.liveNP(), s = this.steps(); return (s.filter(x => x.d).length + Math.min(1, (p + n) / GOAL_N)) / (s.length + 1); },
@@ -774,8 +791,8 @@ const Quarks = {
       { t: 'Погасить антикварк', h: 'полый — антикварк: бросить его в кварк своего цвета (или кварк в него). Мезон тоже белый', p: [Math.min(this.st.mesons, MESON_N), MESON_N], s: 'мезон', d: this.st.mesons >= MESON_N, ch: CH_ANTI },
       { t: 'Нуклон — шар: сбить кварк', h: 'зажать готовый нуклон, оттянуть, отпустить в цветное: собьёт его в пару, в барион или из холода обратно в тепло', s: 'бильярд', d: this.st.cueQ > 0, ch: CH_COLD },
       { t: 'Сформировать закон «Конфайнмент»', h: `${touch || !this.keyOf('conf') ? 'в лавке' : `клавиша ${this.keyOf('conf')}`} за ${CONF_COST} ✦`, s: 'конфайнмент', d: this.rs.conf > 0, ch: CH_LAW },
-      { t: 'Вещество для ядер', ch: CH_GOAL, h: `${GOAL_N} нуклонов, пока плазма не остыла: не меньше ${GOAL_NN} нейтронов и ${OWN_N} своих. Доля нейтронов перейдёт во Вселенную «Ядер»: больше n⁰ — легче гелий`, p: [Math.min(N, GOAL_N), GOAL_N],
-        items: [[`≥ ${GOAL_NN} n⁰`, np.n >= GOAL_NN], [`${OWN_N} своих`, own >= OWN_N]], s: 'вещество для ядер готово', d: N >= GOAL_N && np.n >= GOAL_NN && own >= OWN_N },
+      { t: 'Вещество для ядер', ch: CH_GOAL, h: `${GOAL_N} нуклонов, пока плазма не остыла: не меньше ${GOAL_NN} нейтронов и ${OWN_N} своих — сложенных рогаткой уже сейчас (прежние — урок, не экзамен). Доля нейтронов перейдёт во Вселенную «Ядер»: больше n⁰ — легче гелий`, p: [Math.min(N, GOAL_N), GOAL_N],
+        items: [[`≥ ${GOAL_NN} n⁰`, np.n >= GOAL_NN], [`своих ${Math.min(own, OWN_N)}/${OWN_N}`, own >= OWN_N]], s: 'вещество для ядер готово', d: N >= GOAL_N && np.n >= GOAL_NN && own >= OWN_N },
     ];
   },
 
