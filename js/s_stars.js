@@ -563,6 +563,8 @@ const Stars = {
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },
+  // стоп-кадр — когда камера доехала (после reborn() мир сжат, камера ещё едет с недр: пятно на пол-экрана, текст внутри)
+  spotOk() { return Math.abs(Math.log(cam.z / zoomFor(this))) < .12; },
   // газ — широко; недра — ближе; сверхновая — камера отъезжает с выбросом к масштабу атомов
   viewR() { return this.phase === 'gas' ? ST_GR + 1 : this.doneAt === null ? ST_VIEW : lerp(ST_VIEW, A_VIEW, smooth(0, 1, 1 - this.boom / ST_BOOM)); },
   hud() { return { title: '', sub: this.phase === 'gas' ? `атомы H, He · гелий ${Math.round(this.heP * 100)} %${this.Yin !== null ? ' с «Ядер»' : ''} · T ≈ 200 K` : `${this.Ms} M☉ · ⁴He в ядре ${Math.round(this.heCore() * 100)} % · T ≈ ${(1 + (this.mu ?? .5)).toFixed(1).replace('.', ',')}·10⁸ K`, lines: [], goal: '', laws: [] }; },

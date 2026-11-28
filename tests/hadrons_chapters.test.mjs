@@ -48,7 +48,7 @@ test('главы «Адронов»: по шагам 10 → 15 — у каждо
   // 12 «Антицвет»: антикварки пришли, стоп-кадр «Антикварк» ждёт в очереди
   assert.equal(g.ev('G.stage.chap'), 12); assert.match(ribbon(g, 12), /Антицвет/);
   assert.equal(g.ev('G.stage.o.filter(o => o.kind === "aq").length'), g.ev('ANTI_N'));
-  assert.ok(g.ev('G.stage.spq.some(s => s.t === "Антикварк")'));
+  assert.ok(g.ev('Spot.q.some(s => s.txt === "Антикварк")'));
   assert.equal(g.ev('G.stage.cool'), 0, 'ещё горячо');
   g.ev('G.stage.st.mesons = MESON_N'); g.step(2);
   // 13 «Холод»: плазма остывает, шар берётся, приток — в лавке, закона ещё нет

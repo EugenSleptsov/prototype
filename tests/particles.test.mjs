@@ -135,7 +135,7 @@ test('новое понятие — пауза и объяснение: перв
   assert.equal(g.ev('Spot.on && Spot.txt'), 'Горячая область');
   assert.match(g.ev('Spot.sub'), /свет рождается гуще/);
   assert.ok(g.ev('Spot.r') > 1, 'пятно — размером с область');
-  g.ev('Spot.end(); G.stage.hz = []; G.stage.hzSeen = false; G.stage.hzCd = 0'); g.step(60 * 4);
+  g.ev('Spot.clear(); G.stage.hz = []; G.stage.hzSeen = false; G.stage.hzCd = 0'); g.step(60 * 4);
   assert.equal(g.ev('Spot.on'), false, 'во второй раз — без паузы');
   g.ev('G.stage.hz = []; G.stage.hzCd = 999; G.stage.rs.g = 1; G.stage.cz = []; G.stage.czSeen = false; G.stage.czCd = 0'); g.step(60 * 4); // закон «Глюоны» — первый цветной вихрь (в кадре есть место)
   assert.equal(g.ev('Spot.on && Spot.txt'), 'Цветной вихрь');
@@ -144,8 +144,8 @@ test('новое понятие — пауза и объяснение: перв
 
 test('новое понятие — пауза и объяснение: аннигиляция, масса, вершина распада, щит и ядро, волна антивещества, перекраска — по одному, не посреди зажатия и не до ленты главы', () => {
   const g = loadGame();
-  g.ev(PREP.start); g.ev(PREP.pump()); g.ev('Cine.clear(); Spot.end()');
-  const ex = js => g.ev(`(() => { const S = G.stage; Spot.end(); Cine.clear(); ${js}; S.tickExplain(1 / 60); return Spot.on ? Spot.txt : null; })()`);
+  g.ev(PREP.start); g.ev(PREP.pump()); g.ev('Cine.clear(); Spot.clear()');
+  const ex = js => g.ev(`(() => { const S = G.stage; Spot.clear(); Cine.clear(); ${js}; S.tickExplain(1 / 60); return Spot.on ? Spot.txt : null; })()`);
   // эпоха 1: частица и античастица встретились в кадре — посреди зажатия пауза ждёт
   g.ev(`(() => { const S = G.stage; S.chap = 3; const a = S.mk('e', false, P.x + .4, P.y, 0, 1), b = S.mk('e', true, P.x + .5, P.y, 0, 1); S.annihilate(a, b, true); })()`);
   assert.equal(ex('S.holding = true'), null, 'посреди зажатия — без паузы (клик «дальше» отпустил бы удар)');

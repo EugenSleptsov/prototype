@@ -282,18 +282,48 @@ function pointAt(el, fromX, fromY) {
 // Светлое пятно на цели, золотая стрелка к ней и короткая строка «что сделать» — для тех, кто не читает,
 // хватает стрелки. Сам уходит через dur с; клик, тап или клавиша — дальше (не раньше 0,5 с), потом миг замедления.
 // Новое понятие (горячая область, цветной вихрь) — тот же стоп-кадр: пятно размером с область (r — радиус в мире)
-// и объяснение в несколько строк (\n в sub). Пока идёт лента (Cine), стоп-кадр не ставят: его не было бы видно.
+// и объяснение в несколько строк (\n в sub).
+// Очередь (REVIEW_NEON_4, тема А): стоп-кадр не встаёт под лентой (Cine), посреди зажатия или с телом в рогатке, на переходе
+// между уровнями и когда уровень сам просит подождать (spotOk: конец уровня, камера ещё едет). Ждёт без срока; цель
+// погибла, уровень сменился или ok() сказал «уже не нужно» — снимается. Known — когда показан, а не когда встал в очередь.
+// Лента пришла поверх показанного — стоп-кадр возвращается в начало очереди (раньше — держал мир невидимым).
 /** @type {RGB} */ const SPOT_C = [255, 222, 120];
+/** @typedef {{ o: { x: number, y: number, dead?: boolean }, txt: string, sub: string, dur: number, r: number, k: string, of: Stage, ok: (() => boolean) | null }} SpotItem */
 const Spot = {
   on: false, t: 0, dur: 0,
   /** @type {{ x: number, y: number } | null} */ o: null,
   txt: '', sub: '', r: 0,
-  /** @param {{ x: number, y: number }} o — цель в мире @param {string} txt @param {string} sub @param {number} [dur] @param {number} [r] радиус пятна в мире (0 — обычное) */
-  show(o, txt, sub, dur = 2.8, r = 0) { if (!Known.first('spot:' + txt.replace(/\d+/g, '#'))) return; this.on = true; this.t = 0; this.dur = dur; this.o = o; this.txt = txt; this.sub = sub; this.r = r; byId('card').style.opacity = '0'; }, // карточка открытия поверх холста — не мешает
+  /** @type {SpotItem[]} */ q: [],
+  /** @type {SpotItem | null} */ cur: null,
+  /** @param {{ x: number, y: number }} o — цель в мире @param {string} txt @param {string} sub @param {number} [dur] @param {number} [r] радиус пятна в мире (0 — обычное) @param {(() => boolean) | null} [ok] ещё нужен? */
+  show(o, txt, sub, dur = 2.8, r = 0, ok = null) {
+    const k = 'spot:' + txt.replace(/\d+/g, '#');
+    if (Known.has(k) || (this.on && this.txt === txt) || this.q.some(s => s.k === k)) return;
+    this.q.push({ o, txt, sub, dur, r, k, of: G.stage, ok });
+    this.pump();
+  },
+  // можно ли сейчас остановить мир: ни ленты, ни зажатия, ни тела в рогатке, ни перехода; уровень не против
+  free() {
+    const S = /** @type {any} */ (G.stage);
+    return G.started && !G.paused && !G.ended && !G.prev && !Cine.on && !mouse.down && !(S.sl && S.sl.held) && (!S.spotOk || S.spotOk());
+  },
+  pump() {
+    if (this.on) return;
+    this.q = this.q.filter(s => s.of === G.stage && !s.o.dead && !Known.has(s.k) && (!s.ok || s.ok()));
+    if (!this.q.length || !this.free()) return;
+    const s = /** @type {SpotItem} */ (this.q.shift()); Known.add(s.k); this.cur = s;
+    this.on = true; this.t = 0; this.dur = s.dur; this.o = s.o; this.txt = s.txt; this.sub = s.sub; this.r = s.r; byId('card').style.opacity = '0'; // карточка открытия поверх холста — не мешает
+  },
   /** время стоит, пока true @param {number} dt */
-  tick(dt) { if (!this.on) return false; if (!Cine.on && (this.t += dt) >= this.dur) this.end(); return this.on; }, // под лентой не тратится: покажется, когда она сойдёт
+  tick(dt) {
+    if (!this.on) { this.pump(); return this.on; }
+    if (Cine.on && this.cur) { const s = this.cur; Known.forget(s.k); this.q.unshift(s); this.on = false; this.o = this.cur = null; return false; } // лента поверх — покажется после неё
+    if ((this.t += dt) >= this.dur) this.end();
+    return this.on;
+  },
   skip() { if (this.on && this.t > .5) this.end(); },
-  end() { if (!this.on) return; this.on = false; this.o = null; G.slowT = Math.max(G.slowT || 0, 1); },
+  end() { if (!this.on) return; this.on = false; this.o = this.cur = null; G.slowT = Math.max(G.slowT || 0, 1); },
+  clear() { this.q = []; this.end(); },
   draw() {
     if (!this.on || !this.o || Cine.on) return;
     const [x, y] = W2S(this.o.x, this.o.y), a = smooth(0, .25, this.t) * (1 - smooth(this.dur - .3, this.dur, this.t)), R = Math.max(34, this.r * cam.z);
@@ -307,12 +337,23 @@ const Spot = {
     // строка — над целью (у верха экрана — под ней), стрелка от строки к цели «кивает»
     // не под панелью задания: сверху места нет — строка под целью
     const lo = Math.max(60, G.T - (G.taskAt ?? -9) < .3 ? G.taskY + 30 : 0), hi = G.H - 80 - ex;
-    const up = y > G.H * .35 && !(y - R - 96 - ex < lo && y + R + 96 <= hi), ty = clamp(up ? y - R - 96 - ex : y + R + 96, lo, hi), tx = clamp(x, 160, G.W - 160);
-    const bob = 6 * Math.sin(this.t * 7), ay0 = up ? ty + 30 + ex : ty - 30, ay1 = up ? y - R - 10 - bob : y + R + 10 + bob;
-    const an = Math.atan2(ay1 - ay0, x - tx);
-    line(tx, ay0, x, ay1, SPOT_C, a, 3.5);
-    ctx.fillStyle = rgb(SPOT_C, a); ctx.beginPath(); ctx.moveTo(x, ay1);
-    ctx.lineTo(x - Math.cos(an - .45) * 16, ay1 - Math.sin(an - .45) * 16); ctx.lineTo(x - Math.cos(an + .45) * 16, ay1 - Math.sin(an + .45) * 16); ctx.fill();
+    const up = y > G.H * .35 && !(y - R - 96 - ex < lo && y + R + 96 <= hi), bob = 6 * Math.sin(this.t * 7);
+    let ty = clamp(up ? y - R - 96 - ex : y + R + 96, lo, hi), tx = clamp(x, 160, G.W - 160);
+    let ax0 = tx, ay0 = up ? ty + 30 + ex : ty - 30, ax1 = x, ay1 = up ? y - R - 10 - bob : y + R + 10 + bob;
+    // пятно большое, а экран низкий: над и под ним места нет — строка сбоку, стрелка вбок (а не сквозь текст);
+    // и сбоку нет — строка у дальнего края экрана, без стрелки (пятно видно и так)
+    if (up ? ay0 > ay1 - 20 : ay0 < ay1 + 20) {
+      const right = x < G.W / 2, room = right ? G.W - (x + R) : x - R;
+      ty = clamp(y - ex / 2, lo, hi);
+      if (room >= 370) { tx = right ? x + R + 70 + 150 : x - R - 70 - 150; ax0 = right ? tx - 160 : tx + 160; ay0 = ty + ex / 2; ax1 = right ? x + R + 12 + bob : x - R - 12 - bob; ay1 = y; }
+      else { ty = y > G.H / 2 ? lo : hi; ax0 = ax1; ay0 = ay1; }
+    }
+    if (Math.hypot(ax1 - ax0, ay1 - ay0) > 20) {
+      const an = Math.atan2(ay1 - ay0, ax1 - ax0);
+      line(ax0, ay0, ax1, ay1, SPOT_C, a, 3.5);
+      ctx.fillStyle = rgb(SPOT_C, a); ctx.beginPath(); ctx.moveTo(ax1, ay1);
+      ctx.lineTo(ax1 - Math.cos(an - .45) * 16, ay1 - Math.sin(an - .45) * 16); ctx.lineTo(ax1 - Math.cos(an + .45) * 16, ay1 - Math.sin(an + .45) * 16); ctx.fill();
+    }
     label(this.txt, tx, ty - 9, 22, [255, 255, 255], a, 800);
     L.forEach((s, i) => label(s, tx, ty + 15 + 19 * i, 15, SPOT_C, a, 700));
   },

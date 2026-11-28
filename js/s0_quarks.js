@@ -102,7 +102,7 @@ const Quarks = {
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.failed = false; this.rs = { conf: 0 }; this.banner = -1.5; this.learn = {};
     this.advanced = false; this.cheated = false; this.res = null; this.autoCd = 1; this.vacCd = VAC_CD; this.stuckT = 0; this.tk = {}; this.msgs = new Set();
     this.made = { p: 0, n: 0 }; this.handN = 0; this.autoN = 0; this.goneWhite = 0;
-    this.chap = CH_COLOR - 1; this.mk11 = null; this.antiIn = false; this.spq = []; // глава; p⁺ и n⁰ к началу «Аромата»; антикварки пришли; стоп-кадры в очереди
+    this.chap = CH_COLOR - 1; this.mk11 = null; this.antiIn = false; // глава; p⁺ и n⁰ к началу «Аромата»; антикварки пришли
     this.st = { cueQ: 0, frozen: 0, frozenMine: 0, mesons: 0, delta: 0, hyp: 0, hypN: 0, bCasc: 0, pairThrow: 0, bounce: 0, miss: 0, strikes: 0, carom: 0, saved: 0, bank: 0, gen: 0, split: 0, vac: 0 };
     const pr = prev && prev.rs || {};
     this.gen2 = pr.q2 > 0 || pr.q3 > 0; this.gen3 = pr.q3 > 0;
@@ -164,13 +164,11 @@ const Quarks = {
   },
   // плазма ещё горячая (до «Холода»): не остывает, край держит и цветное, ничего не вымерзает
   warm() { return this.chap < CH_COLD; },
-  // новое понятие — стоп-кадр (раз за игру). Под лентой, с телом в руке или после конца — ждёт в очереди (до 6 с)
-  spot(o, t, sub) { if (!Known.has('spot:' + t) && !this.spq.some(s => s.t === t)) this.spq.push({ o, t, sub, ttl: 6 }); },
-  tickSpot(dt) {
-    this.spq = this.spq.filter(s => (s.ttl -= dt) > 0 && !s.o.dead);
-    if (!this.spq.length || Cine.on || Spot.on || this.sl.held || this.doneAt !== null || G.prev || this.advanced) return;
-    const s = /** @type {any} */ (this.spq.shift()); Spot.show(s.o, s.t, s.sub, 6, s.o.rad * 2.2);
-  },
+  // новое понятие — стоп-кадр (раз за игру), через очередь Spot: под лентой главы и с телом в руке ждёт без срока
+  // (раньше своя очередь жила 6 с и сгорала под лентой 6,5 с — «Антикварк» и «Нуклон — шар» не показывались никогда)
+  /** @param {any} o @param {string} t @param {string} sub */
+  spot(o, t, sub) { Spot.show(o, t, sub, 6, o.rad * 2.2); },
+  spotOk() { return this.doneAt === null && !this.advanced; },
   // пропустить главы (чит и тесты механики): сразу экзамен — антикварки в плазме, остывание идёт
   skipChapters() { this.chap = CH_GOAL; this.addAnti(); this.mk11 = this.mk11 || { p: -1, n: -1 }; },
   // точка в горячем диске (доля радиуса), подальше от уже лежащих
@@ -617,7 +615,7 @@ const Quarks = {
     }
     this.o = this.o.filter(o => !o.dead);
     if (!live) return;
-    this.tickChapter(); this.tickSpot(dt);
+    this.tickChapter();
     if (this.doneAt === null) {
       this.tickStars(false);
       const goal = this.steps().every(s => s.d) && !this.o.some(o => o.kind === 'delta' || (o.kind === 'hyp' && o.byHand));

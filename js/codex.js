@@ -307,17 +307,25 @@ function sceneAbove(el) {
 // Пауза — только для поворотных моментов (первый свет, поле Хиггса, первый закон): GDD 🔒 «не ставить игру на паузу
 // ради объяснений». Остальное (начало уровня, закон глюонов, ветка лептонов) — free: та же лента ниже центра, но игра
 // идёт, ввод проходит в игру, полос и затемнения нет.
+// Лента без паузы (глава, закон) — про свой уровень: сменился уровень — недосмотренные снимаются (leave), иначе главы 14–15
+// «Адронов» шли поверх «Ядер» и откладывали их ленту (REVIEW_NEON_4, «Адроны» №7).
 const Cine = {
-  on: false, free: false, t: 0, dur: 0, slow: 0, /** @type {{html: string, dur: number, slow: number, free: boolean}[]} */ q: [],
+  on: false, free: false, t: 0, dur: 0, slow: 0, /** @type {{html: string, dur: number, slow: number, free: boolean, of: Stage}[]} */ q: [],
+  /** @type {Stage | null} */ of: null,
   /** @param {string} html @param {number} [dur] @param {number} [slow] — замедление после паузы, с @param {boolean} [free] без паузы */
   show(html, dur = 6, slow = 0, free = false) {
-    this.q.push({ html, dur, slow, free });
+    this.q.push({ html, dur, slow, free, of: G.stage });
     if (!this.on) this.next();
+  },
+  // уровень сменился: ленты без паузы прошлого уровня — вон (паузы-открытия досмотреть: это знание)
+  leave() {
+    this.q = this.q.filter(it => !it.free || it.of === G.stage);
+    if (this.on && this.free && this.of !== G.stage) this.next();
   },
   next() {
     const it = this.q.shift(), el = document.getElementById('cine');
     if (!it) { this.on = false; el.classList.remove('show'); setTimeout(() => { if (!this.on) el.classList.remove('on'); }, 400); return; }
-    this.on = true; this.free = it.free; this.t = 0; this.dur = it.dur; this.slow = it.slow;
+    this.on = true; this.free = it.free; this.t = 0; this.dur = it.dur; this.slow = it.slow; this.of = it.of;
     el.classList.toggle('free', it.free);
     const [sx, sy] = G.stage.key === 'particles' ? W2S(P.x, P.y) : [G.W / 2, G.H / 2];
     el.style.cssText = `--sx:${Math.round(sx)}px;--sy:${Math.round(sy)}px;--d:${it.dur}s`; // пятно — на детекторе, полоска — на всё время

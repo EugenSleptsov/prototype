@@ -1199,7 +1199,7 @@ const Particles = {
       for (const m of made) m.cd = .5;
     }
     fxFlash(x, y, .9, [255, 255, 255], spont ? .25 : .4); if (!spont || onScreen(...W2S(x, y), 0)) Sfx.play('annih');
-    if (this.ep < 3 && made[0].sp !== 'Z' && onScreen(...W2S(x, y), 0)) this.annAt = { x, y, r: .8, t: 4 }; // первая в кадре — объяснить (tickExplain)
+    if (this.ep < 3 && made[0].sp !== 'Z' && onScreen(...W2S(x, y), 0)) this.annAt = { x, y, r: .8, t: .8 }; // первая в кадре — объяснить (tickExplain), пока след виден; держишь поле — объяснит следующую
     this.event(made, x, y, undefined, this.rx([a, b], made, 0));
     return made;
   },
@@ -1635,8 +1635,10 @@ const Particles = {
     if (!o || this.spotted.has(o.sp) || Codex.known.has(o.sp)) return;
     this.spotted.add(o.sp);
     const tap = isTouch() ? 'нажать ◉' : 'кликнуть';
-    Spot.show(o, o.sp === 'g' ? 'Третья струя: глюон' : 'Новая частица!', `навести на неё круг и ${tap}: снимок`);
+    Spot.show(o, o.sp === 'g' ? 'Третья струя: глюон' : 'Новая частица!', `навести на неё круг и ${tap}: снимок`, 2.8, 0, () => !Codex.known.has(o.sp));
   },
+  // стоп-кадр (очередь Spot) ждёт: не в школе жестов, не посреди зажатия поля и не после конца уровня
+  spotOk() { return !this.advanced && !this.school && !this.holding && !this.focus; },
   // открыт впервые в забеге — что дальше (строка на карточке открытия)
   /** @param {string} k */
   seeNext(k) { return k === 'g' && this.ep === 0 && !this.rs.g ? 'Дальше: закон глюонов, и мир наполнится ими' : ''; },
@@ -2135,11 +2137,11 @@ const Particles = {
       if (o) this.explain(at(o), 'Масса — это вес', 'поле Хиггса дало веществу массу:\nтяжёлое тянется медленно — удержи.\nЧастица + античастица в поле:\nотпусти в золотой полосе — родится Z');
     }
     if (this.ep === 2) {
-      const tr = this.tracks.find(tr => tr.parent && this.t - tr.t < tr.life * .7 && seen(tr));
+      const tr = this.tracks.find(tr => tr.parent && this.wanted(tr.parent) && !tr.rec && this.t - tr.t < tr.life * .7 && seen(tr));
       if (tr) this.explain(at(tr, .7), 'Вершина распада', `тяжёлое прожило миг и распалось:\nиз вершины разлетелись осколки.\nПока горит золотом — навести круг\nи ${tap}: снимок распада`);
     }
     if (this.ep === 3) {
-      if (!this.learn.shield) this.explain({ x: P.x, y: P.y, r: this.coreR() }, 'Щит и ядро', `${isTouch() ? 'держи ◉' : 'зажми'} — щит тянет кварки в ядро\nи отталкивает антикварки.\nТри цвета R·G·B в ядре — тройка:\nбудущий протон или нейтрон`);
+      this.explain({ x: P.x, y: P.y, r: this.coreR() }, 'Щит и ядро', `${isTouch() ? 'держи ◉' : 'зажми'} — щит тянет кварки в ядро\nи отталкивает антикварки.\nТри цвета R·G·B в ядре — тройка:\nбудущий протон или нейтрон`);
       const w = this.p.find(o => !o.dead && o.wave && o.anti && seen(o));
       if (w) this.explain(at(w), 'Волна антивещества', 'антикварки летят к ядру:\nкаждый съест кварк своего аромата.\nВстреть их щитом и отпусти рядом —\nударная волна отбросит');
       const g = this.stock >= 2 && this.p.find(o => !o.dead && o.sp === 'g' && this.helpGlu(o) && seen(o));

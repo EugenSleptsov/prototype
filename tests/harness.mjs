@@ -97,10 +97,14 @@ export function loadGame({ seed = 1, touch = false, storage = {} } = {}) {
   }
   const ev = code => vm.runInContext(code, ctx);
   ev(`globalThis.__step = (n, dt = 1 / 60, draw = false) => { for (let i = 0; i < n; i++) { update(dt); if (draw) { render(); hud(); } } };`);
+  // как в игре: ленты и стоп-кадры держат мир (step — только мир, для тестов механики)
+  ev(`globalThis.__play = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) tick(dt); };`);
   return {
     ctx, ev, els, store,
     // n кадров по 1/60 с; draw — ещё и рисовать (ловит ошибки отрисовки и HUD)
     step(n = 1, draw = false) { t += n * 1000 / 60; ev(`__step(${n | 0}, 1 / 60, ${!!draw})`); },
+    // n кадров так, как идёт игра: Cine и Spot тикают и держат мир (стоп-кадры, ленты глав)
+    play(n = 1) { t += n * 1000 / 60; ev(`__play(${n | 0})`); },
     click(id) { const el = els.get(id); if (!el || typeof el.onclick !== 'function') throw new Error(`no onclick on #${id}`); el.onclick({ preventDefault: noop, stopPropagation: noop, target: el }); },
   };
 }

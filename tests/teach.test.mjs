@@ -7,7 +7,7 @@ import { loadGame, PREP } from './harness.mjs';
 const lit = (storage) => {
   const g = loadGame({ seed: 7, storage });
   g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.light); g.ev(PREP.hit);
-  g.ev(`Cine.clear(); Cine.tick(99); Spot.end()`);
+  g.ev(`Cine.clear(); Cine.tick(99); Spot.clear()`);
   return g;
 };
 // вокруг детектора — пусто (или только то, что поставили)
@@ -36,7 +36,7 @@ test('тексты законов — без «без тебя»', () => {
 
 test('стоп-кадр: глюон третьей струи впервые в жизни — время стоит, стрелка к нему; второй раз — нет', () => {
   const g = lit({ protoCodex: JSON.stringify(['ph', 'e']) });
-  g.ev(`G.stage.pairs = 1; Codex.see('e')`);
+  g.ev(`G.stage.pairs = 1; Codex.see('e'); Known.add('spot:Горячая область')`); // область — не этот урок (её стоп-кадр ждал бы в очереди первым)
   const r = g.ev(`__hit('ph', 'ph', LV_N)`);
   assert.ok(r.born.includes('g'), `родилось: ${r.born}`);
   assert.equal(g.ev('Spot.on'), true);

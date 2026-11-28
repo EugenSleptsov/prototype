@@ -33,7 +33,7 @@ function advance() {
   const carry = carryOf(G.stage); mouse.clicked = false; // нажатие прошлого уровня — не в новый
   G.zoom = 1; // свой зум у каждого уровня: приближение прошлого не делает следующий невыполнимым
   G.prev = G.stage; G.stageI++; G.stage = STAGES[G.stageI]; G.trans = 0; G.prevU = { s: 1, ox: 0, oy: 0 }; Sfx.hum(0); Sfx.play('segment');
-  G.stage.enter(G.prev); G.stage.scoreAt = G.score;
+  G.stage.enter(G.prev); G.stage.scoreAt = G.score; Cine.leave();
   // остаток ÷ 10 — в копилку нового уровня (траты «в минус»: ✦ уровня, а значит и очки, не растут)
   if (carry > 0) G.stage.carryIn = carry; // в копилку — когда переход кончится (вместе с искрами: счётчик не прыгает вверх-вниз)
 }
@@ -429,15 +429,20 @@ function recover(err) {
 }
 
 G.stage = STAGES[0]; G.stage.enter(null);
+// шаг игры за кадр: ленты и стоп-кадр (время стоит), замедление после них, потом мир. Тесты шагают им же (харнесс: play)
+/** @param {number} dt */
+function tick(dt) {
+  const hold = Cine.tick(dt) || Spot.tick(dt); // стоп-кадр со стрелкой — тоже время стоит
+  const slow = G.slowT > 0 && !G.paused && !hold ? (G.slowT -= dt, .3) : 1;
+  try { if (!G.paused && !hold) update(dt * slow); else Sfx.hum(0); } catch (err) { recover(err); }
+}
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(.05, Math.max(0, (now - last) / 1000)); last = now;
   // ошибка в расчёте кадра не останавливает отрисовку — иначе игра выглядит зависшей
   // сцена открытия: время на миг замедляется (как в кино — «это с тем столкнулось, и появилось вот это»)
   // кадр-пауза важного знания: время стоит, кадр рисуется
-  const hold = Cine.tick(dt) || Spot.tick(dt); // стоп-кадр со стрелкой — тоже время стоит
-  const slow = G.slowT > 0 && !G.paused && !hold ? (G.slowT -= dt, .3) : 1;
-  try { if (!G.paused && !hold) update(dt * slow); else Sfx.hum(0); } catch (err) { recover(err); }
+  tick(dt);
   try {
     if (!isFinite(P.x + P.y + cam.z)) recover();
     render(); hud();

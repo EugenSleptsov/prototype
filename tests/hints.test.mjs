@@ -12,12 +12,12 @@ test('подсказки: урок-сообщение и стоп-кадр — �
   assert.equal(g.ev('lastMsg'), 'урок А');
   g.ev(`lastMsg = ''; tipMsg('t:a', 'урок А')`);
   assert.equal(g.ev('lastMsg'), '', 'второй раз — молчит');
-  g.ev(`Spot.show({ x: 0, y: 0 }, 'кадр 1', '')`);
+  g.ev(`G.started = true; Spot.show({ x: 0, y: 0 }, 'кадр 1', '')`); // стоп-кадр — только в идущей игре (очередь Spot)
   assert.equal(g.ev('Spot.on'), true);
   const h = again(g);
   h.ev(`tipMsg('t:a', 'урок А')`);
   assert.equal(h.ev('lastMsg'), '', 'новый забег помнит урок');
-  h.ev(`Spot.show({ x: 0, y: 0 }, 'кадр 2', '')`);
+  h.ev(`G.started = true; Spot.show({ x: 0, y: 0 }, 'кадр 2', '')`);
   assert.equal(h.ev('Spot.on'), false, 'тот же стоп-кадр (числа не различаем) — не показываем');
   assert.equal(h.ev(`Hint.once('k', 'x'); Hint.q.length`), 1);
   assert.equal(again(h).ev(`Hint.once('k', 'x'); Hint.q.length`), 0, 'Hint.once — тоже навсегда');

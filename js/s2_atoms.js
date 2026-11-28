@@ -618,6 +618,7 @@ const Atoms = {
     ctx.globalAlpha = 1;
   },
   showCodex() { return false; },
+  spotOk() { return this.doneAt === null; }, // стоп-кадр ждёт и отпущенную рогатку (очередь Spot), после конца — не нужен
   viewR() { return A_VIEW; },
   hud() { return { title: '', sub: `T ≈ ${Math.round(30 + 120 * this.Ta) * 100} K`, lines: [], goal: '', laws: [] }; },
 };
