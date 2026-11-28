@@ -96,7 +96,7 @@ test('пролог: не трогаешь — шарик лежит на дне,
   assert.equal(g.ev('G.stage.inf.pick.i'), 0, 'холодный разогрев');
 });
 
-test('глава «Свет»: после вспышки света раскачки — на одну шкалу ⚡ с запасом, каждый созданный класс есть, он летит прочь от чаши; пока шкала не полна — новый свет вспыхивает за кадром', () => {
+test('глава «Свет»: после вспышки света раскачки — на одну шкалу ⚡ с запасом, каждый созданный класс есть, он летит прочь от чаши; до закона «Свет» нового света нет, после — первые 8 с вспыхивает в кадре', () => {
   const g = loadGame();
   g.ev(PREP.start); g.ev(PREP.pump(.9));
   assert.equal(g.ev('INF.life'), 25);
@@ -108,9 +108,11 @@ test('глава «Свет»: после вспышки света раскач
   assert.deepEqual(r.cls, r.made, 'каждый созданный класс — хотя бы один фотон');
   assert.ok(r.out, 'летит прочь от чаши');
   assert.ok(r.fading > 0, 'лишний свет раскачки остывает в фон, а не исчезает');
-  const far = g.ev(`(() => { const S = G.stage, n0 = S.p.length; for (let i = 0; i < 20; i++) S.spawnQuantum(false); const R = Math.min(viewRadius(), refRadius()) * .9;
-    return S.p.slice(n0).every(o => Math.hypot(o.x - P.x, o.y - P.y) >= R - .01); })()`);
-  assert.equal(far, true, 'пока шкала не полна — пополнение за кадром');
+  // обучение 28.11: свет вспышки кончается — собрать весь; генерация — только законом
+  assert.equal(g.ev('G.stage.qCap()'), 0, 'до закона «Свет» пополнения нет');
+  const near = g.ev(`(() => { const S = G.stage; S.rs.ph = 1; S.autoT = 1; const n0 = S.p.length; for (let i = 0; i < 20; i++) S.spawnQuantum(false);
+    return S.p.slice(n0).every(o => onScreen(...W2S(o.x, o.y), 0)); })()`);
+  assert.equal(near, true, 'закон только что сформирован — свет вспыхивает в кадре: видно, что генерируется');
 });
 
 test('круг заряда пары квантов: ступень 1 — пустой круг (0°), дальше по трети, 4 — полный; у тяжёлой пары круг линейный', () => {
@@ -123,17 +125,19 @@ test('круг заряда пары квантов: ступень 1 — пус
   assert.equal(r.h, .25);
 });
 
-test('новое понятие — пауза и объяснение: первая горячая область в кадре ставит стоп-кадр с её описанием (раз за игру), не поверх ленты; в главах 1–2 областей нет', () => {
+test('новое понятие — пауза и объяснение: первый горячий источник в кадре ставит стоп-кадр с его описанием (раз за игру), не поверх ленты; до «Света II» источников нет', () => {
   const g = loadGame();
   g.ev(PREP.start); g.ev(PREP.pump()); g.ev('Cine.clear(); Cine.tick(99)');
   g.ev('G.stage.tickChapter = () => {}'); g.step(60 * 5);
-  assert.equal(g.ev('G.stage.chap'), 1); assert.equal(g.ev('G.stage.hz.length'), 0, 'в главах 1–2 областей нет');
-  g.ev('G.stage.chap = 3; G.stage.hzSeen = false; G.stage.hzCd = 0; Cine.show("x", 5, 0, true)');
+  assert.equal(g.ev('G.stage.chap'), 1); assert.equal(g.ev('G.stage.hz.length'), 0, 'до закона источников нет');
+  g.ev('G.stage.chap = 3; G.stage.rs.ph = 1; G.stage.hzCd = 0'); g.step(60 * 5);
+  assert.equal(g.ev('G.stage.hz.length'), 0, 'закон «Свет» I источников не зажигает');
+  g.ev('G.stage.chap = 4; G.stage.rs.ph = 2; G.stage.hzSeen = false; G.stage.hzCd = 0; Cine.show("x", 5, 0, true)');
   g.step(60 * 4);
   assert.equal(g.ev('Spot.on'), false, 'поверх ленты стоп-кадра нет');
   g.ev('Cine.clear()'); g.step(2);
-  assert.equal(g.ev('Spot.on && Spot.txt'), 'Горячая область');
-  assert.match(g.ev('Spot.sub'), /свет рождается гуще/);
+  assert.equal(g.ev('Spot.on && Spot.txt'), 'Горячий источник');
+  assert.match(g.ev('Spot.sub'), /свет рождается прямо в нём/);
   assert.ok(g.ev('Spot.r') > 1, 'пятно — размером с область');
   g.ev('Spot.clear(); G.stage.hz = []; G.stage.hzSeen = false; G.stage.hzCd = 0'); g.step(60 * 4);
   assert.equal(g.ev('Spot.on'), false, 'во второй раз — без паузы');
@@ -167,12 +171,12 @@ test('новое понятие — пауза и объяснение: анни
   assert.equal(ex('S.learn.shield = false'), null, 'во второй раз — без паузы');
 });
 
-test('поле включается, только когда свой свет измерен', () => {
+test('поле (соединение) включается, только когда пойман свет горячего источника — после «Света II»', () => {
   const g = loadGame();
   g.ev(PREP.start); g.ev(PREP.pump());
-  g.ev(`(() => { const S = G.stage; S.kn += 500; S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); })()`);
-  assert.equal(g.ev('G.stage.fieldOn()'), false);
-  g.ev('for (const c of G.stage.madeCls()) G.stage.measure(c)');
+  g.ev(`(() => { const S = G.stage; S.kn += 500; S.chap = 4; S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); for (const c of S.madeCls()) S.measure(c); })()`);
+  assert.equal(g.ev('G.stage.fieldOn()'), false, 'свет измерен и закон есть — соединять ещё рано');
+  g.ev(`(() => { const S = G.stage; S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); S.hzCaught = HZ_CATCH; })()`); g.step(2);
   assert.equal(g.ev('G.stage.fieldOn()'), true);
 });
 

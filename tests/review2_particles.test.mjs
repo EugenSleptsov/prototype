@@ -23,7 +23,7 @@ test('№7a свет регистрируется сам, клик по свет
   const st = g.ev('G.stage.steps().map(s => s.t + " | " + s.h)');
   assert.ok(!st.some(s => /фотон/.test(s) && /снимок/.test(s.split('|')[0])), `ни один шаг не просит снять фотон: ${st}`);
   assert.match(st[1], /кликать не нужно/);
-  assert.match(st[4], /^Снять электрон/);
+  assert.match(st[7], /^Снять электрон/);
   // свет, который ещё не зарегистрирован, подсказка-жест не предлагает снимать
   assert.notEqual(g.ev(`(() => { const S = G.stage; S.learn.snapNew = false; const o = S.mk('ph', false, P.x + 1, P.y, 0, S.T); o.born = 1; const k = S.coachPick(); o.dead = true; return k && k.kind; })()`), 'snap');
   g.step(60 * 3);
@@ -35,7 +35,7 @@ test('№7a свет регистрируется сам, клик по свет
   assert.ok(said.some(t => /снимать нечего: свет ловится кругом/.test(t)), String(said));
   g.ev(`(() => { const S = G.stage; S.en = 3; S.mk('e', false, P.x, P.y, 0, .1).born = 1; S.shotCd = 0; S.snapshot(); })()`);
   assert.equal(g.ev(`Codex.has('e')`), true, 'снята рождённая частица');
-  assert.equal(g.ev(`G.stage.steps()[4].d`), true, 'шаг «Снять электрон» засчитан');
+  assert.equal(g.ev(`G.stage.steps()[7].d`), true, 'шаг «Снять электрон» засчитан');
 });
 
 test('№7c эпоха 3: у шагов нет плашки «для задания» — покупка не обязательна (и когда руками уже не родить)', () => {

@@ -103,12 +103,12 @@ test('частицы: свет рождается в основном в гор�
   assert.ok(q(true) > q(false) * 1.3, 'в горячей области шкала удара бежит быстрее');
 });
 
-test('частицы: горячие области появляются сами — с главы 3 «Первый удар», живут и остывают; в эпоху 4 их нет', () => {
+test('частицы: горячие источники — в эпохе 1 с «Света II» (их зажигает закон), живут и остывают; в эпоху 4 их нет', () => {
   const g = lit();
-  g.ev('G.stage.tut = null; G.stage.hz = []; G.stage.hzCd = 0; G.stage.chap = 2; G.stage.tickChapter = () => {}');
+  g.ev('G.stage.tut = null; G.stage.hz = []; G.stage.hzCd = 0; G.stage.chap = 4; G.stage.tickChapter = () => {}');
   g.step(60 * 10);
-  assert.equal(g.ev('G.stage.hz.length'), 0, 'в главах 1–2 областей нет: одно новое понятие за раз');
-  g.ev('G.stage.chap = 3'); g.step(60 * 20);
+  assert.equal(g.ev('G.stage.hz.length'), 0, 'закон «Свет» I источников не зажигает: одно новое понятие за раз');
+  g.ev('G.stage.rs.ph = 2'); g.step(60 * 20);
   assert.ok(g.ev('G.stage.hz.length') >= 1, 'на карте есть горячая область');
   assert.ok(g.ev('G.stage.hz.every(z => z.r === HZ_R && z.L > 20)'));
   g.ev('G.stage.hz.forEach(z => z.t = z.L - .01)'); g.step(2);

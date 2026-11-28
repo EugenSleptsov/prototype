@@ -128,7 +128,8 @@ export const PREP = {
       update(1 / 60); }
     mouse.down = false; __reseed(1); })()`,
   // свет исследован и измерен — поле открыто
-  light: `(() => { const S = G.stage; S.kn += 500; S.chap = Math.max(S.chap, 4); S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); for (const c of S.madeCls()) S.measure(c); })()`,
+  // (обучение 28.11: соединять — с главы «Соединение», joinOk; глава «Свет» — собрать весь свет — пропущена)
+  light: `(() => { const S = G.stage; S.kn += 500; S.chap = Math.max(S.chap, 4); S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); for (const c of S.madeCls()) S.measure(c); S.joinOk = true; S.outAt = Math.max(S.outAt, 0); S.lawCaught = Math.max(S.lawCaught, LAW_CATCH); })()`,
   // зажать пару квантов a+b у детектора до ступени k и отпустить; вернуть рождённое
   hit: `globalThis.__hit = (a, b, k, en = E_CAP) => { const S = G.stage; S.en = en;
     for (const o of S.p) if (!o.dead && Math.hypot(o.x - P.x, o.y - P.y) < S.fr() * 1.6) o.dead = true; update(1 / 60);

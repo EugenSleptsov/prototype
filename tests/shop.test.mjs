@@ -51,15 +51,15 @@ test('лавка: «Лептоны II» — +2 e⁻ к атомам сразу; 
   assert.equal(g.ev('G.stage.udRes.length'), 3 * g.ev('NOW_UD'), 'кузница каждого поколения — сразу +3 ◉');
 });
 
-test('лавка: «Свет» — два уровня; II — разогретая горячая область в кадре сразу и областей вдвое больше', () => {
+test('лавка: «Свет» — два уровня; II в эпохе 1 впервые зажигает горячие источники — разогретыми, в кадре', () => {
   const g = lit();
   assert.equal(g.ev('RES_COST.ph.length'), 2);
   g.ev('G.stage.hz = []');
-  const n0 = g.ev('G.stage.hzN()');
+  assert.equal(g.ev('G.stage.hzN()'), 0, 'до «Света II» источников нет');
   buy(g, 'ph');
   assert.equal(g.ev('G.stage.rs.ph'), 2);
-  assert.equal(g.ev('G.stage.hzN()'), 2 * n0, 'горячих областей вдвое больше');
-  assert.ok(g.ev(`G.stage.hz.some(z => G.stage.hzK(z) > .5 && onScreen(...W2S(z.x, z.y), 0))`), 'горячая область уже кипит в кадре');
+  assert.equal(g.ev('G.stage.hzN()'), g.ev('HZ_N'));
+  assert.equal(g.ev(`G.stage.hz.filter(z => G.stage.hzK(z) > .5 && onScreen(...W2S(z.x, z.y), 0)).length`), g.ev('HZ_N'), 'все источники уже кипят в кадре');
   assert.equal(g.ev(`G.stage.shopItems().some(it => it.r && it.r.k === 'ph')`), false, '«Свет» III нет');
 });
 
@@ -104,7 +104,8 @@ test('лавка: необязательный закон стоит 20–40 с 
   const rate = [1, 3, 5].map(seed => {
     const g = loadGame({ seed });
     g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.hit); g.ev(BOT);
-    g.ev(`(() => { const S = G.stage; S.chap = 4; S.kn += 10; S.buy(S.shopItems().findIndex(it => it.r && it.r.k === 'ph')); S.kn -= 10; })()`);
+    g.ev(`(() => { const S = G.stage; S.chap = 4; const ph = () => S.shopItems().findIndex(it => it.r && it.r.k === 'ph');
+      S.kn += 35; S.buy(ph()); S.buy(ph()); S.kn -= 35; S.joinOk = true; })()`); // обучение 28.11: соединять — после «Света II» и света из его источников
     g.ev('__casual(20)'); // разогнался: измерил свет — дальше ровный темп
     const k0 = g.ev('G.stage.kn'), t0 = g.ev('G.stage.t');
     g.ev('__casual(120)');
@@ -121,7 +122,7 @@ test('лавка: необязательный закон стоит 20–40 с 
 test('лавка: обязательные законы по-прежнему закрывают задания — «Свет» I и «Глюоны» эпоху 1, «Асимметрия» свой шаг эпохи 4', () => {
   const g = loadGame({ seed: 3 });
   g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.light);
-  g.ev(`Cine.clear(); Cine.tick(99); G.stage.pairs = 1; G.stage.full = true; G.stage.kn += 40; Codex.see('e'); Codex.see('g')`); // шкала ⚡ полна, электрон снят; свет скуп до закона — ✦ на глюоны доложим
+  g.ev(`Cine.clear(); Cine.tick(99); G.stage.pairs = 1; G.stage.full = true; G.stage.kn += 40; Codex.see('e'); Codex.see('g'); Codex.see('mu')`); // электрон, глюон и мюон сняты; свет скуп до закона — ✦ на глюоны доложим
   assert.equal(g.ev('G.stage.taskRes()'), 'g');
   assert.equal(buy(g, 'g'), 40);
   g.ev(`['u', 'd', 'e'].forEach(k => Codex.see(k)); G.stage.checkGoals()`);

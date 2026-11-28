@@ -7,7 +7,7 @@ import { loadGame, PREP } from './harness.mjs';
 const lit = (storage) => {
   const g = loadGame({ seed: 7, storage });
   g.ev(PREP.start); g.ev(PREP.pump()); g.ev(PREP.light); g.ev(PREP.hit);
-  g.ev(`Cine.clear(); Cine.tick(99); Spot.clear()`);
+  g.ev(`G.stage.chap = 6; Cine.clear(); Cine.tick(99); Spot.clear()`); // глава «Зарядка»: её лента — не этот урок
   return g;
 };
 // вокруг детектора — пусто (или только то, что поставили)
@@ -36,7 +36,7 @@ test('тексты законов — без «без тебя»', () => {
 
 test('стоп-кадр: глюон третьей струи впервые в жизни — время стоит, стрелка к нему; второй раз — нет', () => {
   const g = lit({ protoCodex: JSON.stringify(['ph', 'e']) });
-  g.ev(`G.stage.pairs = 1; Codex.see('e'); Known.add('spot:Горячая область')`); // область — не этот урок (её стоп-кадр ждал бы в очереди первым)
+  g.ev(`G.stage.pairs = 1; Codex.see('e'); Known.add('spot:Горячий источник'); Known.add('spot:Удар стоит энергии')`); // источник и трата ⚡ — не этот урок (их стоп-кадры ждали бы в очереди первыми)
   const r = g.ev(`__hit('ph', 'ph', LV_N)`);
   assert.ok(r.born.includes('g'), `родилось: ${r.born}`);
   assert.equal(g.ev('Spot.on'), true);
@@ -50,7 +50,7 @@ test('стоп-кадр: глюон третьей струи впервые в 
 
 test('стоп-кадр: уже знакомое по прошлым забегам — без остановки', () => {
   const g = lit({ protoCodex: JSON.stringify(['ph', 'e', 'g']) });
-  g.ev(`G.stage.pairs = 1; Known.add('spot:Горячая область')`); // область объяснили в прошлом забеге
+  g.ev(`G.stage.pairs = 1; Known.add('spot:Горячий источник'); Known.add('spot:Удар стоит энергии')`); // источник и трату ⚡ объяснили в прошлом забеге
   g.ev(`__hit('ph', 'ph', LV_N)`);
   assert.equal(g.ev('Spot.on'), false);
 });

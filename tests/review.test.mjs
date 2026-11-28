@@ -168,17 +168,23 @@ test('эпоха 3: цепочка b — в задании всегда', () => 
   }
 });
 
-test('«Свет» III — не больше света, а вдвое больше горячих областей', () => {
+test('«Свет» II — не больше света, а горячие источники: в эпохе 1 впервые зажигает их, дальше — вдвое больше', () => {
   const g = toStage('particles');
   g.ev('G.stage.tut = null; Cine.clear(); Cine.tick(99)');
-  assert.equal(g.ev('G.stage.hzN()'), g.ev('HZ_N'));
-  const cap2 = g.ev('(() => { G.stage.rs.ph = 2; return G.stage.phN(2); })()');
-  g.ev('G.stage.rs.ph = 3');
-  assert.equal(g.ev('G.stage.phN(3)'), cap2, 'света столько же');
-  assert.equal(g.ev('G.stage.hzN()'), 2 * g.ev('HZ_N'));
+  g.ev('G.stage.rs.ph = 1');
+  assert.equal(g.ev('G.stage.hzN()'), 0, 'эпоха 1, закон I: источников нет');
+  const cap1 = g.ev('G.stage.phN(1)');
+  g.ev('G.stage.rs.ph = 2');
+  assert.equal(g.ev('G.stage.phN(2)'), cap1, 'света столько же');
+  assert.equal(g.ev('G.stage.hzN()'), g.ev('HZ_N'), '«Свет II» в эпохе 1 — первые HZ_N источников');
   g.ev('G.stage.hz = []; G.stage.hzCd = 0'); g.step(60 * 40);
-  assert.ok(g.ev('G.stage.hz.length') > g.ev('HZ_N'), `областей ${g.ev('G.stage.hz.length')}`);
-  assert.match(g.ev(`G.stage.resList().length ? '' : 'x'`) + g.ev(`(() => { G.stage.rs.ph = 2; const r = G.stage.resList().find(r => r.k === 'ph'); return r ? r.about(2) : ''; })()`), /горячих областей вдвое больше/);
+  assert.ok(g.ev('G.stage.hz.length') >= 1, `источников ${g.ev('G.stage.hz.length')}`);
+  g.ev('G.stage.rs.ph = 1');
+  assert.match(g.ev(`(() => { const r = G.stage.resList().find(r => r.k === 'ph'); return r ? r.about(1) : ''; })()`), /горячих источника у детектора/);
+  g.ev('G.stage.ep = 1; G.stage.rs.ph = 1');
+  assert.equal(g.ev('G.stage.hzN()'), g.ev('HZ_N'));
+  g.ev('G.stage.rs.ph = 2');
+  assert.equal(g.ev('G.stage.hzN()'), 2 * g.ev('HZ_N'), 'дальше — вдвое больше');
 });
 
 test('счётчик «Во Вселенной»: число e±, μ±, τ± и γ в мире', () => {

@@ -200,13 +200,14 @@ const COACH_IDLE = 5, COACH_T = 2.8;
 // «Рогатка» — та же чаша, что в прологе: довести размах почти до края SCH_EDGE раз
 const SCHOOL = ['move', 'look', 'join', 'drop', 'sling'], SCH_N = 3, SCH_EDGE = 2, SCH_IDLE = 3.5, FL_C = [175, 165, 255];
 // Главы эпохи 1 (шаг задания знает свою главу — ch): новая глава — лента с её названием и одной мыслью, игра идёт
-/** @type {Record<number, { n: string, line: string }>} */
+// stop — впервые лента главы ставит игру на паузу: каждое новое действие и понятие объясняется полностью (просьба 28.11)
+/** @type {Record<number, { n: string, line: string, stop?: boolean }>} */
 const CHAPTERS = {
-  2: { n: 'Свет', line: 'Свет — это энергия. Лови его кругом, кликать не нужно: пойманный фотон измерен и даёт ⚡' },
-  3: { n: 'Первый удар', line: 'Сведи два фотона полем — из энергии родится вещество: электрон и его античастица' },
-  4: { n: 'Закон', line: 'Свет кончается: ты его ешь. Отдай знания ✦ закону — и Вселенная будет светить сама' },
-  5: { n: 'Полный удар', line: 'Чем сильнее удар, тем тяжелее рождённое. 4 ⚡ — три струи, и в одной из них глюон' },
-  6: { n: 'Вещество', line: 'Свет и глюоны, сведённые с нужной силой, рождают кварки u и d. Из них потом сделано всё вокруг' },
+  2: { n: 'Свет', line: 'Свет — это энергия ⚡ и знания ✦. Лови его кругом, кликать не нужно. Нового света нет: собери весь, что есть' },
+  3: { n: 'Закон', line: 'Свет кончился — ты собрал весь, а сам он не рождается. Что дальше? Сформируем закон: отдай знания ✦ — генерация света: дальше свет рождается сам, по всей Вселенной', stop: true },
+  4: { n: 'Горячие источники', line: 'Сделаем ещё больше света. Улучшение закона «Свет» зажжёт горячие источники: там Вселенная горячее, и свет рождается прямо в них', stop: true },
+  5: { n: 'Соединение', line: 'Из энергии — вещество. Зажми у двух фотонов: поле возьмёт их. Отпусти — столкнутся. Каждый удар тратит энергию ⚡', stop: true },
+  6: { n: 'Зарядка', line: 'Держишь дольше — удар сильнее: ступени 1 → 2 → 3 → 4, и каждая берёт 1 ⚡ со шкалы. От силы зависит, что родится: иногда нужна точная', stop: true },
   // эпохи 2–4 — глава на эпоху
   7: { n: 'Хиггс', line: 'Масса — это вес: тяжёлое тянется медленно, и полем его можно удержать. Частица с античастицей, отпущенные в золотой полосе, — Z' },
   8: { n: 'Распады', line: 'Тяжёлое живёт миг и распадается цепочкой: t → b → c, τ → μ. Снимок — по золотой вершине, где оно распалось' },
@@ -220,7 +221,11 @@ const VOID_MIN = .3, VOID_STEP = 1.3; // .3 — только чтобы нажа
 const VOID_TXT = ['Ничего нет. Ни частиц, ни света.', 'Только поле, растянутое инфляцией.', 'В нём вся энергия будущей Вселенной.', 'Из неё генерируется всё, что появится.', 'И только из этого будет строиться мир.'];
 // Сила удара — ступени: чем дольше держишь пару квантов, тем выше ступень (LV_T с на ступень), каждая ступень
 // стоит 1 ⚡ — удар на k ступеней стоит k ⚡. Лестница 1–4 без нуля: взял пару — сразу ступень 1; «слабый удар» — только без ⚡.
-const LV_N = 4, LV_T = .75;
+// LV_T 1,8 с (было 0,75): игрок должен видеть, что заряжает и проходит ступени (просьба 28.11 — «замедлить в 2–3 раза»)
+const LV_N = 4, LV_T = 1.8;
+// Обучение эпохи 1 (просьба 28.11): после закона «Свет» — поймать LAW_CATCH γ (свет генерируется сам), после «Свет II» —
+// HZ_CATCH γ у горячего источника; только потом соединение (fieldOn — joinOk)
+const LAW_CATCH = 15, HZ_CATCH = 5;
 // Горячие области: на карте HZ_N пятен, где Вселенная горячее. Там свет гуще (область сама испускает HZ_RATE квантов в секунду —
 // кванты летят со скоростью света, поэтому область — источник, а не склад) и жёстче (×HZ_P),
 // удар набирается быстрее. Вещество, W, Z, H Вселенная рождает равномерно — области только для квантов.
@@ -350,6 +355,7 @@ const Particles = {
     this.lit = false; this.litT = 0; this.rs = { ph: 0, g: 0, coll: 0, cp: 0 }; this.safe = []; this.saveCd = 0; this.autoT = 0; Codex.auto = new Set(); this.inf = this.mkInf(); this.heatBest = LB.best('heat'); this.heatRes = null; this.heatWorld = null; Online.top('heat', 1).then(l => { if (l && l[0]) this.heatWorld = l[0]; }); this.T0 = T_START; this.heat = 1; this.caught = PH_CLS.map(() => 0); this.caughtFx = -1; this.caughtAt = -9; this.phSeen = new Set();
     this.kn = 0; this.uni = []; this.uniOff = new Set(); this.spent = 0; this.epClock = 0; this.epKn0 = 0; this.doneAt = null; this.lvlTotal = 0; this.cheated = false;
     this.school = null; this.chap = 1; this.inVoid = true; this.voidT = 0;
+    this.stashN = 0; this.outAt = -1; this.lawCaught = 0; this.hzCaught = 0; this.joinOk = false; this.spendFx = []; // обучение эпохи 1
     this.focus = null; this.holding = false; this.hold = 0; this.shield = 1;
     this.learn = {}; this.coach = { idle: 0, t: 0, kind: null }; this.spotted = new Set(); this.missT = -99; this.en = 0; this.enFx = 0; this.shotCd = 0; this.shotFx = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
@@ -401,6 +407,12 @@ const Particles = {
       if (Math.hypot(x - P.x, y - P.y) > this.hr() * 1.5) return [x, y];
     }
     return [P.x + this.wr() * .8, P.y];
+  },
+  // точка в кадре (не у самого детектора): закон «Свет» только что сформирован — генерацию видно глазами
+  /** @returns {[number, number]} */
+  viewPos() {
+    const R = Math.min(G.W, G.H) / 2 / cam.z * .8, r0 = Math.min(this.hr() * 1.5, R * .5), a = Math.random() * TAU, d = rnd(r0, R);
+    return [P.x + Math.cos(a) * d, P.y + Math.sin(a) * d];
   },
   // Возмущение вакуума: из точки разлетается пара фотонов (импульс сохраняется)
   /** @param {number} x @param {number} y @param {boolean} [fx] @param {number} [p0] */
@@ -549,6 +561,7 @@ const Particles = {
     let e = 0; for (const o of keep) e += eOf(o);
     for (const o of phs) if (!keep.has(o) && e < STASH_E) { keep.add(o); e += eOf(o); }
     for (const o of phs) { if (!keep.has(o)) { o.fade = 1; continue; } const dx = o.x - P.x, dy = o.y - P.y, d = Math.hypot(dx, dy); if (d > 1e-3) { o.dx = dx / d; o.dy = dy / d; } }
+    this.stashN = keep.size; // глава «Свет»: собрать весь — нового до закона не будет
     // разогрев — чистый скилл: очки за каждый процент шкалы и отдельный рекорд температуры
     if (this.inf.go && !this.cheated) {
       const T0 = Math.round(this.T0), pts = Math.round(this.inf.H * 100) * 10, was = this.heatBest;
@@ -754,10 +767,10 @@ const Particles = {
     const ch = this.chapOf(); if (ch <= this.chap) return;
     this.chap = ch; const C = CHAPTERS[ch]; if (!C) return;
     const seen = Known.has('chap:' + ch); Known.add('chap:' + ch);
-    Cine.show(`<div class="ck">Глава ${ch}</div><div class="cn">${C.n}</div><div class="cp">${C.line}</div>`, seen ? CH_T_KNOWN : CH_T, 0, true);
+    Cine.show(`<div class="ck">Глава ${ch}</div><div class="cn">${C.n}</div><div class="cp">${C.line}</div>`, seen ? CH_T_KNOWN : C.stop ? CH_T + 2 : CH_T, 0, seen || !C.stop);
   },
   // лавка ✦ — с главы «Закон»: раньше знания копятся, а тратить их ещё не на что
-  shopOk() { return this.ep > 0 || this.rs.ph > 0 || this.chap >= 4; },
+  shopOk() { return this.ep > 0 || this.rs.ph > 0 || this.chap >= 3; },
   // Свет Вселенной — только классы, созданные в прологе, в долях √(сколько пар создано): редкое не тонет
   phP() {
     const w0 = this.inf.made.map(n => Math.sqrt(n)), s0 = w0.reduce((a, b) => a + b, 0);
@@ -787,6 +800,7 @@ const Particles = {
     const n = this.nQ(), k = this.qKinds();
     if (this.ep === 3) return k.includes('ph') ? Math.round(n * .45) : k.length ? G_MAX4 : 0;
     if (this.ep === 0 && !this.lit) return 0; // до разогрева (пустота, школа жестов, раскачка) света нет
+    if (this.ep === 0 && !this.rs.ph) return 0; // до закона «Свет» — только свет вспышки: собрал весь — кончился (глава «Свет»)
     return Math.round((this.ep > 0 ? n : n * PH_DENS[this.rs.ph] * (this.rs.ph ? Math.min(1, .3 + this.autoT / 10) : 1)) * this.qShare());
   },
   /** @param {boolean} any @param {[number, number] | null} [hp] точка в области: квант оттуда @param {boolean} [hard] жёстче (горячая область)
@@ -794,7 +808,8 @@ const Particles = {
   spawnQuantum(any, hp = null, hard = !!hp, want = null, fromZone = false) {
     // вакуум только что закипел: возмущения вспыхивают прямо в кадре, пары фотонов
     const K = this.qKinds(); if (!K.length) return; // оба закона выключены — Вселенная квантов не рождает
-    if (!hp && this.ep === 0 && !this.gOn && this.autoT < 10) { const [bx, by] = this.randPos(!this.full); this.burst(bx, by, true); return; } // пока шкала ⚡ не полна (глава «Свет») — вспыхивает за кадром: свет ищут
+    // закон «Свет» только что сформирован — первые 8 с вспыхивает в кадре: видно, что свет генерируется сам; потом — за кадром
+    if (!hp && this.ep === 0 && !this.gOn && this.autoT < 10) { const [bx, by] = this.rs.ph && this.autoT <= 8 ? this.viewPos() : this.randPos(true); this.burst(bx, by, true); return; }
     // пополнение держит фотоны и глюоны поровну: детектор ест фотоны на энергию, их не должно стать нечем ловить
     let ng = 0, nph = 0; for (const o of this.p) if (!o.dead) { if (o.sp === 'g') ng++; else if (o.sp === 'ph') nph++; }
     const gOk = K.includes('g') && (this.ep !== 3 || ng < G_MAX4);
@@ -845,7 +860,7 @@ const Particles = {
   /** @param {Q} o */
   inHand(o) { return Math.hypot(o.x - P.x, o.y - P.y) < this.hr(); },
   enOn() { return this.lit && Codex.has('ph'); },
-  fieldOn() { return this.ep > 0 || this.measured(); }, // сталкивать — когда свой свет измерен
+  fieldOn() { return this.ep > 0 || this.joinOk; }, // сталкивать — с главы «Соединение» (свет — закон, источники — пойманы)
   // Пул энергии собран — во Вселенной появляются глюоны
   unlockGluons() {
     this.gOn = true;
@@ -874,6 +889,7 @@ const Particles = {
   absorb(o) {
     const c = this.phClass(o), C = PH_CLS[c];
     o.dead = true; this.en = Math.min(E_CAP, this.en + C.e); if (!this.learn.absorb) this.acted(); this.learn.absorb = true; // фотоны залетают и сами
+    if (this.ep === 0 && this.rs.ph) { this.lawCaught++; if (this.rs.ph >= 2 && (this.hzAt(o.x, o.y) > .15 || this.hzAt(P.x, P.y) > .15)) this.hzCaught++; }
     this.caught[c]++; this.caughtFx = c; this.caughtAt = G.T;
     fxRing(o.x, o.y, .05, C.c, .5 + .3 * c, .35 + .1 * c); Sfx.play('catch', c);
     if (!this.measure(c)) { this.kn += C.kn; if (c >= 1) {
@@ -1017,7 +1033,10 @@ const Particles = {
       let q = Math.min(1, Math.max(f.q, 1 / LV_N) + dt * (1 + .6 * this.hzAt(P.x, P.y)) / (LV_N * LV_T)); const lv = f.lv || 0, nk = Math.min(LV_N, Math.floor(q * LV_N + 1e-9));
       if (nk > lv) {
         if (this.enOn() && this.en < 1) { q = Math.min(q, (lv + 1) / LV_N - 1e-4); if (!f.dry) { f.dry = true; this.noEnergy(); } }
-        else { if (this.enOn()) { this.en -= 1; f.spent = (f.spent || 0) + 1; } f.lv = nk; Sfx.play('pert', nk - 1); fxRing(P.x, P.y, this.hr() * .9, nk === LV_N ? GOLD : FIELD_C, this.hr() * 1.15, .3); }
+        else {
+          if (this.enOn()) { this.en -= 1; f.spent = (f.spent || 0) + 1; this.spent1(); }
+          f.lv = nk; Sfx.play('pert', nk - 1); fxRing(P.x, P.y, this.hr() * .9, nk === LV_N ? GOLD : FIELD_C, this.hr() * 1.15, .3);
+        }
       }
       f.q = q; f.E = this.chargeE(f.q);
     } else if (two) { // вещество разгоняется, только когда пара в поле
@@ -1056,7 +1075,7 @@ const Particles = {
     const f = this.focus; if (!f || !this.holding || this.ep === 3) return false;
     this.focus = null; this.holding = false;
     const c = f.cap.filter(o => !o.dead);
-    if (this.enOn() && f.spent) this.en = Math.min(E_CAP, this.en + f.spent);
+    if (this.enOn() && f.spent) { this.en = Math.min(E_CAP, this.en + f.spent); if (f.spent >= 1) this.float(P.x, P.y + this.hr() + 1.1, `+${Math.round(f.spent)} ⚡ вернулись: удара не было`, PH_C, 14); }
     for (const o of c) {
       const dx = o.x - P.x, dy = o.y - P.y, d = Math.hypot(dx, dy) || 1;
       o.cap = false; o.dx = dx / d; o.dy = dy / d; o.p = o.p0 ?? o.p; o.mate = null; o.thrown = false; o.sib = null;
@@ -1094,6 +1113,8 @@ const Particles = {
       o.dx = dx / d; o.dy = dy / d; o.p = f.E / 2; o.flung = .7 * (1 + this.heavy(o)); o.v = C_LIGHT * 1.6 / (1 + this.heavy(o));
     }
     a.mate = b; b.mate = a;
+    // первый удар забега — стоп-кадр на шкале: удар стоил ⚡ (зарядка тратит энергию — подсветить, просьба 28.11)
+    if (!this.learn.smash && this.ep === 0 && f.spent) Spot.show({ x: P.x, y: P.y }, 'Удар стоит энергии', `этот удар забрал ${Math.round(f.spent)} ⚡ — смотри на шкалу под кругом.\nЧем дольше держишь, тем сильнее удар\nи тем больше ⚡ он берёт.\nШкалу пополняет пойманный свет`, 9, this.hr() * 1.5);
     this.learn.smash = true; this.acted();
     if (Math.hypot(a.x - b.x, a.y - b.y) < HIT_R) this.smash(a, b);
   },
@@ -1409,7 +1430,7 @@ const Particles = {
   resList() {
     if (!this.lit) return [];
     if (this.ep === 3) return baryonTrios(this.stockQ) >= HAND_CP || this.rs.cp ? [{ k: 'cp', ic: '⚖', name: 'Асимметрия', cost: RES_COST.cp, about: () => 'сразу: первая тройка сбережена · вещества чуть больше, чем антивещества: нарушение CP дают три поколения кварков' }] : [];
-    const ph = { k: 'ph', ic: 'γ', name: 'Свет', cost: RES_COST.ph, about: (/** @type {number} */ l) => l ? `сразу: горячая область у детектора · горячих областей вдвое больше: ${HZ_N} → ${HZ_N * 2}` : `свет в мире: ~${this.phN(1)} γ` };
+    const ph = { k: 'ph', ic: 'γ', name: 'Свет', cost: RES_COST.ph, about: (/** @type {number} */ l) => l ? `сразу: ${HZ_N} горячих источника у детектора — в них рождается свет` : `свет генерируется сам: ~${this.phN(1)} γ в мире` };
     const L = [];
     if (!this.rs.ph) L.push(ph);
     if (Codex.has('g')) L.push({ k: 'g', ic: 'g', name: 'Глюоны', cost: RES_COST.g, about: () => 'сразу: глюоны в мире · генерация g' });
@@ -1481,10 +1502,11 @@ const Particles = {
   /** @param {string} k @param {number} l */
   lawNow(k, l) {
     const L = [];
-    if (k === 'ph' && l >= 2 && this.hzOn()) { // горячая область вспыхивает в кадре уже разогретой
-      const a = Math.random() * TAU, d = this.hr() + HZ_R * 1.2;
-      this.hz.push({ x: P.x + Math.cos(a) * d, y: P.y + Math.sin(a) * d, r: HZ_R, t: HZ_IN, L: HZ_L }); this.hzCd = 0;
-      L.push('горячая область у детектора');
+    if (k === 'ph' && l >= 2 && this.hzOn()) { // горячие источники вспыхивают в кадре уже разогретыми: в эпохе 1 их до сих пор не было вовсе
+      const n = this.ep === 0 ? HZ_N : 1, a0 = (Math.random() < .5 ? 0 : Math.PI) + rnd(-.3, .3), d = this.hr() + HZ_R * 1.3; // по бокам: сверху карточка задания, снизу лавка
+      for (let i = 0; i < n; i++) { const a = a0 + i * TAU / n; this.hz.push({ x: P.x + Math.cos(a) * d, y: P.y + Math.sin(a) * d, r: HZ_R, t: HZ_IN, L: HZ_L * 1.5 }); }
+      this.hzCd = 0; this.hzSeen = true;
+      L.push(n > 1 ? `${n} горячих источника у детектора` : 'горячий источник у детектора');
     }
     if (k === 'cp') L.push('первая тройка сбережена');
     const sps = this.lawSps(k); if (!sps.length) return L.join(', ');
@@ -1605,7 +1627,8 @@ const Particles = {
     const now = this.lawNow(k, l);
     fxRing(P.x, P.y, this.hr(), GOLD, this.hr() * 1.8, .7);
     // сцена: что теперь происходит в мире и что случилось сразу (первый закон и закон глюонов — кадр-пауза)
-    const what = k === 'ph' ? (l >= 2 ? `Горячих областей вдвое больше: ${HZ_N} → ${HZ_N * 2}. Свет генерируется именно там` : 'Генерация света: того, что создан здесь. Пойманный кругом свет даёт ⚡ и ✦')
+    const what = k === 'ph' ? (l >= 2 ? (this.ep === 0 ? `Горячие источники: ${HZ_N} пятна, где Вселенная горячее. Свет рождается прямо в них — гуще и жёстче` : `Горячих источников вдвое больше: ${HZ_N} → ${HZ_N * 2}. Свет генерируется именно там`)
+      : 'Свет теперь генерируется по всей Вселенной — смотри: вспыхивает тут и там. Только тот, что создан здесь. Пойманный кругом свет даёт ⚡ и ✦')
       : k === 'g' ? 'Мир наполняется глюонами: это клей, который потом свяжет кварки'
       : k === 'cp' ? 'Вещество больше не сгорает: тройки сберегаются' : QGEN[k] ? `Генерация кварков ${QROM[k]} поколения в мире · ${this.qRole(k)}` : `Генерация лептонов ${LGEN[k]} поколения (${SM[k].sym}) в мире · ${this.role(k)}`;
     const first = !this.learn.taught; this.learn.taught = true;
@@ -1764,6 +1787,7 @@ const Particles = {
       P.x += P.vx * dt0; P.y += P.vy * dt0;
       this.shotCd -= dt0; this.enFx -= dt0;
       for (const f of this.floats) f.t += dt0;
+      for (const fx of this.spendFx) fx.t += dt0; this.spendFx = this.spendFx.filter(fx => fx.t < .9);
       this.floats = this.floats.filter(f => f.t < 1.6);
       this.shotFx = (this.shotFx || 0) - dt0;
       this.tracks = this.tracks.filter(tr => this.t - tr.t < tr.life);
@@ -1826,6 +1850,8 @@ const Particles = {
         }
       }
       if (!this.full && this.enOn() && this.en >= E_CAP) this.full = true;
+      if (this.ep === 0 && this.lit && this.litT > 3 && this.outAt < 0 && !this.rs.ph && !this.phLeft()) this.outAt = this.t; // свет вспышки собран (или ушёл): кончился
+      if (this.ep === 0 && !this.joinOk && this.rs.ph >= 2 && this.hzCaught >= HZ_CATCH) this.joinOk = true;
       this.spontaneous(dt);
       this.attractE(dt);
       if (this.ep === 3 && !this.advanced) this.annihilateAll(); else if (this.ep < 3) this.annihilateMet();
@@ -2026,7 +2052,8 @@ const Particles = {
   },
   // ---------- горячие области ----------
   // сколько горячих областей держит мир: третий уровень закона «Свет» — вдвое больше
-  hzN() { return HZ_N * (this.rs.ph >= 2 ? 2 : 1); },
+  // в эпохе 1 их нет, пока не куплен «Свет II» (тот впервые зажигает HZ_N); дальше — HZ_N, со «Светом II» вдвое
+  hzN() { return this.ep === 0 ? (this.rs.ph >= 2 ? HZ_N : 0) : HZ_N * (this.rs.ph >= 2 ? 2 : 1); },
   hzOn() { return this.ep < 3 && (this.lit || this.ep > 0); },
   // сила области: разгорается HZ_IN с, остывает последние 3 с
   /** @param {HotZone} z */
@@ -2086,7 +2113,7 @@ const Particles = {
     for (const z of this.hz) z.t += dt;
     this.hz = this.hz.filter(z => z.t < z.L && Math.hypot(z.x - P.x, z.y - P.y) < this.wr() * 1.6); // уехал далеко — та остыла
     const z0 = this.hz.find(z => this.hzK(z) > .5 && onScreen(...W2S(z.x, z.y), 0));
-    if (z0) this.explain(z0, 'Горячая область', 'здесь Вселенная горячее:\nсвет рождается гуще и жёстче,\nудар набирается быстрее.\nОстынет — новая вспыхнет в другом месте');
+    if (z0) this.explain(z0, 'Горячий источник', 'здесь Вселенная горячее:\nсвет рождается прямо в нём — гуще и жёстче.\nВстань кругом в источник — и лови.\nОстынет — новый вспыхнет в другом месте');
     // область кипит: испускает кванты (в эпоху 1 — только когда свет Вселенной включён: иначе это и был бы закон даром)
     const emit = !this.advanced && (this.ep > 0 || (this.rs.ph > 0 && !Uni.off(this, 'ph'))) && !this.qFull();
     for (const z of this.hz) {
@@ -2094,7 +2121,7 @@ const Particles = {
       z.em = (z.em || 0) + dt * HZ_RATE * this.hzK(z) * (this.ep > 0 ? 1 : HZ_EP0); // в эпоху 1 — слабее (областей и так вдвое больше со «Светом» II) «Свет»
       for (; z.em >= 1; z.em--) { const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * z.r * .8; this.spawnQuantum(true, [z.x + Math.cos(a) * d, z.y + Math.sin(a) * d], true, 'ph'); }
     }
-    if (!this.ep && this.chap < 3) return; // в главах 1–2 областей нет: одно новое понятие за раз (первая — с главы «Первый удар»)
+    if (!this.ep && this.rs.ph < 2) return; // в эпохе 1 источников нет до «Света II»: их зажигает закон, и это понятие вводится отдельно
     if (this.hz.length >= this.hzN() || (this.hzCd -= dt * (this.hz.length ? 1 : 3)) > 0) return; // ни одной — новая вспыхивает скорее: свет рождается в них
     this.hzCd = rnd(4, 8);
     const h1 = this.hzSeen ? null : this.firstZonePos();
@@ -2134,6 +2161,25 @@ const Particles = {
     const A = this.annAt; if (A && (A.t -= dt) < 0) this.annAt = null;
     const seen = (/** @type {{ x: number, y: number }} */ o) => onScreen(...W2S(o.x, o.y), -20), tap = isTouch() ? 'нажать ◉' : 'кликнуть';
     const at = (/** @type {{ x: number, y: number }} */ o, r = .6) => ({ x: o.x, y: o.y, r });
+    if (this.ep === 0 && this.outAt >= 0 && !this.rs.ph && this.chap >= 3) { // свет кончился — показать, где закон
+      const ki = this.keyOf('ph'), b = ki ? document.querySelector(`#shop button[data-i="${ki - 1}"]`) : null, r = b && b.getBoundingClientRect();
+      if (r && r.width > 0) {
+        // пятно — на правой части кнопки («Сформировать закон · N ✦»), размером с её высоту
+        const mid = () => { const q = b.getBoundingClientRect(); return S2W(q.right - Math.min(100, q.width / 4), q.top + q.height / 2); };
+        const at = { get x() { return mid()[0]; }, get y() { return mid()[1]; }, r: r.height * .9 / cam.z };
+        this.explain(at, 'Закон «Свет»', `${isTouch() ? 'нажми' : `нажми или клавиша ${ki}`}: знания ✦ станут законом.\nГенерация света: дальше свет рождается сам —\nпо всей Вселенной, пока идёт игра`);
+      }
+    }
+    if (this.ep === 0 && this.joinOk && !this.pairs && this.chap >= 5) { // соединение: показать на паре фотонов рядом
+      const q = this.p.filter(o => !o.dead && o.sp === 'ph' && !o.cap && o.born >= 1 && !(o.fade >= 0) && seen(o));
+      let best = null, bd = Infinity;
+      // пара — видно, что их два (не слиплись после вспышки), и обе — в досягаемости поля
+      for (let i = 0; i < q.length; i++) for (let j = i + 1; j < q.length; j++) { const s = Math.hypot(q[i].x - q[j].x, q[i].y - q[j].y); if (s < .7 || s > this.fr() * 1.6) continue; const d = s + .3 * Math.hypot(q[i].x - P.x, q[i].y - P.y); if (d < bd) { bd = d; best = [q[i], q[j]]; } }
+      if (best) {
+        const [a, b] = best;
+        this.explain({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, r: Math.hypot(a.x - b.x, a.y - b.y) / 2 + .5 }, 'Соединение', `${isTouch() ? 'держи ◉' : 'зажми'} рядом с двумя фотонами:\nполе возьмёт их и начнёт заряжать удар.\nОтпусти — они столкнутся.\nУдар тратит энергию ⚡`);
+      }
+    }
     if (this.annAt && this.explain(this.annAt, 'Аннигиляция', 'частица встретила свою античастицу:\nобе исчезли — снова стали квантами.\nВещество и антивещество гасят друг друга')) this.annAt = null;
     if (this.ep === 1 && Codex.has('H') && this.hig >= 1) {
       const o = this.p.find(o => !o.dead && !o.cap && !this.isQ(o) && this.grabbable(o) && o.born > .5 && seen(o));
@@ -2279,16 +2325,20 @@ const Particles = {
     switch (this.ep) {
       case 0: return [
         { t: 'Создать свет', h: 'раскачать поле рогаткой: зажать шарик, оттянуть, отпустить — он закачается в чаше, и трение станет светом. Поймать на краю и оттянуть ещё — размах растёт; перетянул — вывалится. Чем ближе к краю, тем жарче разогрев и жёстче свет. Генерация света — только созданного здесь: не создал жёсткий — он будет лишь редким тепловым хвостом', items: PH_CLS.map((c, i) => [c.n, this.inf.made[i] > 0]), s: `создано классов света: ${this.madeCls().length} · ${fmtGeV(this.T0)}`, d: this.lit, ch: 1 },
-        // глава 2 — свет: поймать (измерить) и запасти энергию; ✦ копятся, лавки ещё нет
-        { t: 'Измерить свет', h: 'ловить фотоны кругом, кликать не нужно: пойманный фотон измерен и даёт энергию ⚡. Нужен каждый созданный класс', items: this.madeCls().map(c => [PH_CLS[c].n, this.phSeen.has(c)]), s: 'свет измерен', d: this.measured(), ch: 2 },
-        { t: 'Наполнить шкалу энергии ⚡', h: `свет — это энергия: шкала ⚡ — под кругом, ${E_CAP} делений. Удар стоит 1–${LV_N} ⚡. Света мало — он кончается: ищи его по кадру`, p: [this.full ? E_CAP : Math.floor(this.en), E_CAP], s: 'энергия запасена', d: this.full, ch: 2 },
-        // глава 3 — первый удар: из энергии — вещество
-        { t: 'Столкнуть два фотона на 1 ⚡: генерация электрона', h: 'зажать у двух фотонов и сразу отпустить: взял пару — уже 1 ⚡. Чем дольше держать, тем сильнее удар', s: 'первое столкновение', d: this.pairs > 0, rx: this.rxOf('e'), ch: 3 },
-        { t: 'Снять электрон', h: `навести круг на e⁻ и ${tap}: снимок. Электрон и позитрон — частица и античастица: встретятся — снова станут светом`, s: 'электрон открыт', d: has('e'), ch: 3 },
-        // глава 4 — закон: свет кончается, знания ✦ — закону
-        { t: 'Сформировать закон света', h: `свет кончается: ты его ешь. Знания ✦ — за измерения и снимки — отдать ${buy('ph')}: Вселенная будет светить сама`, s: 'генерация света', d: this.rs.ph > 0, res: 'ph', ch: 4 },
-        { t: 'Столкнуть два фотона в полную силу: генерация глюона', h: `выйдут три струи: кварк, антикварк и глюон. Снимок: ${tap} по глюону`, s: 'глюон создан', d: has('g'), rx: G4, ch: 5 },
-        { t: 'Сформировать закон глюонов', h: `знания ✦ отдать ${buy('g')}: мир наполнится глюонами`, s: 'глюоны в мире', d: this.rs.g > 0, res: 'g', ch: 5 },
+        // Обучение по просьбе 28.11 — каждое действие и понятие по одному, полностью:
+        // глава 2 — собрать весь свет вспышки (нового нет: он кончается); 3 — закон «Свет»: свет генерируется сам, лови его;
+        // 4 — «Свет II» впервые зажигает горячие источники, лови свет в них; 5 — соединение (удар на 1 ⚡ — электрон);
+        // 6 — зарядка: сильнее (4 ⚡ — глюон), точно (2 ⚡ — мюон), и первое поколение
+        { t: 'Собрать весь свет', h: `свет после вспышки разлетелся по кадру. Лови его кругом, кликать не нужно: пойманный фотон даёт энергию ⚡ (шкала под кругом) и знания ✦. Нового света не будет — собери весь`, p: [Math.max(0, this.stashN - this.phLeft()), this.stashN], s: 'весь свет собран', d: this.outAt >= 0, ch: 2 },
+        { t: 'Сформировать закон «Свет»', h: `свет кончился: сам он не рождается. Знания ✦ — за пойманный свет — отдать ${buy('ph')}: генерация света — дальше свет рождается сам, по всей Вселенной`, s: 'генерация света', d: this.rs.ph > 0, res: 'ph', ch: 3 },
+        { t: `Поймать ${LAW_CATCH} γ нового света`, h: 'свет теперь генерируется по всей Вселенной: вспыхивает тут и там. Лови его — копи ⚡ и ✦. Сталкивать пока нечего', p: [Math.min(this.lawCaught, LAW_CATCH), LAW_CATCH], s: 'свет — закон Вселенной', d: this.lawCaught >= LAW_CATCH || this.rs.ph >= 2 || this.joinOk, ch: 3 },
+        { t: 'Ещё больше света: улучшить закон «Свет»', h: `знания ✦ отдать ${buy('ph')}: «Свет II» зажжёт горячие источники — там свет рождается сам`, s: 'горячие источники', d: this.rs.ph >= 2 || this.joinOk, res: 'ph', ch: 4 },
+        { t: `Поймать ${HZ_CATCH} γ у горячего источника`, h: 'источник — оранжевое пятно: там Вселенная горячее, и свет рождается прямо в нём, гуще и жёстче. Встань кругом в источник и лови', p: [Math.min(this.hzCaught, HZ_CATCH), HZ_CATCH], s: 'источник даёт свет', d: this.joinOk, ch: 4 },
+        { t: 'Соединить два фотона: электрон', h: `${touch ? 'держать ◉' : 'зажать'} у двух фотонов — поле возьмёт их, удар сразу на 1 ⚡. Отпустить: столкнутся, и родятся электрон и позитрон`, s: 'первое столкновение', d: this.pairs > 0, rx: this.rxOf('e'), ch: 5 },
+        { t: 'Снять электрон', h: `навести круг на e⁻ и ${tap}: снимок. Электрон и позитрон — частица и античастица: встретятся — снова станут светом`, s: 'электрон открыт', d: has('e'), ch: 5 },
+        { t: `Зарядить сильнее: ${LV_N} ⚡ — глюон`, h: `зажать у двух фотонов и держать: ступени 1 → 2 → 3 → 4, каждая берёт 1 ⚡ со шкалы. На ${LV_N} ⚡ отпустить: три струи, одна — глюон. Снимок: ${tap} по глюону`, s: 'глюон создан', d: has('g'), rx: G4, ch: 6 },
+        { t: 'Зарядить точно: 2 ⚡ — мюон', h: `сила решает, что родится: 1 ⚡ — электрон, 2 ⚡ — мюон, тяжёлый брат электрона. Отпустить ровно на второй ступени, затем снимок μ. Передумал — разжать: ⚡ вернутся`, s: 'мюон открыт', d: has('mu'), rx: this.rxOf('mu'), ch: 6 },
+        { t: 'Сформировать закон глюонов', h: `знания ✦ отдать ${buy('g')}: мир наполнится глюонами`, s: 'глюоны в мире', d: this.rs.g > 0, res: 'g', ch: 6 },
         { t: next0 ? this.howTo(next0) : 'Открыть первое поколение', h: `затем ${tap} по новой частице: снимок. Из первого поколения сделано всё вокруг`,
           items: this.need0.map(sp => [sym(sp), has(sp)]), s: 'частицы открыты', d: this.need0.every(has), rx: next0 ? this.rxOf(next0) : undefined, ch: 6 },
       ];
@@ -2402,7 +2452,7 @@ const Particles = {
   cheat() {
     for (const k of Object.keys(SM)) Codex.see(k);
     Cine.clear(); // чит — без кадров-пауз на каждое открытие
-    this.kn += 100; this.pairs++; this.cheated = true; this.en = E_CAP; if (!this.lit) this.ignite(); this.rs.ph = Math.max(1, this.rs.ph); Codex.auto.add('ph'); Codex.auto.add('g'); this.rs.g = 1; PH_CLS.forEach((c, i) => this.phSeen.add(i)); this.full = true; if (!this.gOn) this.unlockGluons();
+    this.kn += 100; this.pairs++; this.cheated = true; this.en = E_CAP; this.joinOk = true; if (!this.lit) this.ignite(); this.rs.ph = Math.max(1, this.rs.ph); Codex.auto.add('ph'); Codex.auto.add('g'); this.rs.g = 1; PH_CLS.forEach((c, i) => this.phSeen.add(i)); this.full = true; if (!this.gOn) this.unlockGluons();
     for (const sp of CHAINS.flat()) this.decSeen.add(sp);
     if (this.ep === 1) this.higT = 99;
     if (this.ep === 3) { this.rs.cp = 1; while (this.safe.length < AUTO_TRIO) this.addSafe(); }
@@ -3067,8 +3117,18 @@ const Particles = {
       ctx.beginPath(); ctx.arc(x, y, 3.5, 0, TAU); ctx.fill();
       if (fill > 0) { ctx.fillStyle = rgb(PH_C, .35 + .65 * fill); ctx.beginPath(); ctx.arc(x, y, 3.5 * Math.sqrt(fill), 0, TAU); ctx.fill(); }
     }
+    // зарядка тратит ⚡: опустевшее деление вспыхивает кольцом и «−1» над ним (просьба 28.11 — подсветить трату)
+    for (const fx of this.spendFx) {
+      const k = fx.k, a = a0 - (k + .5) / E_CAP * span, x = sx + Math.cos(a) * R, y = sy + Math.sin(a) * R, q = fx.t / .9;
+      ring(x, y, 5 + 18 * q, [255, 150, 90], 1 - q, 3);
+      label('−1 ⚡', x, y + 16 + 12 * q, 15, [255, 170, 110], 1 - q, 800);
+    }
     label('⚡', sx, sy + R + 10, 11, this.en < E_SHOT ? [255, 140, 120] : PH_C, .9, 700);
   },
+  // ступень зарядки взяла 1 ⚡: вспышка на шкале (какое деление опустело)
+  spent1() { this.spendFx.push({ k: clamp(Math.floor(this.en + 1e-6), 0, E_CAP - 1), t: 0 }); },
+  // фотонов в мире (не гаснущих): глава «Свет» — собрать весь
+  phLeft() { let n = 0; for (const o of this.p) if (!o.dead && o.sp === 'ph' && !(o.fade >= 0)) n++; return n; },
   // Подсказка в одну строку — пока действие не освоено
   /** @param {number} sx @param {number} sy @param {number} r */
   drawHint(sx, sy, r) {

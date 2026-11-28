@@ -93,4 +93,5 @@ test('тексты: без оборота «Вселенная светит / г
   const g = lit();
   g.ev('G.stage.rs.ph = 1');
   assert.match(g.ev(`JSON.stringify(G.stage.steps())`), /генерация света/);
+  assert.doesNotMatch(g.ev(`JSON.stringify(G.stage.steps())`), /Вселенная (будет )?генерир/);
 });
