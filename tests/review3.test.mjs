@@ -168,11 +168,11 @@ test('REVIEW_DESIGN 5.4: «Ядра» — гелий считается на м�
   const g = toStage('nuclei');
   g.ev('G.stage.tide = () => {}; G.stage.autoFuse = () => {}; G.stage.spontaneous = () => {}');
   // кучка ⁴He в стороне от места уровня
-  g.ev(`for (let i = 0; i < 8; i++) G.stage.mk(2, 2, G.stage.yc.x + 18 + i * .5, G.stage.yc.y, 0, 0)`);
+  g.ev(`for (let i = 0; i < 8; i++) G.stage.mk(2, 2, P.x + 18 + i * .5, P.y, 0, 0)`);
   const y0 = g.ev('G.stage.Y()');
   g.ev('panBy(-18 * cam.z, 0); cam.x = P.x; cam.y = P.y');
   assert.ok(Math.abs(g.ev('G.stage.Y()') - y0) < 1e-9, 'карта у кучки гелия — доля та же');
-  g.ev('G.stage.yEnd = G.stage.Y(); G.stage.mk(2, 2, G.stage.yc.x, G.stage.yc.y, 0, 0)');
+  g.ev('G.stage.yEnd = G.stage.Y(); G.stage.mk(2, 2, P.x, P.y, 0, 0)');
   assert.ok(Math.abs(g.ev('G.stage.Y()') - y0) < 1e-9, 'после финиша доля застыла (очки и «Звёзды» — по ней)');
 });
 

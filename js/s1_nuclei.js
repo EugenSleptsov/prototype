@@ -25,9 +25,10 @@ const ELEM = [['n', 'Нейтрон', 0], ['H', 'Водород', 1], ['He', 'Г
 const elemOf = Z => ELEM[clamp(Z, 0, ELEM.length - 1)];
 const NR = .8; // радиус нуклона в масштабе уровня атомов (части ядра передаются туда)
 // N_FLY — сколько летит брошенное (минимум), N_REACH — сколько оно пролетает самое меньшее: мягкий бросок летит дольше и долетает
-// Y_R — гелий считаем в круге этого радиуса вокруг места, где начался уровень (yc), — не по всему, что живёт в мире (иначе доля
-// зависела бы от зума), и не вокруг камеры: раньше сдвиг карты к своей кучке гелия поднимал долю, а с ней финиш и очки
-const Y_R = 12.6;
+// Y_B — проба Вселенной: доля гелия — нуклоны в ⁴He (и том, что из него выросло) на Y_B нуклонов пробы. Не по кругу
+// и не по кадру: вещество в мире подсыпается и растворяется по камере, и доля зависела от зума и положения карты.
+// Гелий, пришедший из-за края готовым (после «Нуклеосинтеза», `cos`), — фон Вселенной, не в счёт
+const Y_B = 40;
 const N_FRAC = [.15, .4]; // доля нейтронов во Вселенной: по итогу «Адронов» — не меньше и не больше
 // «Нуклеосинтез» сам доводит гелий лишь до SYN_TOP — дальше ⁴He куёт Вселенная только до A = 3 (²H, ³H, ³He — заготовки),
 // последний шаг до 25 % — твоими бросками (как REC_TOP в «Атомах»): иначе после закона лучшей игрой было убрать руки
@@ -62,7 +63,7 @@ const Nuclei = {
     this.hr = prev && prev.hr != null ? (typeof prev.hr === 'function' ? prev.hr() : prev.hr) : 1.4;
     P.vx = P.vy = 0;
     if (!prev) P.x = P.y = 0;
-    this.yc = { x: P.x, y: P.y }; this.yEnd = null; // круг счёта гелия — здесь, на месте; доля на финише — застывает
+    this.yEnd = null; // доля гелия на финише — застывает
     // итог «Адронов» решает состав Вселенной: доля нейтронов среди твоих барионов (не собрал — нейтронов мало)
     let mp = 0, mn = 0;
     if (prev && prev.groups) for (const grp of prev.groups.values()) { if (grp.kind === 'p') mp++; else if (grp.kind === 'n') mn++; }
@@ -95,14 +96,14 @@ const Nuclei = {
   cosmic(x, y, vx, vy) {
     // доля Y — по массе; ядер гелия по числу — y/(4 − 3y): тогда приходящее не меняет долю вокруг, а лишь держит её
     const Y = this.rs.syn && !Uni.off(this, 'syn') ? this.Y() : 0;
-    if (Y > 0 && Math.random() < Y / (4 - 3 * Y)) return this.mk(2, 2, x, y, vx, vy);
+    if (Y > 0 && Math.random() < Y / (4 - 3 * Y)) { const o = this.mk(2, 2, x, y, vx, vy); o.cos = true; return o; }
     const isN = Math.random() < (this.nFrac ?? .25) * Math.exp(-this.t / 150), o = this.mk(isN ? 0 : 1, isN ? 1 : 0, x, y, vx, vy);
     if (isN) o.life = rnd(60, 100);
     return o;
   },
   // Вселенная вокруг: не хватает в кадре — приходит из-за края; чужое далеко за краем растворяется
   tide(dt) {
-    dissolveFar(this.o, o => o.held || o.fly > 0 || (zoneNear(this.yc) && Math.hypot(o.x - this.yc.x, o.y - this.yc.y) < Y_R)); // круг, где считаем гелий, не растворяем — ни при зуме, ни при сдвиге карты
+    dissolveFar(this.o, o => o.held || o.fly > 0 || this.heOf(o) > 0); // гелий в счёте не растворяется: уехал от него — он всё равно твой
     this.el = this.el.filter(e => !farOff(e));
     if (this.doneAt !== null) return;
     const have = this.o.filter(o => !o.dead && inView(o.x, o.y, 1)).length;
@@ -382,17 +383,14 @@ const Nuclei = {
   },
   // гелию больше не из чего взяться: нет свободных нейтронов, ²H, ³H и пары ³He — и Вселенная почти не приносит нейтронов
   stuck() { const c = this.counts(); return this.clock > 60 && c.n === 0 && c.mid - c.he3 === 0 && c.he3 < 2; },
-  // доля массы в гелии-4 и всём, что из него выросло (³He не в счёт — он ещё «недостроен»), среди всех ядер вокруг
-  // считаем в круге Y_R вокруг места начала уровня (yc); знаменатель — не меньше, чем вещества там по плотности Вселенной:
-  // отъехал зумом (в кадре реже), приблизил или сдвинул карту — доля от этого не растёт. Уровень кончился — доля застыла (yEnd)
+  // нуклоны ядра в счёте гелия: ⁴He и всё, что из него выросло (³He не в счёт — «недостроен»; фоновый гелий — тоже)
+  heOf(o) { return !o.dead && !o.cos && o.Z >= 2 && o.Z + o.N >= 4 ? o.Z + o.N : 0; },
+  // доля массы в гелии на пробу Вселенной Y_B: где бы ни был гелий и как бы ни стояла камера — одно и то же.
+  // Уровень кончился — доля застыла (yEnd)
   Y() {
     if (this.yEnd != null) return this.yEnd;
-    let m = 0, all = 0;
-    for (const o of this.o) {
-      if (o.dead || Math.hypot(o.x - this.yc.x, o.y - this.yc.y) > Y_R) continue;
-      all += o.Z + o.N; if (o.Z >= 2 && o.Z + o.N >= 4) m += o.Z + o.N;
-    }
-    return m / Math.max(1, all, N_DENS * Math.PI * Y_R * Y_R);
+    let m = 0; for (const o of this.o) m += this.heOf(o);
+    return Math.min(1, m / Y_B);
   },
 
   // ---------- исследование — в лавке ✦ ----------
@@ -451,8 +449,8 @@ const Nuclei = {
     this.cheated = true;
     for (const o of this.o) o.dead = true;
     this.o = [];
-    // гелия — на Y ≥ 25 % в круге счёта (Y_R вокруг кадра), всё — плотно вокруг тебя, а не цепочкой за край
-    const nHe = Math.max(Math.floor(this.nN / 2), Math.ceil(Math.max(this.nB, N_DENS * Math.PI * Y_R * Y_R) * Y_GOAL / 4)), nP = Math.max(0, this.nB - nHe * 4);
+    // гелия — на Y ≥ 25 % пробы, всё — плотно вокруг тебя, а не цепочкой за край
+    const nHe = Math.max(Math.floor(this.nN / 2), Math.ceil(Y_B * Y_GOAL / 4)), nP = Math.max(0, this.nB - nHe * 4);
     const at = i => { const r = 1.5 + Math.sqrt(i) * 1.1, a = i * 2.4; return [cam.x + Math.cos(a) * r, cam.y + Math.sin(a) * r]; };
     for (let i = 0; i < nHe; i++) { const [x, y] = at(i); this.made(this.mk(2, 2, x, y), 0); }
     for (let i = 0; i < nP; i++) { const [x, y] = at(nHe + i); this.mk(1, 0, x, y); }
@@ -491,7 +489,6 @@ const Nuclei = {
     else if (N_BIND[nkey(o)] && this.T() > .3 && this.doneAt === null) ring(sx, sy, o.rad * z + 3, [255, 240, 170], .18 * a, 1, [3, 4]); // хрупкое, пока горячо
   },
   draw(al) {
-    { const [cx, cy] = W2S(this.yc.x, this.yc.y); ring(cx, cy, Y_R * cam.z, [255, 225, 150], .08 * al, 1, [6, 10]); } // где считается гелий
     const z = cam.z;
     for (const g of this.g) {
       const [sx, sy] = W2S(g.x, g.y), c = g.E > 2.4 ? [220, 200, 255] : g.E > 1 ? [255, 255, 230] : [255, 190, 120];

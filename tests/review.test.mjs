@@ -53,13 +53,17 @@ test('частицы: тройки кварков считаются точно 
   assert.equal(T([0, 1, 2].map(col => ({ fl: 'u', col }))), 0, 'uuu — Δ⁺⁺, не нуклон');
 });
 
-test('ядра: гелий считается только в круге вокруг кадра — дальний не в счёт, приближение не меняет долю', () => {
+test('ядра: доля гелия не зависит ни от зума, ни от места карты — гелий на пробу Вселенной; фоновый гелий не в счёт', () => {
   const g = toStage('nuclei');
-  g.ev(`(() => { const S = G.stage; for (const o of S.o) o.dead = true; S.o = []; S.dissolve = () => {}; })()`);
-  g.ev(`for (let i = 0; i < 8; i++) G.stage.o.push(G.stage.mk(2, 2, cam.x + Y_R + 6 + i, cam.y))`);
-  assert.equal(g.ev('G.stage.Y()'), 0, 'гелий далеко за кадром');
-  g.ev(`for (let i = 0; i < 4; i++) G.stage.o.push(G.stage.mk(2, 2, cam.x + i, cam.y + 1))`);
-  assert.ok(g.ev('G.stage.Y()') > 0);
+  g.ev(`(() => { const S = G.stage; for (const o of S.o) o.dead = true; S.o = []; })()`);
+  g.ev(`for (let i = 0; i < 2; i++) G.stage.mk(2, 2, cam.x + 40 + i, cam.y); for (let i = 0; i < 2; i++) G.stage.mk(2, 2, cam.x + i, cam.y + 1)`);
+  const y0 = g.ev('G.stage.Y()');
+  assert.ok(Math.abs(y0 - 16 / g.ev('Y_B')) < 1e-9, `и дальний гелий, и ближний: ${y0}`);
+  for (const z of [.5, 2]) { g.ev(`G.zoom = ${z}`); g.step(60 * 3); assert.ok(Math.abs(g.ev('G.stage.Y()') - y0) < 1e-9, `зум ×${z}`); }
+  g.ev('G.zoom = 1; panBy(-60 * cam.z, 0)'); g.step(60 * 3);
+  assert.ok(Math.abs(g.ev('G.stage.Y()') - y0) < 1e-9, 'карта уехала — гелий не растворился, доля та же');
+  g.ev(`G.stage.mk(2, 2, cam.x, cam.y).cos = true`);
+  assert.ok(Math.abs(g.ev('G.stage.Y()') - y0) < 1e-9, 'гелий из-за края (фон Вселенной) — не в счёт');
 });
 
 test('адроны: антибарионов нет — антикварк гасит только один кварк своего цвета', () => {

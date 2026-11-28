@@ -23,6 +23,9 @@
 // ST_CORE — во что он растягивается; недра: плотность и предел ядер в кадре
 const ST_GAS_D = .09, ST_GAS_CAP = 230, ST_GR = 16, ST_IGN = .5, ST_CLUMP = 3.2, ST_CORE = 7.5, ST_CORE_D = .05, ST_CORE_CAP = 45;
 const ST_VIEW = 10.5, ST_PAR = 150, ST_COST = 35, BE_LIFE = 2.6, ST_BOOM = 2.6;
+// не накопил C, N, O к сверхновой — уровень не кончается: пепел звезды — облако следующей (луп, просьба игрока);
+// успел с первой звезды — ST_FIRST очков сверху (обычный бонус уровня — 500)
+const ST_FIRST = 1000;
 // масса комка — облачка ближе ST_NEAR к яме; полоса зажигания — [ST_LO, ST_HI] × ignN, выше — перебор: ST_OVER с — и свет сдувает газ
 // (ST_BLOWV — толчок, ST_BLOWT с яма держит слабо); масса звезды на полосе ST_M0 → ST_M1 M☉ (лог-шкала), mu 0…1;
 // тепловое давление — облачка ближе ST_PH расталкиваются (сила ST_PK); не зажёг за ST_AUTO с — облако схлопнулось само, лёгкой звездой
@@ -57,6 +60,7 @@ const Stars = {
     this.hT = 0; this.beT = 2; this.flowT = 0; this.autoCd = 1; this.boom = 0; this.well = null;
     this.st.blow = 0; this.overT = 0; this.blowT = 0; this.near = 0; this.mu = .5; this.Ms = null; this.life = lerp(ST_LIFE[0], ST_LIFE[1], .5); this.bf = lerp(ST_BF[0], ST_BF[1], .5);
     this.hTau = lerp(ST_HTAU[0], ST_HTAU[1], .5); this.warned = false; this.he0 = null;
+    this.starN = 0; this.first = false; this.gasAt = 0; // сколько звёзд догорело зря; успел с первой; когда начался сбор облака
     P.vx = P.vy = 0; if (!prev) P.x = P.y = 0;
     this.C = { x: P.x, y: P.y }; this.ignT = null;
     // доля гелия в облаке — твоя Y с «Ядер» (с нуля — как в нашей Вселенной, 25 %); показ — в первый живой кадр
@@ -177,7 +181,7 @@ const Stars = {
     this.gasTide(dt);
     // перебор: держишь комок тяжелее полосы — протозвезда засветилась, и её свет сдувает газ
     if (w && near > this.hi) { if ((this.overT += dt) > ST_OVER) this.blow(w); } else this.overT = 0;
-    if (live && this.clock > ST_AUTO && this.phase === 'gas') this.ignite(c.x, c.y, 0, true); // не зажёг — облако схлопнулось само: звезда лёгкая
+    if (live && this.clock - (this.gasAt || 0) > ST_AUTO && this.phase === 'gas') this.ignite(c.x, c.y, 0, true); // не зажёг — облако схлопнулось само: звезда лёгкая
   },
   // тепловое давление: облачка ближе ST_PH расталкивают друг друга — густой комок без ямы расплывается (сетка ячеек ST_PH)
   pressure(dt) {
@@ -235,25 +239,26 @@ const Stars = {
     P.x = x; P.y = y; P.vx = P.vy = 0; this.C = { x, y };
     fxFlash(x, y, 6 * U, [255, 230, 170], 1.2); fxRing(x, y, U, [255, 200, 120], 14 * U, 1.2);
     Sfx.play('ignite');
-    lump.sort((a, b) => +b.mine - +a.mine || Math.random() - .5);
+    lump.sort((a, b) => +!!b.m - +!!a.m || +b.mine - +a.mine || Math.random() - .5); // пепел прошлой звезды — первым
     for (const g of lump) g.core = 1;
     // ядро рождается там, где было облачко, и недра расширяются: k-е от центра уходит на свою долю радиуса (плотный комок не слипается).
     // Комок был жидковат (облако схлопнулось само) — недра всё равно не пустые: добираем до 18 ядер вокруг
     const nuc = lump.slice(0, Math.round(lerp(ST_NUCN[0], ST_NUCN[1], mu))).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
-    /** @type {{ x: number, y: number, vx: number, vy: number, he: boolean, li: boolean, mine: boolean, age: number }[]} */
+    /** @type {{ x: number, y: number, vx: number, vy: number, he: boolean, li: boolean, m?: string | null, mine: boolean, age: number }[]} */
     const slots = nuc.map((g, k) => {
       const dx = g.x - x, dy = g.y - y, d = Math.hypot(dx, dy), an = d > 1e-6 ? Math.atan2(dy, dx) : Math.random() * TAU;
       const push = Math.max(0, ST_CORE * Math.sqrt((k + .5) / nuc.length) - d) * .9; // путь с трением .9 — ровно до места
-      return { x: g.x, y: g.y, vx: Math.cos(an) * push, vy: Math.sin(an) * push, he: g.he, li: g.li, mine: g.mine, age: 0 };
+      return { x: g.x, y: g.y, vx: Math.cos(an) * push, vy: Math.sin(an) * push, he: g.he, li: g.li, m: g.m || null, mine: g.mine, age: 0 };
     });
     for (let i = slots.length; i < 18; i++) {
       const a = Math.random() * TAU, d = ST_CORE * Math.sqrt(Math.random()) * .9;
       slots.push({ x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, vx: randn() * .4, vy: randn() * .4, he: false, li: false, mine: false, age: -Math.random() });
     }
     // ⁴He в недрах — ровно доля heP (твоя Y с «Ядер»): гелием становятся прежде всего облачка гелия (и лития — он сгорает в гелий)
-    const nHe = Math.round(this.heP * slots.length), order = slots.map((q, i) => [+(q.he || q.li) + Math.random() * .5, i]).sort((u, v) => v[0] - u[0]);
+    const nHe = Math.round(this.heP * slots.length), order = slots.map((q, i) => [q.m ? -9 : +(q.he || q.li) + Math.random() * .5, i]).sort((u, v) => v[0] - u[0]);
     const isHe = new Set(order.slice(0, nHe).map(u => u[1]));
     slots.forEach((q, i) => {
+      if (q.m) { const [Z, N] = q.m.split(',').map(Number), o = this.mk(Z, N, q.x, q.y, q.vx, q.vy); o.age = q.age; o.mine = true; return; } // пепел прошлой звезды
       const he = isHe.has(i), o = this.mk(he ? 2 : 1, he ? 2 : 0, q.x, q.y, q.vx, q.vy); o.age = q.age; o.mine = q.mine;
       if (q.li) this.float(q.x, q.y - .5, '⁷Li + p → 2 ⁴He', [210, 170, 255], 12); // литий в недрах не живёт: сгорает в гелий
     });
@@ -375,7 +380,7 @@ const Stars = {
     if (this.doneAt === null) this.tickStars(false);
     if (this.doneAt === null && (this.steps().every(s => s.d) || this.rest() <= 0)) { this.failed = !this.steps().every(s => s.d); this.supernova(); } // звезда догорела — без бонуса уровня
     if (this.boom > 0) this.boom -= dt;
-    if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { this.advanced = true; advance(); } // атомам — эти же ядра, там, куда их вынесло
+    if (this.endCd > 0 && (this.endCd -= dt) <= 0 && !this.advanced) { if (this.failed) this.reborn(); else { this.advanced = true; advance(); } } // атомам — эти же ядра, там, куда их вынесло; не успел — новая звезда
   },
   // Сверхновая: недра разлетаются от тебя — дальнее быстрее (как растёт шар), выброс тормозит и остывает;
   // камера отъезжает вместе с ним к масштабу атомов
@@ -390,8 +395,30 @@ const Stars = {
     }
     fxFlash(cx, cy, 10, [255, 250, 230], 1.6); fxRing(cx, cy, 2, [255, 220, 160], 30, 2);
     Sfx.play('overheat'); Sfx.play('segment');
+    if (this.failed) { msg('Звезда догорела, не накопив C, N, O: сверхновая! Её пепел — облако для новой звезды'); return; } // уровень не кончился: ★ ещё идут
     this.tickStars(true);
+    if (!this.starN && !this.cheated) { this.first = true; addScore(ST_FIRST); this.float(P.x, P.y + 2.6, `с первой звезды: +${ST_FIRST} очков`, GOLD, 18); }
     msg('Миллионы лет спустя: звезда дожгла всё до железа, ядро схлопнулось — сверхновая! Выкованные ядра разлетаются по Вселенной');
+  },
+  // Не успел: выброс сверхновой — облако следующей звезды. Мир сжимается обратно к масштабу облака (на экране — без скачка),
+  // ядра выброса — облачка газа там же: ⁴He — гелием, водород — водородом, ¹²C, ¹³C, ¹⁴N, ¹⁶O — пеплом (зелёные: во второй
+  // звезде они снова ядра недр — цель ближе). Пепел богаче гелием: доля в облаке — между прежней и гелием недр.
+  // Знания (открытые ядра, закон) остаются; срок, масса, ★ — заново для новой звезды
+  reborn() {
+    const U = ST_CORE / ST_CLUMP, he = Math.min(ST_HEMAX, (this.heP + this.heCore()) / 2);
+    rescale(1 / U, P.x, P.y, [this.gas, this.o, this.floats]);
+    for (const g of this.gas) { g.s = 1; g.core = 0; }
+    for (const o of this.o) {
+      if (o.dead) continue;
+      const k = nkey(o), m = ST_NEED[k] || k === '6,7' ? k : null;
+      this.gas.push({ x: o.x, y: o.y, vx: o.vx * .3, vy: o.vy * .3, he: o.Z >= 2, li: false, m, age: 1, s: 1, mine: true, src: null });
+    }
+    this.o = []; this.phase = 'gas'; this.doneAt = null; this.endCd = -1; this.boom = 0; this.failed = false;
+    this.ignAt = null; this.ignT = null; this.he0 = null; this.warned = false; this.well = null; this.near = 0; this.overT = 0; this.blowT = 0;
+    this.Ms = null; this.mu = .5; this.hT = 0; this.beT = 2; this.autoCd = 1; this.heP = he; this.gasAt = this.clock; this.starN++;
+    this.C = { x: P.x, y: P.y }; Sfx.play('segment');
+    msg(`Звезда ${this.starN + 1}: из пепла прошлой — собери облако снова. В нём уже её C, N, O и больше гелия (${Math.round(he * 100)} %)`);
+    Spot.show({ x: P.x, y: P.y }, 'Новая звезда из пепла', 'не успел к сверхновой — собери облако снова: зелёный пепел — C, N, O прошлой звезды', 4, ST_NEAR * 2);
   },
 
   // доля ⁴He в недрах: на старте — Y с «Ядер», дальше водород выгорает в гелий (тяжёлая — быстрее)
@@ -444,7 +471,7 @@ const Stars = {
   tickStars(end) { tickStars(this.stars, end, () => { this.kn += 10; this.float(P.x, P.y - 2, '★ +10 ✦', [255, 215, 110], 17); }, this.failed); },
   tally() {
     const n = this.made.hand + this.made.auto;
-    return { name: 'Звёзды', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['¹²C · ¹⁶O · ¹⁴N', `${this.cnt('6,6')} · ${this.cnt('8,8')} · ${this.cnt('7,7')}`], ['выковано рогаткой', this.made.hand], ['выковано звездой', this.made.auto]], auto: [this.made.auto, n], stars: this.stars };
+    return { name: 'Звёзды', rows: [['⏱ уровень', fmtClock(this.doneAt ?? this.clock)], ['¹²C · ¹⁶O · ¹⁴N', `${this.cnt('6,6')} · ${this.cnt('8,8')} · ${this.cnt('7,7')}`], ['выковано рогаткой', this.made.hand], ['выковано звездой', this.made.auto], ...(this.starN ? [['звёзд до цели', this.starN + 1]] : []), ...(this.first ? [['с первой звезды', '+' + ST_FIRST, 'tb']] : [])], auto: [this.made.auto, n], stars: this.stars };
   },
   cheat() {
     this.cheated = true;
@@ -473,6 +500,7 @@ const Stars = {
     for (const g of this.gas) {
       const [sx, sy] = W2S(g.x, g.y); if (!onScreen(sx, sy, 10)) continue;
       const a = al * appear(g.age) * (this.phase === 'core' ? .25 + .75 * clamp(g.core || 0, 0, 1) : 1), gs = g.s || 1;
+      if (g.m) { glow(sx, sy, Math.max(4, .65 * gs * z), [130, 240, 170], .5 * a); ball(sx, sy, Math.max(1.5, .18 * gs * z), [200, 255, 215], .95 * a); continue; } // пепел прошлой звезды: C, N, O
       glow(sx, sy, Math.max(3, .45 * gs * z), g.li ? [200, 150, 255] : g.he ? [255, 225, 150] : [170, 200, 255], .45 * a); ball(sx, sy, Math.max(1, .12 * gs * z), g.li ? [230, 210, 255] : g.he ? [255, 240, 200] : [220, 235, 255], .9 * a);
     }
     if (this.well) this.drawGauge(al);
@@ -519,8 +547,8 @@ const Stars = {
   },
   overlay(al) {
     if (!G.started) return;
-    const left = this.doneAt !== null ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
-    hudClock(al, left, this.doneAt !== null ? [140, 235, 170] : this.clock > ST_PAR ? [190, 190, 205] : [255, 255, 255], this.bal(), []);
+    const ok = this.doneAt !== null && !this.failed, left = ok ? '✓ ' + fmtClock(this.doneAt) : fmtClock(this.clock);
+    hudClock(al, left, ok ? [140, 235, 170] : this.clock > ST_PAR ? [190, 190, 205] : [255, 255, 255], this.bal(), []);
     if (!G.prev) hudTask(al, this.tk, 'УРОВЕНЬ 4', this.steps(), this.stars, 'Сверхновая!');
     // звезда горит: её масса и сколько ей осталось (последние 20 с — красным)
     // под строкой — полоска горючего: у тяжёлой тает на глазах (цейтнот — её цена)

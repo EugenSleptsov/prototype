@@ -126,11 +126,11 @@ test('ревью-2 №8а: тяжёлая — горячо, но цейтнот 
   assert.ok(slowL.r.done && !slowL.r.failed, `медленный на лёгкой: ${JSON.stringify(slowL.r)}`);
   assert.ok(slowH.r.done && slowH.r.failed, `медленный на тяжёлой не успел: ${JSON.stringify(slowH.r)}`);
   assert.ok(Math.abs(slowH.r.t - slowH.r.life) < .1, 'сверхновая — когда догорела');
-  // догорела без цели — забег идёт дальше, к атомам, но без бонуса уровня
+  // догорела без цели — уровень не кончается (луп): пепел — облако новой звезды, снова сбор газа (stars_loop.test.mjs)
   const g = slowH.g;
   g.step(60 * 3);
-  assert.equal(g.ev('G.stage.key'), 'atoms');
-  assert.match(g.ev(`document.getElementById('tally').innerHTML`), /ВРЕМЯ ВЫШЛО[\s\S]*без бонуса/);
+  assert.equal(g.ev('G.stage.key'), 'stars');
+  assert.equal(g.ev('G.stage.phase'), 'gas'); assert.equal(g.ev('G.stage.starN'), 1);
 });
 
 test('ревью-2 №8а: время видно — весы показывают срок жизни массы, внизу — «сверхновая через …», за 20 с — предупреждение', () => {
