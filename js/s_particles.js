@@ -348,7 +348,7 @@ const Particles = {
     this.learn = {}; this.coach = { idle: 0, t: 0, kind: null }; this.spotted = new Set(); this.missT = -99; this.en = 0; this.enFx = 0; this.shotCd = 0; this.shotFx = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.bannerFor = -1; this.banner = 99; this.epT = 0;
-    this.pairs = 0; this.tries = {}; this.decSeen = new Set(); this._pk = null; this.starsShown = false; this.lepDone = false; this.hot = []; this.hotCd = 3; this.hz = []; this.hzCd = 2; this.hzSeen = false; this.cz = []; this.czCd = 2; this.czSeen = false; this.stock = 0; this.stockQ = []; this.udRes = []; this.eRes = 0; this.forgedQ = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1; this.failed = false;
+    this.pairs = 0; this.tries = {}; this.decSeen = new Set(); this._pk = null; this.starsShown = false; this.lepDone = false; this.hot = []; this.hotCd = 3; this.hz = []; this.hzCd = 2; this.hzSeen = false; this.annAt = null; this.cz = []; this.czCd = 2; this.czSeen = false; this.stock = 0; this.stockQ = []; this.udRes = []; this.eRes = 0; this.forgedQ = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1; this.failed = false;
     Codex.run = new Set(); Codex.dirty = true;
     // цели этого забега: что открыть в эпохе 1 и чьи распады снять в эпохе 3
     this.need0 = [...NEED0];
@@ -1179,6 +1179,7 @@ const Particles = {
       for (const m of made) m.cd = .5;
     }
     fxFlash(x, y, .9, [255, 255, 255], spont ? .25 : .4); if (!spont || onScreen(...W2S(x, y), 0)) Sfx.play('annih');
+    if (this.ep < 3 && made[0].sp !== 'Z' && onScreen(...W2S(x, y), 0)) this.annAt = { x, y, r: .8, t: 4 }; // первая в кадре — объяснить (tickExplain)
     this.event(made, x, y, undefined, this.rx([a, b], made, 0));
     return made;
   },
@@ -1804,7 +1805,7 @@ const Particles = {
       this.attractE(dt);
       if (this.ep === 3 && !this.advanced) this.annihilateAll(); else if (this.ep < 3) this.annihilateMet();
       if (!this.advanced) this.populate(dt);
-      this.checkGoals(); if (!this.epDone || this.ep === 3) this.tickStars(false); this.reveal(); this.tickChapter();
+      this.checkGoals(); if (!this.epDone || this.ep === 3) this.tickStars(false); this.reveal(); this.tickChapter(); this.tickExplain(dt);
       if (!this.advanced && this.ep === 3 && this.T < T_END4) {
         // аннигиляция догорает: антивещество вспыхивает, неспасённое гаснет; в детекторе — только твои кварки.
         // Цель не выполнена (Вселенная остыла раньше) — сбережённое всё равно уходит дальше, но без бонуса уровня
@@ -2093,9 +2094,38 @@ const Particles = {
     return bd >= HZ_R * 3 ? best : null;
   },
   // Новое понятие впервые на поле — пауза: стоп-кадр с пятном на нём и объяснением (раз за всю игру — Known в Spot).
-  // Не поверх ленты или другого стоп-кадра и не в итогах — подождёт следующего кадра
-  /** @param {HotZone} z @param {string} t @param {string} sub */
-  explain(z, t, sub) { if (!Cine.on && !Spot.on && !this.advanced && !this.epDone) Spot.show(z, t, sub, 8, z.r); },
+  // Не поверх ленты или другого стоп-кадра, не в итогах, не до ленты главы эпохи и не посреди зажатия
+  // (клик «дальше» отпустил бы удар) — подождёт следующего кадра. true — показано
+  /** @param {{ x: number, y: number, r: number }} z @param {string} t @param {string} sub */
+  explain(z, t, sub) {
+    if (Cine.on || Spot.on || this.advanced || this.epDone || this.school || this.holding || this.focus || (this.ep && this.chap < 6 + this.ep)) return false;
+    Spot.show(z, t, sub, 8, z.r); return Spot.on;
+  },
+  // Остальные понятия поля (горячие области и вихри — в tickHz / tickCz): по одному, первое в кадре.
+  // Аннигиляция (эпохи 1–3), масса — это вес (после H), вершина распада (эпоха 3), щит и ядро, волна антивещества,
+  // глюон-перекраска (эпоха 4)
+  /** @param {number} dt */
+  tickExplain(dt) {
+    const A = this.annAt; if (A && (A.t -= dt) < 0) this.annAt = null;
+    const seen = (/** @type {{ x: number, y: number }} */ o) => onScreen(...W2S(o.x, o.y), -20), tap = isTouch() ? 'нажать ◉' : 'кликнуть';
+    const at = (/** @type {{ x: number, y: number }} */ o, r = .6) => ({ x: o.x, y: o.y, r });
+    if (this.annAt && this.explain(this.annAt, 'Аннигиляция', 'частица встретила свою античастицу:\nобе исчезли — снова стали квантами.\nВещество и антивещество гасят друг друга')) this.annAt = null;
+    if (this.ep === 1 && Codex.has('H') && this.hig >= 1) {
+      const o = this.p.find(o => !o.dead && !o.cap && !this.isQ(o) && this.grabbable(o) && o.born > .5 && seen(o));
+      if (o) this.explain(at(o), 'Масса — это вес', 'поле Хиггса дало веществу массу:\nтяжёлое тянется медленно — удержи.\nЧастица + античастица в поле:\nотпусти в золотой полосе — родится Z');
+    }
+    if (this.ep === 2) {
+      const tr = this.tracks.find(tr => tr.parent && this.t - tr.t < tr.life * .7 && seen(tr));
+      if (tr) this.explain(at(tr, .7), 'Вершина распада', `тяжёлое прожило миг и распалось:\nиз вершины разлетелись осколки.\nПока горит золотом — навести круг\nи ${tap}: снимок распада`);
+    }
+    if (this.ep === 3) {
+      if (!this.learn.shield) this.explain({ x: P.x, y: P.y, r: this.coreR() }, 'Щит и ядро', `${isTouch() ? 'держи ◉' : 'зажми'} — щит тянет кварки в ядро\nи отталкивает антикварки.\nТри цвета R·G·B в ядре — тройка:\nбудущий протон или нейтрон`);
+      const w = this.p.find(o => !o.dead && o.wave && o.anti && seen(o));
+      if (w) this.explain(at(w), 'Волна антивещества', 'антикварки летят к ядру:\nкаждый съест кварк своего аромата.\nВстреть их щитом и отпусти рядом —\nударная волна отбросит');
+      const g = this.stock >= 2 && this.p.find(o => !o.dead && o.sp === 'g' && this.helpGlu(o) && seen(o));
+      if (g) this.explain(at(g), 'Глюон перекрашивает', 'у глюона цвет и антицвет:\nв ядре он меняет цвет кварка.\nГлюон в золотом кольце достроит\nтройку R·G·B — зажми рядом');
+    }
+  },
   coreR() { return Math.min(this.hr(), CORE_R); },
   // Волна антивещества: предупреждение (стрелка и дуга с той стороны), потом 4–8 антикварков летят на детектор.
   // Ни один не добрался до ядра — волна отбита (+5 ✦).

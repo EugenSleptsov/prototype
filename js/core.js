@@ -291,7 +291,7 @@ const Spot = {
   /** @param {{ x: number, y: number }} o — цель в мире @param {string} txt @param {string} sub @param {number} [dur] @param {number} [r] радиус пятна в мире (0 — обычное) */
   show(o, txt, sub, dur = 2.8, r = 0) { if (!Known.first('spot:' + txt.replace(/\d+/g, '#'))) return; this.on = true; this.t = 0; this.dur = dur; this.o = o; this.txt = txt; this.sub = sub; this.r = r; byId('card').style.opacity = '0'; }, // карточка открытия поверх холста — не мешает
   /** время стоит, пока true @param {number} dt */
-  tick(dt) { if (!this.on) return false; if ((this.t += dt) >= this.dur) this.end(); return this.on; },
+  tick(dt) { if (!this.on) return false; if (!Cine.on && (this.t += dt) >= this.dur) this.end(); return this.on; }, // под лентой не тратится: покажется, когда она сойдёт
   skip() { if (this.on && this.t > .5) this.end(); },
   end() { if (!this.on) return; this.on = false; this.o = null; G.slowT = Math.max(G.slowT || 0, 1); },
   draw() {
@@ -305,7 +305,9 @@ const Spot = {
     ring(x, y, R + 4 * Math.sin(this.t * 6), SPOT_C, .9 * a, 2.5);
     ring(x, y, R + 30 * p, SPOT_C, .5 * a * (1 - p), 2);
     // строка — над целью (у верха экрана — под ней), стрелка от строки к цели «кивает»
-    const up = y > G.H * .35, ty = clamp(up ? y - R - 96 - ex : y + R + 96, 60, G.H - 80 - ex), tx = clamp(x, 160, G.W - 160);
+    // не под панелью задания: сверху места нет — строка под целью
+    const lo = Math.max(60, G.T - (G.taskAt ?? -9) < .3 ? G.taskY + 30 : 0), hi = G.H - 80 - ex;
+    const up = y > G.H * .35 && !(y - R - 96 - ex < lo && y + R + 96 <= hi), ty = clamp(up ? y - R - 96 - ex : y + R + 96, lo, hi), tx = clamp(x, 160, G.W - 160);
     const bob = 6 * Math.sin(this.t * 7), ay0 = up ? ty + 30 + ex : ty - 30, ay1 = up ? y - R - 10 - bob : y + R + 10 + bob;
     const an = Math.atan2(ay1 - ay0, x - tx);
     line(tx, ay0, x, ay1, SPOT_C, a, 3.5);

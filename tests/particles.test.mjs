@@ -142,6 +142,31 @@ test('новое понятие — пауза и объяснение: перв
   assert.match(g.ev('Spot.sub'), /рождаются глюоны/);
 });
 
+test('новое понятие — пауза и объяснение: аннигиляция, масса, вершина распада, щит и ядро, волна антивещества, перекраска — по одному, не посреди зажатия и не до ленты главы', () => {
+  const g = loadGame();
+  g.ev(PREP.start); g.ev(PREP.pump()); g.ev('Cine.clear(); Spot.end()');
+  const ex = js => g.ev(`(() => { const S = G.stage; Spot.end(); Cine.clear(); ${js}; S.tickExplain(1 / 60); return Spot.on ? Spot.txt : null; })()`);
+  // эпоха 1: частица и античастица встретились в кадре — посреди зажатия пауза ждёт
+  g.ev(`(() => { const S = G.stage; S.chap = 3; const a = S.mk('e', false, P.x + .4, P.y, 0, 1), b = S.mk('e', true, P.x + .5, P.y, 0, 1); S.annihilate(a, b, true); })()`);
+  assert.equal(ex('S.holding = true'), null, 'посреди зажатия — без паузы (клик «дальше» отпустил бы удар)');
+  assert.equal(ex('S.holding = false; S.focus = null'), 'Аннигиляция');
+  assert.match(g.ev('Spot.sub'), /античастиц/);
+  // эпоха 2, после H: вещество с массой в кадре; до ленты главы 7 — ждёт
+  const e2 = `S.ep = 1; S.hig = 1; S.epDone = false; Codex.see('H'); S.p.filter(o => !o.dead && !S.isQ(o)).forEach(o => o.dead = true); const o = S.mk('u', false, P.x + 1, P.y, 0, 1); o.born = 1`;
+  assert.equal(ex(e2 + '; S.chap = 6'), null, 'не до ленты главы эпохи');
+  assert.equal(ex(e2 + '; S.chap = 7'), 'Масса — это вес');
+  assert.match(g.ev('Spot.sub'), /золотой полосе/);
+  // эпоха 3: вершина распада в кадре
+  assert.equal(ex(`S.ep = 2; S.chap = 8; S.tracks = []; const b = S.mk('b', false, P.x + 1, P.y, 0, 1); S.event([S.mk('c', false, P.x + 1, P.y, 0, 1)], P.x + 1, P.y, b)`), 'Вершина распада');
+  // эпоха 4: щит и ядро — сразу после ленты; волна; глюон, который достроит тройку
+  assert.equal(ex('S.ep = 3; S.chap = 9; S.learn.shield = false'), 'Щит и ядро');
+  assert.ok(g.ev('Spot.r') >= g.ev('G.stage.coreR()') - 1e-9, 'пятно — на ядре');
+  assert.equal(ex(`S.learn.shield = true; const w = S.mk('u', true, P.x + 1.5, P.y, Math.PI, .1); w.wave = true`), 'Волна антивещества');
+  assert.equal(ex(`S.p.forEach(o => { if (o.wave) o.dead = true; }); S.stock = 2; S.stockQ = [{ fl: 'u', col: 0 }, { fl: 'd', col: 0 }]; const q = S.mk('g', false, P.x + 1.2, P.y, 0, 1); q.col = 1; q.col2 = 0`), 'Глюон перекрашивает');
+  // каждое — раз за игру
+  assert.equal(ex('S.learn.shield = false'), null, 'во второй раз — без паузы');
+});
+
 test('поле включается, только когда свой свет измерен', () => {
   const g = loadGame();
   g.ev(PREP.start); g.ev(PREP.pump());
