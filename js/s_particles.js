@@ -2391,7 +2391,8 @@ const Particles = {
   // эпоха 4: сколько секунд Вселенной осталось остывать до конца аннигиляции (выполнил цель — догорает вчетверо быстрее)
   coolLeft() { return this.ep === 3 && this.T > T_END4 ? EPOCHS[3].tau / (this.epDone ? 4 : 1) * Math.log(this.T / T_END4) : 0; },
   checkGoals() {
-    if (this.epDone || !this.steps().every(g => g.d)) return;
+    // шаги школы жестов — не задание эпохи: пройденная школа засчитывала эпоху 1, и после вспышки сразу начинался Хиггс (глава 7)
+    if (this.epDone || this.school || !this.steps().every(g => g.d)) return;
     this.epDone = true; this.epGap = this.ep < 3 && !Known.has('chap:' + (7 + this.ep)) ? GAP_NEW : GAP; this.kn += 15; this.doneAt = this.epClock;
     this.release(); this.holding = false;
     if (this.ep < EPOCHS.length - 1) { this.tickStars(true); this.showResult(); }
