@@ -259,7 +259,7 @@ test('бильярд: от края плазмы шар отскакивает; 
   assert.equal(g.ev('G.stage.st.frozen'), 0);
 });
 
-test('приток плазмы: после первого бариона — в лавке, повторяемый; по 5 кварков каждого цвета, цена растёт', () => {
+test('приток плазмы: после первого бариона — в лавке, повторяемый; по 2 кварка каждого цвета (было 5), цена выше и растёт', () => {
   const g = hadrons();
   assert.ok(!g.ev('G.stage.shopItems().some(x => x.k === "gen")'), 'до первого бариона нет');
   g.ev('G.stage.handN = 1; G.stage.kn += 100');
@@ -268,17 +268,17 @@ test('приток плазмы: после первого бариона — в
   assert.ok(i >= 0 && it[i].opt, 'не для задания — по желанию');
   const n0 = g.ev('G.stage.o.length'), q0 = g.ev('G.stage.Q0'), c0 = it[i].c, sp = g.ev('G.stage.spent');
   g.ev(`G.stage.buy(${i})`);
-  assert.equal(g.ev('G.stage.o.length'), n0 + 15);
-  assert.equal(g.ev('G.stage.Q0'), q0 + 15);
+  assert.equal(g.ev('G.stage.o.length'), n0 + 6);
+  assert.equal(g.ev('G.stage.Q0'), q0 + 6);
   assert.equal(g.ev('G.stage.spent') - sp, c0);
-  const add = g.ev(`G.stage.o.slice(-15).map(o => [o.kind, o.m[0].col, Math.hypot(o.x - G.stage.C.x, o.y - G.stage.C.y) < G.stage.hotR()])`);
-  assert.equal(add.map(a => a[1]).sort().join(), '0,0,0,0,0,1,1,1,1,1,2,2,2,2,2');
+  const add = g.ev(`G.stage.o.slice(-6).map(o => [o.kind, o.m[0].col, Math.hypot(o.x - G.stage.C.x, o.y - G.stage.C.y) < G.stage.hotR()])`);
+  assert.equal(add.map(a => a[1]).sort().join(), '0,0,1,1,2,2');
   assert.ok(add.every(a => a[0] === 'q' && a[2]), 'кварки — в горячем диске');
   const c1 = g.ev('G.stage.shopItems().find(x => x.k === "gen").c');
-  assert.equal(c0, 8); assert.equal(c1, 12);
+  assert.equal(c0, 12); assert.equal(c1, 17);
   g.ev(`G.stage.buy(G.stage.shopItems().findIndex(x => x.k === 'gen'))`);
   assert.equal(g.ev('G.stage.st.gen'), 2);
-  assert.equal(g.ev('[2, 3, 4, 5, 6].map(k => (G.stage.st.gen = k, G.stage.genCost())).join()'), '18,26,36,48,62', 'квадратично');
+  assert.equal(g.ev('[2, 3, 4, 5, 6].map(k => (G.stage.st.gen = k, G.stage.genCost())).join()'), '24,33,44,57,72', 'квадратично');
   g.ev('G.stage.st.gen = 2');
   g.ev('G.stage.kn = G.stage.spent');
   const n2 = g.ev('G.stage.o.length');

@@ -188,6 +188,9 @@ const CORE_R = 1.0, WAVE_CD = 8, WAVE_WARN = 2.4, WAVE_MAX_T = 10, G_MAX4 = 4;
 // скорость волны антивещества: от края кадра до ядра ~4 с (учебная — вдвое медленнее); щит: радиус — поле ×1,3 (держать и удар — один круг),
 // разряжается за 4 с удержания, заряжается за 5 с без него; меньше SH_MIN — не поднимается
 const WAVE_V = 2.3, WAVE_V_EDU = 1.1, SH_K = 1.3, SH_MIN = .2;
+// перезарядка щита зависит от игры, но мягко: каждая тройка R·G·B в ядре — +SH_TRIO (до SH_TRIO_N троек, +20 %);
+// удар, отбросивший SH_GOOD и больше, возвращает SH_BACK заряда (дождаться, пока у стены соберутся, — выгоднее)
+const SH_TRIO = .05, SH_TRIO_N = 4, SH_GOOD = 3, SH_BACK = .12;
 // Подсказки без обучения (эпоха 1): после COACH_IDLE с без полезного действия призрачный курсор сам показывает
 // следующий жест на ближайшем подходящем объекте (COACH_T — длина показа). Освоил жест — этот показ больше не нужен.
 const COACH_IDLE = 5, COACH_T = 2.8;
@@ -351,7 +354,7 @@ const Particles = {
     this.learn = {}; this.coach = { idle: 0, t: 0, kind: null }; this.spotted = new Set(); this.missT = -99; this.en = 0; this.enFx = 0; this.shotCd = 0; this.shotFx = 0; this.tracks = []; this.floats = []; this.seenN = {}; this.ejected = 0;
     this.bg = [44, 34, 14];
     this.ep = 0; this.epDone = false; this.epGap = 0; this.bannerFor = -1; this.banner = 99; this.epT = 0;
-    this.pairs = 0; this.tries = {}; this.decSeen = new Set(); this._pk = null; this.starsShown = false; this.lepDone = false; this.hot = []; this.hotCd = 3; this.hz = []; this.hzCd = 2; this.hzSeen = false; this.annAt = null; this.cz = []; this.czCd = 2; this.czSeen = false; this.stock = 0; this.stockQ = []; this.udRes = []; this.eRes = 0; this.forgedQ = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1; this.failed = false;
+    this.pairs = 0; this.tries = {}; this.decSeen = new Set(); this._pk = null; this.starsShown = false; this.lepDone = false; this.hot = []; this.hotCd = 3; this.hz = []; this.hzCd = 2; this.hzSeen = false; this.annAt = null; this.trioN = 0; this.cz = []; this.czCd = 2; this.czSeen = false; this.stock = 0; this.stockQ = []; this.udRes = []; this.eRes = 0; this.forgedQ = []; this.udT = 0; this.tAt = -99; this.soupCd = 0; this.handoff = null; this.stockOut = false; this.finale = -1; this.failed = false;
     Codex.run = new Set(); Codex.dirty = true;
     // цели этого забега: что открыть в эпохе 1 и чьи распады снять в эпохе 3
     this.need0 = [...NEED0];
@@ -1108,10 +1111,17 @@ const Particles = {
   // до следующего нажатия; поднять щит можно, только если заряда хватает (SH_MIN)
   shR() { return this.fr() * SH_K; },
   pulseR() { return this.shR() * 1.1; }, // удар достаёт и тех, кто упёрся в край щита
+  // скорость перезарядки: ×(1 + 0,05 · троек в ядре), не больше +20 %
+  shRate() { return 1 + SH_TRIO * Math.min(SH_TRIO_N, this.trioN); },
   /** @param {number} dt */
   tickShield(dt) {
+    if (this.ep === 3) { // тройка сложилась — щит заряжается быстрее (развалилась — медленнее)
+      const n = Math.min(...this.colCnt());
+      if (n > this.trioN && n <= SH_TRIO_N && !this.advanced) this.float(P.x, P.y + this.hr() + .5, `R·G·B: щит заряжается быстрее · +${Math.round(SH_TRIO * n * 100)} %`, SHIELD_C, 13, -.3);
+      this.trioN = n;
+    }
     const f = this.ep === 3 ? this.focus : null;
-    if (!f) { this.shield = Math.min(1, this.shield + dt / 5); return; }
+    if (!f) { this.shield = Math.min(1, this.shield + dt / 5 * this.shRate()); return; }
     if (f.t === 0 && this.shield < SH_MIN) f.off = true; // мало заряда — щит не поднялся
     if (f.off || this.shield <= 0) return;
     this.shield = Math.max(0, this.shield - dt / 4);
@@ -2174,9 +2184,9 @@ const Particles = {
       if (d > R || d < 1e-3) continue;
       o.dx = dx / d; o.dy = dy / d; o.v = 4.5; o.rep = 1.8; n++;
     }
-    this.shield = Math.max(0, this.shield - .2);
+    this.shield = Math.max(0, this.shield - .2 + (n >= SH_GOOD ? SH_BACK : 0)); // точный удар — часть заряда возвращается
     fxRing(P.x, P.y, this.hr() * .5, SHIELD_C, R, .45); Sfx.play('throw');
-    if (n) { this.learn.pulse = true; this.float(P.x, P.y - this.hr() - .3, `удар щита ×${n}`, SHIELD_C, 15); }
+    if (n) { this.learn.pulse = true; this.float(P.x, P.y - this.hr() - .3, `удар щита ×${n}` + (n >= SH_GOOD ? ` · заряд +${Math.round(SH_BACK * 100)} %` : ''), SHIELD_C, 15); }
   },
   // Эпоха 4: из-за края приходят остатки — пары и редкие лишние кварки вещества
   /** @param {number} dt */

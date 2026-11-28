@@ -103,3 +103,15 @@ test('глава 9: щит понятен — один круг держит и 
   assert.equal(r.off, true); assert.ok(r.sh >= .1 - 1e-9, 'не тратится'); assert.ok(r.dead || r.d < r.core, JSON.stringify(r));
   g.ev('mouse.down = false; update(1 / 60)');
 });
+
+test('глава 9: перезарядка щита зависит от игры, но мягко — тройки в ядре до +20 %, точный удар (3+) возвращает заряд', () => {
+  const g = toEpoch(3);
+  const rate = n => g.ev(`(() => { const S = G.stage; S.stockQ = Array.from({ length: ${n} * 3 }, (_, i) => ({ fl: 'u', col: i % 3 })); S.stock = ${n} * 3; S.focus = null; S.shield = 0; S.tickShield(1); return S.shield; })()`);
+  const r0 = rate(0), r2 = rate(2), r9 = rate(9);
+  assert.ok(Math.abs(r0 - .2) < 1e-9, `без троек — 5 с до полного: ${r0}`);
+  assert.ok(Math.abs(r2 / r0 - 1.1) < 1e-9, `2 тройки — +10 %: ${r2 / r0}`);
+  assert.ok(Math.abs(r9 / r0 - 1.2) < 1e-9, `потолок +20 %: ${r9 / r0}`);
+  const pulse = n => g.ev(`(() => { const S = G.stage; S.p.forEach(o => { if (o.anti) o.dead = true; }); for (let k = 0; k < ${n}; k++) { const o = S.mk('u', true, P.x + Math.cos(k) * 2, P.y + Math.sin(k) * 2, 0, .1); o.born = 1; } S.shield = .6; S.shieldPulse(); return S.shield; })()`);
+  assert.ok(Math.abs(pulse(1) - .4) < 1e-9, 'удар по одному — −20 %');
+  assert.ok(Math.abs(pulse(3) - .52) < 1e-9, 'точный удар по трём — −8 %');
+});
